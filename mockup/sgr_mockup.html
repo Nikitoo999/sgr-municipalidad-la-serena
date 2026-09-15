@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SGR · Municipalidad de La Serena — Mockup</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<style>
+
+/* SGR - Sistema de Gestión de Resultados · Municipalidad de La Serena */
+:root {
+  --ink: #20241f;
+  --ink-soft: #4a5049;
+  --paper: #f6f3ea;
+  --sand: #eae3d1;
+  --sand-line: #d9d0b8;
+  --brick: #8a2e2e;
+  --brick-dark: #6e2323;
+  --brick-tint: #f4e4df;
+  --ocean: #1e5b63;
+  --ocean-tint: #e2eeee;
+  --sem-green: #3f7d4a;
+  --sem-green-tint: #e3efe2;
+  --sem-amber: #b9812a;
+  --sem-amber-tint: #f5ecd8;
+  --sem-red: #b23b3b;
+  --sem-red-tint: #f6e2df;
+  --radius-s: 4px;
+  --radius-m: 8px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, .serif { font-family: 'Fraunces', Georgia, serif; }
+button { font-family: inherit; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+::selection { background: var(--brick-tint); }
+
+/* Utility */
+.hidden { display: none !important; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 20px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot.green { background: var(--sem-green); }
+.dot.amber { background: var(--sem-amber); }
+.dot.red { background: var(--sem-red); }
+.badge.green { background: var(--sem-green-tint); color: var(--sem-green); }
+.badge.amber { background: var(--sem-amber-tint); color: var(--sem-amber); }
+.badge.red { background: var(--sem-red-tint); color: var(--sem-red); }
+.badge.ocean-badge { background: var(--ocean-tint); color: var(--ocean); }
+
+/* Login */
+#login-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+}
+@media (max-width: 820px) {
+  #login-screen { grid-template-columns: 1fr; }
+  .login-visual { display: none; }
+}
+.login-visual {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.08), transparent 40%),
+    linear-gradient(165deg, var(--brick) 0%, var(--brick-dark) 78%);
+  color: #f6ece7;
+  padding: 56px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+.login-visual::after {
+  content: "";
+  position: absolute; right: -120px; bottom: -160px;
+  width: 420px; height: 420px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.14);
+}
+.login-visual::before {
+  content: "";
+  position: absolute; right: -40px; bottom: -260px;
+  width: 420px; height: 420px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.crest {
+  width: 46px; height: 46px; border: 1.5px solid rgba(246,236,231,0.75);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px;
+}
+.login-visual .brand-row { display: flex; align-items: center; gap: 14px; }
+.login-visual .brand-name { font-size: 13px; letter-spacing: .02em; opacity: .8; line-height: 1.5; }
+.login-visual .brand-name strong { display: block; font-size: 15px; color: #fff; }
+.login-visual h1 {
+  font-size: 44px; line-height: 1.08; font-weight: 500; max-width: 9.5ch; margin: 0 0 18px;
+  color: #fff;
+}
+.login-visual p.lede { max-width: 34ch; font-size: 15.5px; line-height: 1.6; color: #efdcd6; margin: 0; }
+.login-visual .foot-note { font-size: 12.5px; color: #e4c9c1; opacity: .85; position: relative; z-index: 1; }
+
+.login-form-wrap {
+  display: flex; align-items: center; justify-content: center; padding: 40px;
+}
+.login-form { width: 100%; max-width: 360px; }
+.login-form .eyebrow { color: var(--ocean); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.login-form h2 { font-size: 27px; font-weight: 500; margin: 0 0 6px; }
+.login-form p.sub { color: var(--ink-soft); font-size: 14.5px; margin: 0 0 30px; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--ink); }
+.field input, .field select {
+  width: 100%; padding: 11px 12px; border: 1px solid var(--sand-line);
+  border-radius: var(--radius-s); font-size: 14.5px; background: #fff; color: var(--ink);
+}
+.field input:focus, .field select:focus, button:focus-visible, .task-card:focus-visible {
+  outline: 2px solid var(--ocean); outline-offset: 2px;
+}
+.btn-primary {
+  width: 100%; background: var(--brick); color: #fff; border: none;
+  padding: 12px; border-radius: var(--radius-s); font-size: 15px; font-weight: 600;
+  margin-top: 6px; transition: background .15s ease;
+}
+.btn-primary:hover { background: var(--brick-dark); }
+.login-role-hint {
+  margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--sand-line);
+  font-size: 12.5px; color: var(--ink-soft); line-height: 1.6;
+}
+
+/* App Shell */
+#app-shell { display: grid; min-height: 100vh; grid-template-columns: 230px 1fr; }
+@media (max-width: 900px) {
+  #app-shell { grid-template-columns: 1fr; }
+  .rail { display: none; }
+}
+
+.rail {
+  background: var(--ink); color: #e9e6df;
+  padding: 22px 16px 20px;
+  display: flex; flex-direction: column;
+  height: 100vh; position: sticky; top: 0;
+  overflow-y: auto;
+}
+.tab-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.cat-panel { display: none; }
+.cat-panel.active { display: block; }
+.sum-check { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.form-inline {
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+  background: #fff; border: 1px solid var(--sand-line); border-radius: var(--radius-m);
+  padding: 16px 18px; margin-bottom: 20px;
+}
+.form-inline .field { margin-bottom: 0; min-width: 160px; flex: 1; }
+.form-inline .btn-primary { width: auto; padding: 11px 20px; margin-top: 0; white-space: nowrap; }
+.btn-ghost {
+  background: #fff; border: 1px solid var(--sand-line); color: var(--ink);
+  padding: 8px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.btn-ghost:hover { background: var(--sand); }
+.btn-danger-ghost {
+  background: #fff; border: 1px solid var(--sem-red); color: var(--sem-red);
+  padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600;
+}
+.btn-ok-ghost {
+  background: #fff; border: 1px solid var(--sem-green); color: var(--sem-green);
+  padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600;
+}
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.rail-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 30px; padding: 0 4px; }
+.rail-brand .crest { width: 32px; height: 32px; font-size: 12px; border-color: rgba(233,230,223,0.5); }
+.rail-brand div { font-size: 12px; line-height: 1.35; opacity: .75; }
+.rail-brand strong { display: block; font-size: 13px; color: #fff; font-weight: 600; }
+
+.nav-group { margin-bottom: 4px; }
+.nav-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .45;
+  padding: 0 10px; margin: 18px 0 8px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-s);
+  font-size: 14px; color: #cfcbc0; margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left;
+}
+.nav-item svg { opacity: .8; flex-shrink: 0; }
+.nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.nav-item.active { background: var(--brick); color: #fff; }
+.rail-foot { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+.rail-user { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--brick); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0;
+}
+.rail-user div strong { display: block; color: #fff; font-size: 13px; }
+.rail-user div span { opacity: .6; }
+
+.main { padding: 26px 34px 60px; overflow-x: hidden; }
+.topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 26px; flex-wrap: wrap; gap: 14px; }
+.topbar h1 { font-size: 25px; font-weight: 500; margin: 0 0 4px; }
+.topbar p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+.topbar-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.select-pill {
+  font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 20px;
+  border: 1px solid var(--sand-line); background: #fff; color: var(--ink);
+}
+.quarter-chip {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600;
+  background: var(--ocean-tint); color: var(--ocean); padding: 8px 13px; border-radius: 20px;
+}
+
+/* KPI cards */
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+@media (max-width: 1000px) { .kpi-row { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 550px) { .kpi-row { grid-template-columns: 1fr; } }
+.kpi-card { background: #fff; border: 1px solid var(--sand-line); border-radius: var(--radius-m); padding: 18px 20px; }
+.kpi-card .kpi-label {
+  font-size: 12.5px; color: var(--ink-soft); font-weight: 600; margin-bottom: 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.kpi-card .kpi-value { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 500; line-height: 1; }
+.kpi-card .kpi-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; }
+
+/* Section headers */
+.section-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 14px; flex-wrap: wrap; gap: 8px; }
+.section-head h2 { font-size: 18px; font-weight: 500; margin: 0; }
+.section-head a.link { font-size: 13px; color: var(--ocean); font-weight: 600; text-decoration: none; }
+
+/* Delegation grid */
+.deleg-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 32px; }
+@media (max-width: 1100px) { .deleg-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 680px) { .deleg-grid { grid-template-columns: 1fr; } }
+.deleg-card {
+  background: #fff; border: 1px solid var(--sand-line); border-radius: var(--radius-m);
+  padding: 16px 18px; position: relative;
+}
+.deleg-card .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.deleg-card h3 { font-size: 15.5px; font-weight: 600; margin: 0 0 3px; font-family: 'Inter'; }
+.deleg-card .encargado { font-size: 12.5px; color: var(--ink-soft); }
+.bar-track { height: 6px; background: var(--sand); border-radius: 4px; overflow: hidden; margin: 12px 0 8px; }
+.bar-fill { height: 100%; border-radius: 4px; }
+.bar-fill.green { background: var(--sem-green); }
+.bar-fill.amber { background: var(--sem-amber); }
+.bar-fill.red { background: var(--sem-red); }
+.deleg-card .foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); }
+
+/* Feed */
+.feed { background: #fff; border: 1px solid var(--sand-line); border-radius: var(--radius-m); overflow: hidden; }
+.feed-item { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--sand-line); align-items: flex-start; }
+.feed-item:last-child { border-bottom: none; }
+.feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+.feed-item .txt { font-size: 13.5px; line-height: 1.5; }
+.feed-item .txt strong { font-weight: 600; }
+.feed-item .time { font-size: 12px; color: var(--ink-soft); white-space: nowrap; margin-left: auto; padding-left: 14px; }
+
+/* Kanban */
+.kanban-toolbar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+.kanban-toolbar input[type=search] {
+  padding: 9px 12px; border: 1px solid var(--sand-line); border-radius: 20px; font-size: 13.5px;
+  background: #fff; min-width: 220px;
+}
+.filter-chip {
+  font-size: 12.5px; font-weight: 600; padding: 7px 12px; border-radius: 20px; border: 1px solid var(--sand-line);
+  background: #fff; color: var(--ink-soft); cursor: pointer;
+}
+.filter-chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.btn-add {
+  margin-left: auto; background: var(--brick); color: #fff; border: none; padding: 9px 16px;
+  border-radius: 20px; font-size: 13.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-add:hover { background: var(--brick-dark); }
+
+.kanban {
+  display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px;
+  overflow-x: auto; padding-bottom: 6px;
+}
+.kcol { background: var(--sand); border-radius: var(--radius-m); padding: 12px; min-height: 120px; }
+.kcol-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 6px 12px; }
+.kcol-head h4 {
+  font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700;
+  color: var(--ink-soft); margin: 0;
+}
+.kcol-count { font-size: 11.5px; background: #fff; border-radius: 10px; padding: 1px 8px; color: var(--ink-soft); font-weight: 600; }
+.task-card {
+  background: #fff; border: 1px solid var(--sand-line); border-radius: var(--radius-s);
+  padding: 12px 13px; margin-bottom: 10px; cursor: pointer; transition: box-shadow .12s ease, transform .12s ease;
+}
+.task-card:hover { box-shadow: 0 2px 10px rgba(32,36,31,0.08); transform: translateY(-1px); }
+.task-card .code { font-size: 11px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; letter-spacing: .02em; }
+.task-card .title { font-size: 13.5px; font-weight: 600; line-height: 1.4; margin-bottom: 9px; }
+.task-card .meta { display: flex; justify-content: space-between; align-items: center; }
+.task-card .deleg-tag {
+  font-size: 11px; background: var(--ocean-tint); color: var(--ocean);
+  padding: 2px 8px; border-radius: 10px; font-weight: 600;
+}
+.task-card .avatar { width: 22px; height: 22px; font-size: 10px; }
+.task-card .card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.task-card .due { font-size: 11px; color: var(--ink-soft); display: flex; align-items: center; gap: 4px; }
+.task-card .due.late { color: var(--sem-red); font-weight: 600; }
+.task-card .evidence { font-size: 11px; color: var(--ink-soft); display: flex; align-items: center; gap: 4px; }
+
+/* Tables */
+.deleg-table-wrap { background: #fff; border: 1px solid var(--sand-line); border-radius: var(--radius-m); overflow: hidden; }
+table.deleg-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.deleg-table th {
+  text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-soft); font-weight: 700; padding: 12px 16px; border-bottom: 1px solid var(--sand-line); background: var(--sand);
+}
+table.deleg-table td { padding: 13px 16px; border-bottom: 1px solid var(--sand-line); vertical-align: middle; }
+table.deleg-table tr:last-child td { border-bottom: none; }
+table.deleg-table tr:hover td { background: #fbfaf6; }
+.row-name { display: flex; align-items: center; gap: 10px; }
+.row-name .avatar { width: 30px; height: 30px; font-size: 12px; background: var(--ocean); }
+.row-name strong { display: block; font-size: 13.5px; font-weight: 600; }
+.row-name span { font-size: 12px; color: var(--ink-soft); }
+.mini-bar-track {
+  width: 90px; height: 5px; background: var(--sand); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px;
+}
+.mini-bar-fill { height: 100%; border-radius: 3px; }
+
+/* Modals & Overlays */
+.ov {
+  display: none; position: fixed; inset: 0; background: rgba(32,36,31,0.45);
+  align-items: center; justify-content: center; z-index: 50; padding: 20px;
+}
+.ov.active { display: flex; }
+.field-error { color: var(--sem-red); font-size: 12px; margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.field-hint { color: var(--ink-soft); font-size: 12px; margin-top: 5px; }
+.warn-banner {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-s);
+  font-size: 12.5px; line-height: 1.5; margin-bottom: 18px;
+}
+.warn-banner.amber { background: var(--sem-amber-tint); color: #6b4e15; border: 1px solid var(--sem-amber); }
+.warn-banner.red { background: var(--sem-red-tint); color: #7a2626; border: 1px solid var(--sem-red); }
+.warn-banner.green { background: var(--sem-green-tint); color: #23542c; border: 1px solid var(--sem-green); }
+.empty-state {
+  background: #fff; border: 1px dashed var(--sand-line); border-radius: var(--radius-m);
+  padding: 30px 20px; text-align: center; color: var(--ink-soft); font-size: 13px;
+}
+.example-tag {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700;
+  color: var(--ink-soft); margin-bottom: 8px;
+}
+textarea.field-textarea {
+  width: 100%; padding: 11px 12px; border: 1px solid var(--sand-line);
+  border-radius: var(--radius-s); font-size: 14.5px; background: #fff; color: var(--ink); font-family: inherit;
+  resize: vertical; min-height: 80px;
+}
+.modal-actions { display: flex; gap: 10px; margin-top: 14px; }
+.modal-actions .btn-primary { margin-top: 0; }
+.modal-actions .btn-ghost { padding: 12px 18px; }
+.modal {
+  background: #fff; border-radius: 10px; max-width: 560px; width: 100%; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25); position: relative;
+}
+.modal-head {
+  padding: 22px 26px 16px; border-bottom: 1px solid var(--sand-line);
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.modal-head .code { font-size: 12px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
+.modal-head h3 { font-size: 19px; font-weight: 600; margin: 0; font-family: 'Inter'; max-width: 38ch; }
+.modal-close { background: none; border: none; font-size: 20px; color: var(--ink-soft); line-height: 1; padding: 4px; cursor: pointer; }
+.modal-body { padding: 20px 26px; }
+.modal-row { display: flex; gap: 26px; margin-bottom: 18px; flex-wrap: wrap; }
+.modal-field { flex: 1; min-width: 140px; }
+.modal-field .lbl {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-soft);
+  font-weight: 700; margin-bottom: 5px;
+}
+.modal-field .val { font-size: 13.5px; font-weight: 500; }
+.desc-block { font-size: 13.5px; line-height: 1.6; color: var(--ink); margin-bottom: 20px; }
+.evidence-block {
+  border: 1px dashed var(--sand-line); border-radius: var(--radius-s); padding: 14px;
+  display: flex; gap: 12px; align-items: center; margin-bottom: 20px; background: var(--sand);
+}
+.evidence-thumb {
+  width: 52px; height: 52px; border-radius: 6px; background: var(--ocean-tint);
+  display: flex; align-items: center; justify-content: center; color: var(--ocean); flex-shrink: 0;
+}
+.evidence-block .info strong { display: block; font-size: 13px; }
+.evidence-block .info span { font-size: 12px; color: var(--ink-soft); }
+.status-track { display: flex; gap: 6px; margin-bottom: 6px; }
+.status-step {
+  flex: 1; text-align: center; font-size: 11px; font-weight: 600; padding: 8px 4px; border-radius: 6px;
+  background: var(--sand); color: var(--ink-soft);
+}
+.status-step.done { background: var(--sem-green-tint); color: var(--sem-green); }
+.status-step.current { background: var(--brick); color: #fff; }
+
+/* Standalone container */
+.standalone-container {
+  max-width: 640px; margin: 40px auto; padding: 30px;
+  background: #fff; border: 1px solid var(--sand-line); border-radius: var(--radius-m);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+}
+.standalone-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--sand-line);
+}
+.back-link {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ocean); margin-bottom: 16px;
+}
+
+
+/* Optimizado para importación directa en Figma */
+body {
+  min-width: 1280px;
+}
+#app-shell {
+  display: grid !important;
+  min-height: 100vh;
+  grid-template-columns: 240px 1fr;
+  width: 100%;
+}
+.rail {
+  display: flex !important;
+  width: 240px;
+}
+.main {
+  flex: 1;
+}
+
+/* Modal visible en pantalla para captura y diseño en Figma */
+.figma-modal-canvas {
+  min-height: 100vh;
+  background: rgba(32, 36, 31, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+.figma-modal-card {
+  background: #fff;
+  border-radius: 10px;
+  max-width: 540px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  overflow: hidden;
+  border: 1px solid var(--sand-line);
+}
+.figma-alert-canvas {
+  min-height: 100vh;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+.figma-alert-card {
+  background: #fff;
+  border-radius: 10px;
+  max-width: 620px;
+  width: 100%;
+  padding: 30px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  border: 1px solid var(--sand-line);
+}
+
+
+
+.hidden { display: none !important; }
+#app-shell.hidden { display: none !important; }
+#login-screen.hidden { display: none !important; }
+
+</style>
+</head>
+<body>
+<div id="login-screen">
+<div class="login-visual">
+<div class="brand-row">
+<div class="crest">LS</div>
+<div class="brand-name"><strong>Ilustre Municipalidad</strong>de La Serena</div>
+</div>
+<div>
+<h1>Sistema de Gestión de Resultados</h1>
+<p class="lede">Seguimiento de metas, actividades y cumplimiento trimestral para las seis delegaciones municipales.</p>
+</div>
+<div class="foot-note">Avenida del Mar · Centro · La Antena–La Florida · Las Compañías · La Pampa · Rural</div>
+</div>
+<div class="login-form-wrap">
+<form class="login-form" id="login-form" method="GET" onsubmit="return doLogin(event)">
+<div class="eyebrow">Acceso al sistema</div>
+<h2>Inicia sesión</h2>
+<p class="sub">Ingresa con tu cuenta institucional para continuar.</p>
+<div class="field">
+<label for="li-user">Usuario institucional</label>
+<input id="li-user" name="username" placeholder="usuario.institucional" required="" type="text" value="alan.vonkretschmann"/>
+</div>
+<div class="field">
+<label for="li-pass">Contraseña</label>
+<input id="li-pass" name="password" placeholder="••••••••••" required="" type="password" value="password123"/>
+</div>
+<button class="btn-primary" type="submit">Ingresar al Sistema</button>
+<div class="login-role-hint">
+        El sistema muestra distintas vistas según el rol: <strong>Gerencia</strong> ve las seis delegaciones, <strong>Jefatura</strong> gestiona su propia delegación y <strong>Usuario</strong> registra avance en sus tareas asignadas.
+      </div>
+</form>
+</div>
+</div>
+<div id="app-shell" class="hidden">
+<aside class="rail">
+<div class="rail-brand">
+<div class="crest">LS</div>
+<div><strong>SGR</strong>Municipalidad de La Serena</div>
+</div>
+<div class="nav-group"><a class="nav-item" data-view="02_panel_general" href="javascript:void(0)" onclick="showView('02_panel_general');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><rect height="6" rx="1" stroke="currentColor" stroke-width="1.3" width="6" x="1.5" y="1.5"></rect><rect height="9" rx="1" stroke="currentColor" stroke-width="1.3" width="6" x="8.5" y="1.5"></rect><rect height="5" rx="1" stroke="currentColor" stroke-width="1.3" width="6" x="1.5" y="9.5"></rect></svg>Panel general</a>
+<a class="nav-item" data-view="03_tubo_kanban" href="javascript:void(0)" onclick="showView('03_tubo_kanban');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><rect height="12" rx="1" stroke="currentColor" stroke-width="1.3" width="3.2" x="1.5" y="2"></rect><rect height="8" rx="1" stroke="currentColor" stroke-width="1.3" width="3.2" x="6.4" y="2"></rect><rect height="5" rx="1" stroke="currentColor" stroke-width="1.3" width="3.2" x="11.3" y="2"></rect></svg>Tubo de trabajo</a>
+<a class="nav-item" data-view="04_delegaciones" href="javascript:void(0)" onclick="showView('04_delegaciones');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><path d="M8 1.5 14 4.5V8C14 11.5 11.5 13.7 8 14.5C4.5 13.7 2 11.5 2 8V4.5L8 1.5Z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.3"></path></svg>Delegaciones</a>
+<a class="nav-item" data-view="05_agenda_colectiva" href="javascript:void(0)" onclick="showView('05_agenda_colectiva');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><rect height="11.6" rx="1.3" stroke="currentColor" stroke-width="1.3" width="12.6" x="1.7" y="2.7"></rect><path d="M1.7 6H14.3" stroke="currentColor" stroke-width="1.3"></path><path d="M5 1.5V4" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path><path d="M11 1.5V4" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path></svg>Agenda colectiva</a>
+<a class="nav-item" data-view="06_reconocimientos" href="javascript:void(0)" onclick="showView('06_reconocimientos');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><circle cx="8" cy="6" r="4" stroke="currentColor" stroke-width="1.3"></circle><path d="M5.5 9.3 4.5 14.5 8 12.7 11.5 14.5 10.5 9.3" stroke="currentColor" stroke-linejoin="round" stroke-width="1.3"></path></svg>Reconocimientos</a>
+</div>
+<div class="nav-label">Mi trabajo</div>
+<div class="nav-group"><a class="nav-item" data-view="07_mi_tablero" href="javascript:void(0)" onclick="showView('07_mi_tablero');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 4.5V8L10.3 9.6" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path></svg>Mi tablero</a>
+<a class="nav-item" data-view="08_atencion_social" href="javascript:void(0)" onclick="showView('08_atencion_social');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><circle cx="8" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.3"></circle><path d="M3 14C3 10.5 5.2 8.8 8 8.8C10.8 8.8 13 10.5 13 14" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path></svg>Atención social</a>
+</div>
+<div class="nav-label">Supervisión</div>
+<div class="nav-group"><a class="nav-item" data-view="09_planificacion_territorial" href="javascript:void(0)" onclick="showView('09_planificacion_territorial');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><path d="M2 13 6.5 4 9.5 9 14 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3"></path><circle cx="14" cy="3" fill="currentColor" r="1.3"></circle></svg>Planificación territorial</a>
+</div>
+<div class="nav-label">Verificación</div>
+<div class="nav-group"><a class="nav-item" data-view="10_validacion_evidencias" href="javascript:void(0)" onclick="showView('10_validacion_evidencias');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><rect height="12" rx="2" stroke="currentColor" stroke-width="1.3" width="12" x="2" y="2"></rect><path d="M5 8.3 7 10.3 11 5.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3"></path></svg>Validación de evidencias</a>
+</div>
+<div class="nav-label">Consulta</div>
+<div class="nav-group"><a class="nav-item" data-view="11_indicadores" href="javascript:void(0)" onclick="showView('11_indicadores');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><path d="M2 14V2" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path><path d="M2 14H14" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path><rect fill="currentColor" height="4.3" width="2" x="4.3" y="8"></rect><rect fill="currentColor" height="7.3" width="2" x="7.6" y="5"></rect><rect fill="currentColor" height="2.5" width="2" x="10.9" y="9.8"></rect></svg>Indicadores</a>
+<a class="nav-item" data-view="12_cargos_equipos" href="javascript:void(0)" onclick="showView('12_cargos_equipos');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><rect height="8.2" rx="1.3" stroke="currentColor" stroke-width="1.3" width="12.6" x="1.7" y="5.3"></rect><path d="M5.3 5.3V3.8C5.3 3 6 2.3 6.8 2.3H9.2C10 2.3 10.7 3 10.7 3.8V5.3" stroke="currentColor" stroke-width="1.3"></path></svg>Cargos y equipos</a>
+</div>
+<div class="nav-label">Reportes</div>
+<div class="nav-group"><a class="nav-item" data-view="13_informes_exportacion" href="javascript:void(0)" onclick="showView('13_informes_exportacion');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><path d="M2 13.5 5.5 8 8.5 10.5 14 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3"></path></svg>Informes y exportación</a>
+</div>
+<div class="nav-label">Administración</div>
+<div class="nav-group"><a class="nav-item" data-view="14_usuarios_roles" href="javascript:void(0)" onclick="showView('14_usuarios_roles');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><circle cx="6" cy="5.3" r="2.3" stroke="currentColor" stroke-width="1.3"></circle><path d="M1.6 13.5C1.9 10.8 3.7 9.3 6 9.3C8.3 9.3 10.1 10.8 10.4 13.5" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path><path d="M10.5 5.6C11.2 5.9 11.7 6.5 11.9 7.3" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path><path d="M11.4 9.4C13 9.8 14.1 11.2 14.3 13.5" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path></svg>Usuarios y roles</a>
+<a class="nav-item" data-view="15_delegaciones_admin" href="javascript:void(0)" onclick="showView('15_delegaciones_admin');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><path d="M8 1.5 14 4.5V8C14 11.5 11.5 13.7 8 14.5C4.5 13.7 2 11.5 2 8V4.5L8 1.5Z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.3"></path><path d="M5.6 8 7.3 9.6 10.4 6.3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"></path></svg>Delegaciones (admin)</a>
+<a class="nav-item" data-view="16_catalogos" href="javascript:void(0)" onclick="showView('16_catalogos');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><rect height="5.1" rx="1" stroke="currentColor" stroke-width="1.3" width="5.1" x="1.7" y="2.3"></rect><rect height="5.1" rx="1" stroke="currentColor" stroke-width="1.3" width="5.1" x="9.2" y="2.3"></rect><rect height="5.1" rx="1" stroke="currentColor" stroke-width="1.3" width="5.1" x="1.7" y="8.6"></rect><rect height="5.1" rx="1" stroke="currentColor" stroke-width="1.3" width="5.1" x="9.2" y="8.6"></rect></svg>Catálogos</a>
+</div>
+<div class="nav-label">Configuración del sistema</div>
+<div class="nav-group"><a class="nav-item" data-view="17_metas_ponderaciones" href="javascript:void(0)" onclick="showView('17_metas_ponderaciones');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.3"></circle><circle cx="8" cy="8" r="3.3" stroke="currentColor" stroke-width="1.2"></circle><circle cx="8" cy="8" fill="currentColor" r="0.9"></circle></svg>Metas y ponderaciones</a>
+</div>
+<div class="nav-label">Sistema</div>
+<div class="nav-group"><a class="nav-item" data-view="18_auditoria" href="javascript:void(0)" onclick="showView('18_auditoria');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><path d="M8 1.5 14 4.5V8C14 11.5 11.5 13.7 8 14.5C4.5 13.7 2 11.5 2 8V4.5L8 1.5Z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.3"></path><path d="M8 5V8.3L10.2 9.7" stroke="currentColor" stroke-linecap="round" stroke-width="1.2"></path></svg>Auditoría</a>
+<a class="nav-item" data-view="19_alertas" href="javascript:void(0)" onclick="showView('19_alertas');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><path d="M8 2C5.5 2 4.5 4 4.5 6.5V9L3 11.5H13L11.5 9V6.5C11.5 4 10.5 2 8 2Z" stroke="currentColor" stroke-linejoin="round" stroke-width="1.3"></path><path d="M6.3 11.5C6.3 12.6 7 13.4 8 13.4C9 13.4 9.7 12.6 9.7 11.5" stroke="currentColor" stroke-width="1.2"></path></svg>Alertas</a>
+<a class="nav-item" data-view="20_busqueda" href="javascript:void(0)" onclick="showView('20_busqueda');return false;"><svg fill="none" height="16" viewbox="0 0 16 16" width="16"><circle cx="7" cy="7" r="4.7" stroke="currentColor" stroke-width="1.3"></circle><path d="M10.3 10.3 14 14" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path></svg>Buscar</a>
+</div>
+<div class="rail-foot">
+<div class="rail-user">
+<div class="avatar">AV</div>
+<div><strong>Alan Von Kretschmann</strong><span>Jefatura · Delegación Centro</span></div>
+</div>
+<button class="nav-item" onclick="doLogout()" style="margin-top:10px;">Cerrar sesión</button></div>
+</aside>
+<div class="views-wrap">
+<section class="view-section hidden" data-view="02_panel_general">
+<main class="main">
+<div class="topbar">
+<div><h1>Panel general</h1><p>Cumplimiento consolidado de las seis delegaciones</p></div>
+<div class="topbar-controls">
+<div class="quarter-chip">
+<svg fill="none" height="13" viewbox="0 0 16 16" width="13"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 4.5V8L10.3 9.5" stroke="currentColor" stroke-linecap="round" stroke-width="1.3"></path></svg>
+            3er Trimestre 2026 · día 61 de 90
+          </div>
+</div>
+</div>
+<div class="kpi-row">
+<div class="kpi-card"><div class="kpi-label">Cumplimiento global <span class="dot amber"></span></div><div class="kpi-value">76%</div><div class="kpi-sub">Meta trimestral: 80%</div></div>
+<div class="kpi-card"><div class="kpi-label">Delegaciones en verde</div><div class="kpi-value">3 / 6</div><div class="kpi-sub">2 en amarillo · 1 en rojo</div></div>
+<div class="kpi-card"><div class="kpi-label">Tareas activas</div><div class="kpi-value">142</div><div class="kpi-sub">18 vencen esta semana</div></div>
+<div class="kpi-card"><div class="kpi-label">Evidencias pendientes</div><div class="kpi-value">9</div><div class="kpi-sub">Requieren validación de jefatura</div></div>
+</div>
+<div class="section-head"><h2>Cumplimiento por delegación</h2><a class="link" href="javascript:void(0)" onclick="showView('04_delegaciones');return false;">Ver todas →</a></div>
+<div class="deleg-grid">
+<div class="deleg-card"><div class="top"><div><h3>Centro</h3><div class="encargado">Alan Von Kretschmann</div></div><span class="badge amber"><span class="dot amber"></span>77%</span></div><div class="bar-track"><div class="bar-fill amber" style="width:77%"></div></div><div class="foot"><span>23 tareas</span><span>4 vencidas</span></div></div>
+<div class="deleg-card"><div class="top"><div><h3>Avenida del Mar</h3><div class="encargado">Rodrigo Fuenzalida Vásquez</div></div><span class="badge green"><span class="dot green"></span>91%</span></div><div class="bar-track"><div class="bar-fill green" style="width:91%"></div></div><div class="foot"><span>19 tareas</span><span>0 vencidas</span></div></div>
+<div class="deleg-card"><div class="top"><div><h3>Las Compañías</h3><div class="encargado">Pablo Cuadra Corrales</div></div><span class="badge green"><span class="dot green"></span>85%</span></div><div class="bar-track"><div class="bar-fill green" style="width:85%"></div></div><div class="foot"><span>27 tareas</span><span>1 vencida</span></div></div>
+<div class="deleg-card"><div class="top"><div><h3>La Pampa</h3><div class="encargado">María Soledad Rojas</div></div><span class="badge green"><span class="dot green"></span>82%</span></div><div class="bar-track"><div class="bar-fill green" style="width:82%"></div></div><div class="foot"><span>21 tareas</span><span>2 vencidas</span></div></div>
+<div class="deleg-card"><div class="top"><div><h3>La Antena – La Florida</h3><div class="encargado">Elizabeth Villanueva Oyarce</div></div><span class="badge amber"><span class="dot amber"></span>68%</span></div><div class="bar-track"><div class="bar-fill amber" style="width:68%"></div></div><div class="foot"><span>25 tareas</span><span>6 vencidas</span></div></div>
+<div class="deleg-card"><div class="top"><div><h3>Rural</h3><div class="encargado">Manuel Barraza Delgado</div></div><span class="badge red"><span class="dot red"></span>54%</span></div><div class="bar-track"><div class="bar-fill red" style="width:54%"></div></div><div class="foot"><span>27 tareas</span><span>9 vencidas</span></div></div>
+</div>
+<div class="section-head"><h2>Actividad reciente</h2></div>
+<div class="feed">
+<div class="feed-item"><div class="feed-dot" style="background:var(--sem-green)"></div><div class="txt"><strong>Rodrigo Fuenzalida</strong> completó la tarea <strong>TC-0148 · Bacheo Av. del Mar</strong> con evidencia adjunta.</div><div class="time">Hace 12 min</div></div>
+<div class="feed-item"><div class="feed-dot" style="background:var(--ocean)"></div><div class="txt"><strong>Gerencia</strong> registró un reconocimiento para <strong>María Soledad Rojas</strong> — Delegación La Pampa.</div><div class="time">Hace 1 h</div></div>
+<div class="feed-item"><div class="feed-dot" style="background:var(--sem-red)"></div><div class="txt"><strong>TC-0112 · Poda sector Rural</strong> venció sin evidencia registrada.</div><div class="time">Hace 3 h</div></div>
+<div class="feed-item"><div class="feed-dot" style="background:var(--sem-amber)"></div><div class="txt"><strong>Elizabeth Villanueva</strong> movió 3 tareas a <strong>En proceso</strong> en La Antena–La Florida.</div><div class="time">Ayer</div></div>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="03_tubo_kanban">
+<main class="main">
+<div class="topbar"><div><h1>Tubo de trabajo</h1><p>Delegación Centro · seguimiento de actividades trimestrales</p></div></div>
+<div class="kanban-toolbar">
+<select class="select-pill" id="filtro-delegacion" onchange="filterByDelegacion(this.value)">
+<option value="todas">Todas las delegaciones</option><option selected="" value="centro">Centro</option><option value="avenida-del-mar">Avenida del Mar</option><option value="las-companias">Las Compañías</option><option value="la-pampa">La Pampa</option><option value="la-antena-la-florida">La Antena – La Florida</option><option value="rural">Rural</option>
+</select>
+<input placeholder="Buscar por código o título…" type="search"/>
+<button class="filter-chip on">Todas</button><button class="filter-chip">Mías</button><button class="filter-chip">Vencidas</button>
+<button class="btn-add" onclick="openModal('form_01_nueva_actividad')">+ Nueva actividad</button>
+</div>
+<div class="kanban">
+<div class="kcol" data-estado="ingresado">
+<div class="kcol-head"><h4>Ingresado</h4><span class="kcol-count">3</span></div>
+<div class="task-card" data-delegacion="centro" onclick="openModal('form_02_detalle_actividad')">
+<div class="code">TC-0153</div><div class="title">Solicitud de poda sector Las Rojas</div>
+<div class="card-foot"><span class="due">📅 sin asignar</span><div class="avatar" style="background:var(--ocean)">—</div></div>
+</div>
+</div>
+<div class="kcol" data-estado="pendiente">
+<div class="kcol-head"><h4>Pendiente</h4><span class="kcol-count">6</span></div>
+<div class="task-card" data-delegacion="centro" onclick="openModal('form_02_detalle_actividad')">
+<div class="code">TC-0151</div><div class="title">Revisión de luminarias plaza de armas</div>
+<div class="card-foot"><span class="due">📅 12 sep</span><div class="avatar" style="background:var(--ocean)">CM</div></div>
+</div>
+<div class="task-card" data-delegacion="centro" onclick="openModal('form_02_detalle_actividad')">
+<div class="code">TC-0152</div><div class="title">Catastro de organizaciones vecinales</div>
+<div class="card-foot"><span class="due late">📅 5 sep · vencida</span><div class="avatar" style="background:var(--ocean)">MT</div></div>
+</div>
+</div>
+<div class="kcol" data-estado="en_proceso">
+<div class="kcol-head"><h4>En proceso</h4><span class="kcol-count">11</span></div>
+<div class="task-card" data-delegacion="centro" onclick="openModal('form_02_detalle_actividad')">
+<div class="code">TC-0148</div><div class="title">Bacheo calle Cienfuegos, cuadra 2</div>
+<div class="card-foot"><span class="due">📅 15 sep</span><div class="avatar" style="background:var(--ocean)">AV</div></div>
+</div>
+<div class="task-card" data-delegacion="centro" onclick="openModal('form_02_detalle_actividad')">
+<div class="code">TC-0149</div><div class="title">Operativo social adultos mayores</div>
+<div class="card-foot"><span class="due">📅 20 sep</span><div class="avatar" style="background:var(--ocean)">RB</div></div>
+</div>
+<div class="task-card" data-delegacion="centro" onclick="openModal('form_02_detalle_actividad')">
+<div class="code">TC-0150</div><div class="title">Coordinación operativo de aseo centro histórico</div>
+<div class="card-foot"><span class="due">📅 18 sep</span><div class="avatar" style="background:var(--ocean)">AV</div></div>
+</div>
+</div>
+<div class="kcol" data-estado="realizado">
+<div class="kcol-head"><h4>Realizado</h4><span class="kcol-count">27</span></div>
+<div class="task-card" data-delegacion="centro" onclick="openModal('form_02_detalle_actividad')">
+<div class="code">TC-0140</div><div class="title">Habilitación punto limpio temporada estival</div>
+<div class="card-foot"><span class="badge green" style="padding:2px 8px;">✓ Evidencia validada</span><div class="avatar" style="background:var(--ocean)">AV</div></div>
+</div>
+</div>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="04_delegaciones">
+<main class="main">
+<div class="topbar"><div><h1>Delegaciones</h1><p>Vista comparativa de las seis delegaciones territoriales</p></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Delegación</th><th>Cumplimiento</th><th>Tareas activas</th><th>Vencidas</th><th>Estado</th></tr></thead>
+<tbody>
+<tr><td><strong>Avenida del Mar</strong></td><td>91%</td><td>19</td><td>0</td><td><span class="badge green"><span class="dot green"></span>En meta</span></td></tr>
+<tr><td><strong>Centro</strong></td><td>77%</td><td>23</td><td>4</td><td><span class="badge amber"><span class="dot amber"></span>Atención</span></td></tr>
+<tr><td><strong>Las Compañías</strong></td><td>85%</td><td>27</td><td>1</td><td><span class="badge green"><span class="dot green"></span>En meta</span></td></tr>
+<tr><td><strong>La Pampa</strong></td><td>82%</td><td>21</td><td>2</td><td><span class="badge green"><span class="dot green"></span>En meta</span></td></tr>
+<tr><td><strong>La Antena – La Florida</strong></td><td>68%</td><td>25</td><td>6</td><td><span class="badge amber"><span class="dot amber"></span>Atención</span></td></tr>
+<tr><td><strong>Rural</strong></td><td>54%</td><td>27</td><td>9</td><td><span class="badge red"><span class="dot red"></span>Bajo meta</span></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="05_agenda_colectiva">
+<main class="main">
+<div class="topbar"><div><h1>Agenda colectiva</h1><p>Compromisos y plazos compartidos entre delegaciones</p></div><div class="topbar-controls"><a class="btn-add" href="javascript:void(0)" onclick="openModal('form_03_nuevo_compromiso');return false;">+ Nuevo compromiso</a></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Compromiso</th><th>Responsable</th><th>Delegación</th><th>Fecha límite</th><th>Estado</th><th>Acciones</th></tr></thead>
+<tbody>
+<tr><td>Reunión de coordinación trimestral</td><td>A. Von Kretschmann</td><td>Todas</td><td>Vie 11 sep · 10:00</td><td><span class="badge amber">Pendiente</span></td><td><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('form_04_actualizar_compromiso');return false;">Actualizar</a></td></tr>
+<tr><td>Cierre de carga de evidencias</td><td>C. Muñoz</td><td>Centro</td><td>Lun 21 sep · 18:00</td><td><span class="badge ocean-badge">En proceso</span></td><td><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('form_04_actualizar_compromiso');return false;">Actualizar</a></td></tr>
+<tr><td>Entrega de catastro vecinal</td><td>M. Torres</td><td>Rural</td><td>Vie 4 sep · 17:00</td><td><span class="badge red">Vencido</span></td><td><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('form_05_reasignar_compromiso');return false;">Reasignar</a></td></tr>
+</tbody>
+</table>
+</div>
+<div class="warn-banner amber" style="margin-top:20px;">⚠️ <span><strong>Alerta automática:</strong> el sistema notifica 48 h antes del vencimiento. <a href="javascript:void(0)" onclick="openModal('alerta_01_proximo_vencer');return false;" style="text-decoration:underline;">Ver alerta</a></span></div>
+</main>
+</section>
+<section class="view-section hidden" data-view="06_reconocimientos">
+<main class="main">
+<div class="topbar"><div><h1>Reconocimientos</h1><p>Ranking trimestral por cumplimiento — felicitaciones y reclamos</p></div></div>
+<div class="deleg-grid" style="margin-bottom:26px;">
+<div class="deleg-card" style="border-color:var(--sem-green);"><div class="top"><div><h3>🥇 María Soledad Rojas</h3><div class="encargado">Delegación La Pampa</div></div><span class="badge green">82%</span></div><div class="bar-track"><div class="bar-fill green" style="width:82%"></div></div></div>
+<div class="deleg-card"><div class="top"><div><h3>🥈 Pablo Cuadra Corrales</h3><div class="encargado">Las Compañías</div></div><span class="badge green">85%</span></div><div class="bar-track"><div class="bar-fill green" style="width:85%"></div></div></div>
+<div class="deleg-card"><div class="top"><div><h3>🥉 Alan Von Kretschmann</h3><div class="encargado">Centro</div></div><span class="badge amber">77%</span></div><div class="bar-track"><div class="bar-fill amber" style="width:77%"></div></div></div>
+</div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Tipo</th><th>Funcionario / Delegación</th><th>Motivo</th><th>Valor</th></tr></thead>
+<tbody>
+<tr><td><span class="badge green">Felicitación</span></td><td>María Soledad Rojas</td><td>Cumplimiento sobre 80%</td><td><strong style="color:var(--sem-green)">+10%</strong></td></tr>
+<tr><td><span class="badge red">Reclamo</span></td><td>Delegación Rural</td><td>Evidencias pendientes reiteradas</td><td><strong style="color:var(--sem-red)">−20%</strong></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="07_mi_tablero">
+<main class="main">
+<div class="topbar"><div><h1>Mi tablero</h1><p>Cálculo de semáforo diario según meta esperada y avance registrado</p></div><div class="topbar-controls"><a href="javascript:void(0)" onclick="openModal('form_13_adjuntar_evidencia');return false;" class="btn-add">+ Adjuntar evidencia</a></div></div>
+<div class="kpi-row">
+<div class="kpi-card"><div class="kpi-label">Meta esperada a hoy</div><div class="kpi-value">14</div><div class="kpi-sub">tareas del período</div></div>
+<div class="kpi-card"><div class="kpi-label">Avance registrado</div><div class="kpi-value">12</div><div class="kpi-sub">tareas resueltas</div></div>
+<div class="kpi-card"><div class="kpi-label">Semáforo</div><div class="kpi-value" style="font-size:22px;"><span class="badge amber">Amarillo</span></div><div class="kpi-sub">85% de la meta esperada</div></div>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="08_atencion_social">
+<main class="main">
+<div class="topbar"><div><h1>Atención social</h1><p>Registro de gestiones entregadas a personas usuarias (hasta 3 por caso)</p></div><div class="topbar-controls"><a class="btn-add" href="javascript:void(0)" onclick="openModal('form_06_nueva_atencion_social');return false;">+ Nueva atención</a></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>#</th><th>Caso / Persona</th><th>Tipo de gestión</th><th>Fecha</th><th>Resultado</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Rosa Elena Pizarro Vidal</td><td>Orientación social</td><td>02 sep 2026</td><td><span class="badge green">Resuelta</span></td></tr>
+<tr><td>2</td><td>Rosa Elena Pizarro Vidal</td><td>Derivación a subsidio habitacional</td><td>09 sep 2026</td><td><span class="badge amber">En trámite</span></td></tr>
+<tr><td>1</td><td>Juan Pablo Soto Álvarez</td><td>Entrega de canasta familiar</td><td>12 sep 2026</td><td><span class="badge green">Resuelta</span></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="09_planificacion_territorial">
+<main class="main">
+<div class="topbar"><div><h1>Planificación territorial</h1><p>Supervisa el avance y aprueba la planificación trimestral</p></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Delegación</th><th>Actividades planificadas</th><th>Metas operativas</th><th>Estado</th><th>Acciones</th></tr></thead>
+<tbody>
+<tr><td><strong>Avenida del Mar</strong></td><td>24</td><td>91%</td><td><span class="badge amber">Pendiente</span></td><td><a class="btn-ok-ghost" href="javascript:void(0)" onclick="openModal('form_11_observacion_plan');return false;">Aprobar / Observar</a></td></tr>
+<tr><td><strong>Centro</strong></td><td>27</td><td>77%</td><td><span class="badge green">Aprobada</span></td><td><button class="btn-ghost">Ver detalle</button></td></tr>
+<tr><td><strong>Rural</strong></td><td>19</td><td>54%</td><td><span class="badge red">Observada</span></td><td><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('form_11_observacion_plan');return false;">Ver observación</a></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="10_validacion_evidencias">
+<main class="main">
+<div class="topbar"><div><h1>Validación de evidencias</h1><p>Aprueba o rechaza evidencias adjuntadas en terreno</p></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Código</th><th>Tarea</th><th>Delegación</th><th>Funcionario</th><th>Acciones</th></tr></thead>
+<tbody>
+<tr><td>EV-0412</td><td>Bacheo calle Cienfuegos, cuadra 2</td><td>Centro</td><td>A. Von Kretschmann</td><td><a class="btn-add" href="javascript:void(0)" onclick="openModal('form_09_gestionar_evidencia');return false;" style="margin:0;">Gestionar</a> <a class="btn-danger-ghost" href="javascript:void(0)" onclick="openModal('form_10_rechazo_evidencia');return false;" style="margin-left:6px;">Rechazar</a></td></tr>
+<tr><td>EV-0413</td><td>Poda de árboles av. Aguirre</td><td>Centro</td><td>C. Muñoz</td><td><a class="btn-add" href="javascript:void(0)" onclick="openModal('form_09_gestionar_evidencia');return false;" style="margin:0;">Gestionar</a> <a class="btn-danger-ghost" href="javascript:void(0)" onclick="openModal('form_10_rechazo_evidencia');return false;" style="margin-left:6px;">Rechazar</a></td></tr>
+<tr><td>EV-0398</td><td>Operativo social</td><td>La Pampa</td><td>M. Soledad Rojas</td><td><span class="badge red">Rechazada</span></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="11_indicadores">
+<main class="main">
+<div class="topbar"><div><h1>Indicadores</h1><p>Cumplimiento consolidado por delegación y período</p></div></div>
+<div class="kpi-row">
+<div class="kpi-card"><div class="kpi-label">Cumplimiento global</div><div class="kpi-value">79%</div></div>
+<div class="kpi-card"><div class="kpi-label">Tareas resueltas</div><div class="kpi-value">142</div></div>
+<div class="kpi-card"><div class="kpi-label">Delegaciones en meta</div><div class="kpi-value">3/6</div></div>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="12_cargos_equipos">
+<main class="main">
+<div class="topbar"><div><h1>Cargos y equipos</h1><p>Funcionarios agrupados por cargo con metas y avances logrados</p></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Cargo</th><th>Funcionario</th><th>Delegación</th><th>Meta</th><th>Cumplimiento</th></tr></thead>
+<tbody>
+<tr><td>Inspector municipal</td><td>A. Von Kretschmann</td><td>Centro</td><td>14/mes</td><td><span class="badge amber">79%</span></td></tr>
+<tr><td>Inspector municipal</td><td>R. Fuenzalida</td><td>Avenida del Mar</td><td>14/mes</td><td><span class="badge green">93%</span></td></tr>
+<tr><td>Jefe de Delegación</td><td>M. Barraza</td><td>Rural</td><td>27/mes</td><td><span class="badge red">56%</span></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="13_informes_exportacion">
+<main class="main">
+<div class="topbar"><div><h1>Informes y exportación</h1><p>Filtra y exporta el cumplimiento de tu delegación</p></div></div>
+<div class="form-inline">
+<div class="field"><label>Delegación</label><select><option>Centro (tu ámbito)</option></select></div>
+<div class="field"><label>Período</label><select><option>Q3 2026</option></select></div>
+<button class="btn-primary">Filtrar</button>
+</div>
+<div class="row-actions" style="margin-top:16px;">
+<button class="btn-add" style="margin:0;">Descargar PDF</button>
+<button class="btn-ghost">Exportar Excel</button>
+</div>
+<div class="warn-banner red" style="margin-top:20px;">🚫 <span>No tienes permisos para exportar otras delegaciones. <a href="javascript:void(0)" onclick="openModal('alerta_04_exportacion_denegada');return false;" style="text-decoration:underline;">Ver alerta</a></span></div>
+</main>
+</section>
+<section class="view-section hidden" data-view="14_usuarios_roles">
+<main class="main">
+<div class="topbar"><div><h1>Usuarios y roles</h1><p>Gestión de funcionarios y asignación de permisos</p></div><div class="topbar-controls"><a class="btn-add" href="javascript:void(0)" onclick="openModal('form_07_nuevo_funcionario');return false;">+ Nuevo funcionario</a> <a href="javascript:void(0)" onclick="openModal('alerta_06_usuario_duplicado');return false;" class="btn-ghost">Ver ejemplo de error</a></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Funcionario</th><th>Usuario</th><th>Rol</th><th>Delegación</th><th>Estado</th></tr></thead>
+<tbody>
+<tr><td>Alan Von Kretschmann</td><td>a.vonkretschmann</td><td>Jefatura</td><td>Centro</td><td><span class="badge green">Activo</span></td></tr>
+<tr><td>Romina Bravo Sepúlveda</td><td>r.bravo</td><td>Funcionario</td><td>Centro</td><td><span class="badge green">Activo</span></td></tr>
+<tr><td>Camilo Miranda Toro</td><td>c.miranda</td><td>Verificador</td><td>Todas</td><td><span class="badge green">Activo</span></td></tr>
+<tr><td>Javiera Pizarro Lagos</td><td>j.pizarro</td><td>Funcionario</td><td>Rural</td><td><span class="badge red">Inactivo</span></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="15_delegaciones_admin">
+<main class="main">
+<div class="topbar"><div><h1>Delegaciones (Administración)</h1><p>Alta, edición y activación de delegaciones municipales</p></div><div class="topbar-controls"><a class="btn-add" href="javascript:void(0)" onclick="openModal('form_08_nueva_delegacion');return false;">+ Nueva delegación</a></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Delegación</th><th>Encargado</th><th>Período</th><th>Estado</th><th>Acciones</th></tr></thead>
+<tbody>
+<tr><td><strong>Centro</strong></td><td>Alan Von Kretschmann</td><td>Trimestral</td><td><span class="badge green">Activa</span></td><td><button class="btn-ghost">Editar</button></td></tr>
+<tr><td><strong>Avenida del Mar</strong></td><td>Rodrigo Fuenzalida</td><td>Trimestral</td><td><span class="badge green">Activa</span></td><td><button class="btn-ghost">Editar</button></td></tr>
+<tr><td><strong>Rural</strong></td><td>Manuel Barraza</td><td>Trimestral</td><td><span class="badge green">Activa</span></td><td><button class="btn-ghost">Editar</button></td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="16_catalogos">
+<main class="main">
+<div class="topbar"><div><h1>Catálogos del Sistema</h1><p>Unidades de medida, cargos y tipos de actividad</p></div></div>
+<div class="tab-row">
+<button class="filter-chip cat-tab-btn on" data-cat="unidades">Unidades de medida</button>
+<button class="filter-chip cat-tab-btn" data-cat="cargos">Cargos y roles</button>
+<button class="filter-chip cat-tab-btn" data-cat="actividades">Tipos de actividad</button>
+</div>
+<div class="cat-panel active" id="cat-unidades">
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Unidad</th><th>Abreviación</th><th>Acción</th></tr></thead>
+<tbody>
+<tr><td>Metros lineales</td><td>ml</td><td><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('form_12_catalogo_item');return false;">Editar</a></td></tr>
+<tr><td>Unidades</td><td>un</td><td><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('form_12_catalogo_item');return false;">Editar</a></td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="17_metas_ponderaciones">
+<main class="main">
+<div class="topbar"><div><h1>Metas y ponderaciones</h1><p>Reglas del semáforo y metas operativas</p></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Cargo</th><th>Meta asignada</th><th>Ponderación</th></tr></thead>
+<tbody>
+<tr><td>Inspector municipal</td><td>14 tareas/mes</td><td>45%</td></tr>
+<tr><td>Jefe de Delegación</td><td>27 tareas/mes</td><td>35%</td></tr>
+<tr><td>Analista de indicadores</td><td>4 informes/mes</td><td>20%</td></tr>
+</tbody>
+</table>
+</div>
+<div class="warn-banner red" style="margin-top:20px;">🚫 <span>Suma de ponderadores debe ser 100%. <a href="javascript:void(0)" onclick="openModal('alerta_05_ponderacion_invalida');return false;" style="text-decoration:underline;">Ver alerta de validación</a></span></div>
+</main>
+</section>
+<section class="view-section hidden" data-view="18_auditoria">
+<main class="main">
+<div class="topbar"><div><h1>Auditoría del Sistema</h1><p>Registro inmutable de acciones y trazabilidad (RNF-008)</p></div></div>
+<div class="deleg-table-wrap">
+<table class="deleg-table">
+<thead><tr><th>Usuario</th><th>Evento</th><th>Entidad</th><th>Fecha</th></tr></thead>
+<tbody>
+<tr><td>A. Von Kretschmann</td><td>Cambio de estado</td><td>Actividad TC-0148</td><td>Hoy · 09:12</td></tr>
+<tr><td>Camilo Miranda</td><td>Rechazo de evidencia</td><td>Evidencia EV-0398</td><td>Ayer · 16:12</td></tr>
+</tbody>
+</table>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="19_alertas">
+<main class="main">
+<div class="topbar"><div><h1>Centro de Alertas</h1><p>Supervisión proactiva y notificaciones operativas</p></div></div>
+<div class="feed">
+<div class="feed-item"><div class="feed-dot" style="background:var(--sem-red)"></div><div class="txt"><strong>Compromiso vencido</strong> — Entrega de catastro (Rural).</div><div class="time"><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('alerta_01_proximo_vencer');return false;">Ver Alerta</a></div></div>
+<div class="feed-item"><div class="feed-dot" style="background:var(--sem-amber)"></div><div class="txt"><strong>Evidencia pendiente</strong> — TC-0150 lleva 6 días sin archivo.</div><div class="time"><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('alerta_02_evidencia_pendiente');return false;">Ver Alerta</a></div></div>
+<div class="feed-item"><div class="feed-dot" style="background:var(--sem-red)"></div><div class="txt"><strong>Avance bajo el umbral</strong> — Delegación Rural al 54%.</div><div class="time"><a class="btn-ghost" href="javascript:void(0)" onclick="openModal('alerta_03_avance_bajo_umbral');return false;">Ver Alerta</a></div></div>
+</div>
+</main>
+</section>
+<section class="view-section hidden" data-view="20_busqueda">
+<main class="main">
+<div class="topbar"><div><h1>Búsqueda global</h1><p>Filtro por delegación, funcionario, estado y período</p></div></div>
+<div class="form-inline">
+<div class="field"><label>Delegación</label><select><option>Todas</option><option>Centro</option></select></div>
+<div class="field"><label>Estado</label><select><option>Todos</option><option>Realizado</option></select></div>
+<button class="btn-primary">Buscar</button>
+</div>
+<div class="empty-state" style="margin-top:20px;">Ingresa parámetros de búsqueda para consultar actividades, compromisos y evidencias.</div>
+</main>
+</section>
+</div>
+</div>
+<div class="ov" id="ov-form_01_nueva_actividad"><div class="modal">
+<div class="modal-head"><div><h3>Nueva actividad</h3></div><button class="modal-close" onclick="closeModal('form_01_nueva_actividad')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Título</label><input placeholder="Ej: Reparación luminaria calle O'Higgins" type="text"/></div>
+<div class="field"><label>Delegación</label><select><option>Centro</option><option>Avenida del Mar</option><option>Rural</option></select></div>
+<div class="field"><label>Responsable</label><select><option>Alan Von Kretschmann</option><option>Romina Bravo</option></select></div>
+<div class="field"><label>Fecha límite</label><input type="date" value="2026-09-25"/></div>
+<div class="field"><label>Descripción</label><textarea class="field-textarea" placeholder="Detalle de la actividad, contacto y ubicación…">Reparación luminaria pública tras reporte vecinal en sector centro.</textarea></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_01_nueva_actividad')" type="button">Guardar actividad</button><button class="btn-ghost" onclick="closeModal('form_01_nueva_actividad')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_02_detalle_actividad"><div class="modal">
+<div class="modal-head"><div><div class="code">TC-0148 · Delegación Centro</div><h3>Bacheo calle Cienfuegos, cuadra 2</h3></div><button class="modal-close" onclick="closeModal('form_02_detalle_actividad')">✕</button></div>
+<div class="modal-body">
+<div class="status-track"><div class="status-step done">Ingresado</div><div class="status-step done">Pendiente</div><div class="status-step current">En proceso</div><div class="status-step">Realizado</div></div>
+<div class="modal-row" style="margin-top:20px;">
+<div class="modal-field"><div class="lbl">Responsable</div><div class="val">Alan Von Kretschmann</div></div>
+<div class="modal-field"><div class="lbl">Plazo</div><div class="val">15 sep 2026</div></div>
+<div class="modal-field"><div class="lbl">Prioridad</div><div class="val">Alta</div></div>
+</div>
+<div class="desc-block">Reparación de pavimento dañado frente al n.º 226. Coordinado con Obras para retiro de escombros.</div>
+<div class="evidence-block">
+<div class="evidence-thumb"><svg fill="none" height="22" viewbox="0 0 16 16" width="22"><rect height="11" rx="1.3" stroke="currentColor" stroke-width="1.3" width="13" x="1.5" y="2.5"></rect><circle cx="5.3" cy="6.3" r="1.1" stroke="currentColor" stroke-width="1.1"></circle><path d="M2 11.5 5.5 8.3 8 10.3 11 6.8 14 9.8" stroke="currentColor" stroke-linejoin="round" stroke-width="1.1"></path></svg></div>
+<div class="info"><strong>IMG-TC0148-01.jpg</strong><span>Subida por A. Von Kretschmann · En validación</span></div>
+</div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_02_detalle_actividad')" type="button">Guardar cambios</button><button class="btn-ghost" type="button">Reasignar responsable</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_03_nuevo_compromiso"><div class="modal">
+<div class="modal-head"><div><h3>Nuevo compromiso de agenda</h3></div><button class="modal-close" onclick="closeModal('form_03_nuevo_compromiso')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Título del compromiso</label><input type="text" value="Cierre de carga de evidencias trimestrales"/></div>
+<div class="field"><label>Delegación</label><select><option>Centro</option><option>Todas</option></select></div>
+<div class="field"><label>Responsable</label><select><option>Alan Von Kretschmann</option><option>Camilo Muñoz</option></select></div>
+<div class="field"><label>Fecha límite</label><input type="date" value="2026-09-21"/></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_03_nuevo_compromiso')" type="button">Guardar compromiso</button><button class="btn-ghost" onclick="closeModal('form_03_nuevo_compromiso')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_04_actualizar_compromiso"><div class="modal">
+<div class="modal-head"><div><h3>Actualizar estado de compromiso</h3></div><button class="modal-close" onclick="closeModal('form_04_actualizar_compromiso')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Compromiso</label><div class="val" style="font-weight:600;">Cierre de carga de evidencias</div></div>
+<div class="field" style="margin-top:14px;"><label>Nuevo estado</label><select><option>Ingresado</option><option>Pendiente</option><option selected="">En proceso</option><option>Realizado</option></select></div>
+<div class="field"><label>Observación del cambio</label><textarea class="field-textarea">Se avanzó en la carga del 80% de las delegaciones.</textarea></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_04_actualizar_compromiso')" type="button">Guardar estado</button><button class="btn-ghost" onclick="closeModal('form_04_actualizar_compromiso')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_05_reasignar_compromiso"><div class="modal">
+<div class="modal-head"><div><h3>Reasignar compromiso</h3></div><button class="modal-close" onclick="closeModal('form_05_reasignar_compromiso')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Compromiso</label><div class="val" style="font-weight:600;">Entrega de catastro vecinal</div></div>
+<div class="field" style="margin-top:14px;"><label>Responsable actual</label><div class="val" style="color:var(--ink-soft);">M. Torres (Rural)</div></div>
+<div class="field"><label>Nuevo responsable</label><select><option>Camilo Muñoz (Centro)</option><option>Romina Bravo (Centro)</option></select></div>
+<div class="field"><label>Motivo de la reasignación</label><textarea class="field-textarea">Licencia médica del titular.</textarea></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_05_reasignar_compromiso')" type="button">Guardar reasignación</button><button class="btn-ghost" onclick="closeModal('form_05_reasignar_compromiso')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_06_nueva_atencion_social"><div class="modal">
+<div class="modal-head"><div><h3>Nueva atención social</h3></div><button class="modal-close" onclick="closeModal('form_06_nueva_atencion_social')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Persona usuaria</label><select><option>Rosa Elena Pizarro Vidal (caso existente)</option><option>— Registrar persona nueva —</option></select></div>
+<div class="field"><label>Tipo de gestión</label><select><option>Orientación social</option><option>Derivación a subsidio</option></select></div>
+<div class="field"><label>Resultado</label><select><option>Resuelta</option><option>En trámite</option></select></div>
+<div class="field"><label>Notas</label><textarea class="field-textarea">Se orienta en requisitos para subsidio de arriendo.</textarea></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_06_nueva_atencion_social')" type="button">Guardar atención</button><button class="btn-ghost" onclick="closeModal('form_06_nueva_atencion_social')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_07_nuevo_funcionario"><div class="modal">
+<div class="modal-head"><div><h3>Nuevo funcionario</h3></div><button class="modal-close" onclick="closeModal('form_07_nuevo_funcionario')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Nombre completo</label><input type="text" value="Alan Von Kretschmann"/></div>
+<div class="field"><label>Usuario institucional</label><input type="text" value="a.vonkretschmann"/><div class="field-error">⚠ Ya existe un funcionario con este usuario institucional</div></div>
+<div class="field"><label>Cargo</label><select><option>Jefe de Delegación</option><option>Inspector municipal</option></select></div>
+<div class="field"><label>Rol asignado</label><select><option>Jefatura</option><option>Funcionario</option><option>Verificador</option></select></div>
+<div class="field"><label>Delegación</label><select><option>Centro</option><option>Rural</option></select></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_07_nuevo_funcionario')" type="button">Guardar funcionario</button><button class="btn-ghost" onclick="closeModal('form_07_nuevo_funcionario')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_08_nueva_delegacion"><div class="modal">
+<div class="modal-head"><div><h3>Nueva delegación</h3></div><button class="modal-close" onclick="closeModal('form_08_nueva_delegacion')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Nombre de la delegación</label><input type="text" value="La Pampa"/></div>
+<div class="field"><label>Encargado</label><select><option>María Soledad Rojas</option><option>Alan Von Kretschmann</option></select></div>
+<div class="field"><label>Período de medición</label><select><option>Trimestral</option><option>Mensual</option></select></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_08_nueva_delegacion')" type="button">Guardar delegación</button><button class="btn-ghost" onclick="closeModal('form_08_nueva_delegacion')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_09_gestionar_evidencia"><div class="modal">
+<div class="modal-head"><div><div class="code">EV-0412 · Delegación Centro</div><h3>Bacheo calle Cienfuegos, cuadra 2</h3></div><button class="modal-close" onclick="closeModal('form_09_gestionar_evidencia')">✕</button></div>
+<div class="modal-body">
+<div class="desc-block">Reparación de pavimento dañado frente al n.º 226. Se coordinó con la unidad de Obras.</div>
+<div class="evidence-block">
+<div class="evidence-thumb"><svg fill="none" height="22" viewbox="0 0 16 16" width="22"><rect height="11" rx="1.3" stroke="currentColor" stroke-width="1.3" width="13" x="1.5" y="2.5"></rect><circle cx="5.3" cy="6.3" r="1.1" stroke="currentColor" stroke-width="1.1"></circle><path d="M2 11.5 5.5 8.3 8 10.3 11 6.8 14 9.8" stroke="currentColor" stroke-linejoin="round" stroke-width="1.1"></path></svg></div>
+<div class="info"><strong>IMG-TC0148-01.jpg</strong><span>Subida por A. Von Kretschmann · 12 sep 2026</span></div>
+</div>
+<div class="modal-actions"><button class="btn-ok-ghost" type="button">Aprobar Evidencia</button><button class="btn-danger-ghost" type="button">Rechazar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_10_rechazo_evidencia"><div class="modal">
+<div class="modal-head"><div><h3>Registrar observación de rechazo</h3></div><button class="modal-close" onclick="closeModal('form_10_rechazo_evidencia')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Evidencia</label><div class="val" style="font-weight:600;">EV-0412 · Bacheo calle Cienfuegos, cuadra 2</div></div>
+<div class="field" style="margin-top:14px;"><label>Motivo del rechazo</label><textarea class="field-textarea" placeholder="Describe por qué se rechaza la evidencia…">La fotografía no permite verificar la finalización de los trabajos.</textarea></div>
+<div class="field-hint" style="margin-bottom:14px;">Se notifica automáticamente al funcionario responsable.</div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_10_rechazo_evidencia')" type="button">Rechazar y notificar</button><button class="btn-ghost" onclick="closeModal('form_10_rechazo_evidencia')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_11_observacion_plan"><div class="modal">
+<div class="modal-head"><div><h3>Planificación: Avenida del Mar</h3></div><button class="modal-close" onclick="closeModal('form_11_observacion_plan')">✕</button></div>
+<div class="modal-body">
+<div class="modal-row" style="margin-top:0;">
+<div class="modal-field"><div class="lbl">Actividades planificadas</div><div class="val">24</div></div>
+<div class="modal-field"><div class="lbl">Metas operativas</div><div class="val">91%</div></div>
+</div>
+<div class="field" style="margin-top:14px;"><label>Observación para la delegación</label><textarea class="field-textarea">Ajustar el cronograma de podas para evitar interferencia con temporada estival.</textarea></div>
+<div class="modal-actions"><button class="btn-ok-ghost" type="button">Aprobar</button><button class="btn-danger-ghost" type="button">Observar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_12_catalogo_item"><div class="modal">
+<div class="modal-head"><div><h3>Editar ítem de catálogo</h3></div><button class="modal-close" onclick="closeModal('form_12_catalogo_item')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Nombre del ítem</label><input type="text" value="Metros lineales"/></div>
+<div class="field-hint" style="margin-bottom:14px;">Los cambios no alteran registros históricos que ya usan este ítem (RF-004).</div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_12_catalogo_item')" type="button">Guardar cambios</button><button class="btn-danger-ghost" type="button">Eliminar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-form_13_adjuntar_evidencia"><div class="modal">
+<div class="modal-head"><div><h3>Adjuntar evidencia a tarea</h3></div><button class="modal-close" onclick="closeModal('form_13_adjuntar_evidencia')">✕</button></div>
+<div class="modal-body">
+<div class="field"><label>Tarea asociada</label><div class="val" style="font-weight:600;">TC-0148 · Bacheo calle Cienfuegos, cuadra 2</div></div>
+<div class="field" style="margin-top:14px;"><label>Archivo de imagen</label><input accept="image/*" type="file"/></div>
+<div class="field"><label>Descripción del respaldo</label><textarea class="field-textarea" placeholder="Describe la imagen…">Fotografía del tramo pavimentado y seco.</textarea></div>
+<div class="modal-actions"><button class="btn-primary" onclick="closeModal('form_13_adjuntar_evidencia')" type="button">Subir archivo</button><button class="btn-ghost" onclick="closeModal('form_13_adjuntar_evidencia')" type="button">Cancelar</button></div>
+</div>
+</div></div>
+<div class="ov" id="ov-alerta_01_proximo_vencer"><div class="modal" style="max-width:620px;">
+        <div class="modal-head"><div class="code">Componente</div></div>
+        <div class="modal-body">
+<div style="font-size:12px; font-weight:700; color:var(--brick); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Componente de Alerta / Estado de Pantalla</div>
+<h2 style="margin:0 0 16px; font-size:22px;">Compromiso Próximo a Vencer (RF-019)</h2>
+<div class="warn-banner amber">
+<div style="font-size:24px;">⚠️</div>
+<div>
+<strong>Compromiso próximo a vencer (RF-019)</strong><br/>
+    El sistema notifica automáticamente al responsable <strong>48 horas antes</strong> del vencimiento de un compromiso asignado.<br/>
+<em>Ejemplo: "Cierre de carga de evidencias" vence el Lun 21 sep a las 18:00 (Delegación Centro).</em>
+</div>
+</div>
+<p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0;">
+  Esta alerta se genera de forma proactiva en el feed de la vista de Agenda colectiva y en el panel del funcionario responsable para evitar atrasos en la entrega de reportes trimestrales.
+</p>
+
+        <div class="modal-actions"><button class="btn-primary" type="button" onclick="closeModal('alerta_01_proximo_vencer')">Entendido</button></div>
+        </div></div></div>
+<div class="ov" id="ov-alerta_02_evidencia_pendiente"><div class="modal" style="max-width:620px;">
+        <div class="modal-head"><div class="code">Componente</div></div>
+        <div class="modal-body">
+<div style="font-size:12px; font-weight:700; color:var(--brick); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Componente de Alerta / Estado de Pantalla</div>
+<h2 style="margin:0 0 16px; font-size:22px;">Evidencia Pendiente de Carga</h2>
+<div class="warn-banner amber">
+<div style="font-size:24px;">📎</div>
+<div>
+<strong>Alerta de Evidencia Pendiente</strong><br/>
+    La tarea <strong>TC-0150 · Coordinación operativo de aseo centro histórico</strong> lleva más de 6 días en estado "En proceso" sin archivo de respaldo adjunto.
+  </div>
+</div>
+<div class="feed" style="margin-top:16px;">
+<div class="feed-item">
+<div class="feed-dot" style="background:var(--sem-amber)"></div>
+<div class="txt"><strong>Evidencia pendiente</strong> — TC-0150 requiere validación fotográfica para computar en la meta del mes.</div>
+<div class="time">Generada automáticamente</div>
+</div>
+</div>
+
+        <div class="modal-actions"><button class="btn-primary" type="button" onclick="closeModal('alerta_02_evidencia_pendiente')">Entendido</button></div>
+        </div></div></div>
+<div class="ov" id="ov-alerta_03_avance_bajo_umbral"><div class="modal" style="max-width:620px;">
+        <div class="modal-head"><div class="code">Componente</div></div>
+        <div class="modal-body">
+<div style="font-size:12px; font-weight:700; color:var(--brick); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Componente de Alerta / Estado de Pantalla</div>
+<h2 style="margin:0 0 16px; font-size:22px;">Avance Bajo Umbral Colectivo (RN-006)</h2>
+<div class="warn-banner red">
+<div style="font-size:24px;">🚨</div>
+<div>
+<strong>Avance bajo el umbral mínimo colectivo (RN-006)</strong><br/>
+    La <strong>Delegación Rural</strong> registra un <strong>54% de cumplimiento</strong>, situándose por debajo del umbral mínimo configurado (80%).
+  </div>
+</div>
+<div class="deleg-card" style="margin-top:16px;">
+<div class="top">
+<div><h3>Rural</h3><div class="encargado">Manuel Barraza Delgado</div></div>
+<span class="badge red"><span class="dot red"></span>54%</span>
+</div>
+<div class="bar-track"><div class="bar-fill red" style="width:54%"></div></div>
+<div class="foot"><span>27 tareas</span><span style="color:var(--sem-red); font-weight:600;">9 vencidas</span></div>
+</div>
+
+        <div class="modal-actions"><button class="btn-primary" type="button" onclick="closeModal('alerta_03_avance_bajo_umbral')">Entendido</button></div>
+        </div></div></div>
+<div class="ov" id="ov-alerta_04_exportacion_denegada"><div class="modal" style="max-width:620px;">
+        <div class="modal-head"><div class="code">Componente</div></div>
+        <div class="modal-body">
+<div style="font-size:12px; font-weight:700; color:var(--brick); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Componente de Alerta / Estado de Pantalla</div>
+<h2 style="margin:0 0 16px; font-size:22px;">Permiso Denegado por Ámbito Territorial</h2>
+<div class="warn-banner red">
+<div style="font-size:24px;">🚫</div>
+<div>
+<strong>Permiso denegado: exportación fuera de ámbito territorial</strong><br/>
+    No tienes autorización para exportar datos consolidados de otras delegaciones. Tu perfil como <strong>Delegado</strong> se encuentra restringido a tu territorio asignado (Centro).
+  </div>
+</div>
+<p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0;">
+  Para solicitar informes de delegaciones externas o consolidados comunales, contacta al Administrador o a la Dirección de Gerencia Municipal.
+</p>
+
+        <div class="modal-actions"><button class="btn-primary" type="button" onclick="closeModal('alerta_04_exportacion_denegada')">Entendido</button></div>
+        </div></div></div>
+<div class="ov" id="ov-alerta_05_ponderacion_invalida"><div class="modal" style="max-width:620px;">
+        <div class="modal-head"><div class="code">Componente</div></div>
+        <div class="modal-body">
+<div style="font-size:12px; font-weight:700; color:var(--brick); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Componente de Alerta / Estado de Pantalla</div>
+<h2 style="margin:0 0 16px; font-size:22px;">Suma de Ponderadores Inválida (110%)</h2>
+<div class="warn-banner red">
+<div style="font-size:24px;">⛔</div>
+<div>
+<strong>Error de validación: Suma de ponderadores inválida (110%)</strong><br/>
+    La suma de los ponderadores asignados a los cargos debe ser exactamente igual a <strong>100%</strong> antes de poder versionar y activar los nuevos parámetros del semáforo.
+  </div>
+</div>
+<div class="deleg-table-wrap" style="margin-top:16px;">
+<table class="deleg-table">
+<thead><tr><th>Cargo</th><th>Ponderación</th></tr></thead>
+<tbody>
+<tr><td>Inspector municipal</td><td>45%</td></tr>
+<tr><td>Jefe de Delegación</td><td>45%</td></tr>
+<tr><td>Analista de indicadores</td><td>20%</td></tr>
+<tr style="background:var(--sem-red-tint); font-weight:700;"><td>Total acumulado</td><td style="color:var(--sem-red)">110% (Exceso de 10%)</td></tr>
+</tbody>
+</table>
+</div>
+
+        <div class="modal-actions"><button class="btn-primary" type="button" onclick="closeModal('alerta_05_ponderacion_invalida')">Entendido</button></div>
+        </div></div></div>
+<div class="ov" id="ov-alerta_06_usuario_duplicado"><div class="modal" style="max-width:620px;">
+        <div class="modal-head"><div class="code">Componente</div></div>
+        <div class="modal-body">
+<div style="font-size:12px; font-weight:700; color:var(--brick); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Componente de Alerta / Estado de Pantalla</div>
+<h2 style="margin:0 0 16px; font-size:22px;">Validación: Usuario en Conflicto</h2>
+<div class="warn-banner red">
+<div style="font-size:24px;">⚠️</div>
+<div>
+<strong>Validación de formulario: Nombre de usuario en conflicto</strong><br/>
+    Ya existe un funcionario registrado con el usuario institucional <code>a.vonkretschmann</code>. Cada usuario debe ser unívoco en el sistema.
+  </div>
+</div>
+<div style="background:#fff; border:1px solid var(--sand-line); border-radius:var(--radius-s); padding:16px; margin-top:16px;">
+<div class="field" style="margin:0;">
+<label>Usuario institucional</label>
+<input style="border-color:var(--sem-red); background:#fff9f8;" type="text" value="a.vonkretschmann"/>
+<div class="field-error">⚠ Ya existe un funcionario con este usuario institucional</div>
+</div>
+</div>
+
+        <div class="modal-actions"><button class="btn-primary" type="button" onclick="closeModal('alerta_06_usuario_duplicado')">Entendido</button></div>
+        </div></div></div>
+<script>
+
+function showView(key){
+  document.querySelectorAll('.view-section').forEach(function(s){ s.classList.add('hidden'); });
+  var target = document.querySelector('.view-section[data-view="'+key+'"]');
+  if(target){ target.classList.remove('hidden'); }
+  document.querySelectorAll('.rail .nav-item').forEach(function(a){
+    a.classList.toggle('active', a.getAttribute('data-view') === key);
+  });
+  var main = document.querySelector('#app-shell');
+  if(main){ main.scrollTop = 0; window.scrollTo(0,0); }
+}
+function openModal(key){
+  var ov = document.getElementById('ov-'+key);
+  if(ov){ ov.classList.add('active'); }
+  else { console.warn('Modal no encontrado:', key); }
+}
+function closeModal(key){
+  var ov = document.getElementById('ov-'+key);
+  if(ov){ ov.classList.remove('active'); }
+}
+document.addEventListener('click', function(e){
+  if(e.target.classList && e.target.classList.contains('ov')){
+    e.target.classList.remove('active');
+  }
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    document.querySelectorAll('.ov.active').forEach(function(ov){ ov.classList.remove('active'); });
+  }
+});
+function doLogin(e){
+  e.preventDefault();
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app-shell').classList.remove('hidden');
+  showView('02_panel_general');
+  return false;
+}
+function doLogout(){
+  document.getElementById('app-shell').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+</script>
+</body>
+</html>
