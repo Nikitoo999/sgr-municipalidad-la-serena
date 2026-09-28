@@ -32,6 +32,7 @@ class FuncionarioAdmin(admin.ModelAdmin):
     list_display = ('rut', 'nombre', 'apellidos', 'email', 'rol', 'cargo', 'delegacion', 'estado')
     list_filter = ('delegacion', 'rol', 'cargo', 'estado')
     search_fields = ('rut', 'nombre', 'apellidos', 'email')
+    list_select_related = ('rol', 'cargo', 'delegacion')
 
 @admin.register(Auditoria)
 class AuditoriaAdmin(admin.ModelAdmin):
