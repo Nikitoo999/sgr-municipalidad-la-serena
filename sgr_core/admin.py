@@ -1,31 +1,68 @@
+from django import forms
 from django.contrib import admin
-from .models import Periodo, MetaInstitucional, Cumplimiento, ItemMedicion
+from .models import Delegation, Period, InstitutionalGoal, Achievement, MeasurementItem
 
-@admin.register(Periodo)
-class PeriodoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'trimestre', 'fecha_inicio', 'fecha_fin', 'dias_computables', 'estado')
-    list_filter = ('estado', 'trimestre')
-    ordering = ('-fecha_inicio',)
 
-@admin.register(MetaInstitucional)
-class MetaInstitucionalAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'delegacion', 'periodo', 'ponderacion')
-    list_filter = ('delegacion', 'periodo')
-    search_fields = ('nombre',)
-    list_select_related = ('delegacion', 'periodo')
-    ordering = ('nombre',)
+# ---------- Admin Pro: validación con clean() ----------
+class PeriodForm(forms.ModelForm):
+    class Meta:
+        model = Period
+        fields = "__all__"
 
-@admin.register(Cumplimiento)
-class CumplimientoAdmin(admin.ModelAdmin):
-    list_display = ('meta', 'porcentaje', 'fecha_calculo')
-    list_filter = ('meta__delegacion', 'fecha_calculo')
-    list_select_related = ('meta',)
-    ordering = ('-fecha_calculo',)
+    def clean(self):
+        cleaned_data = super().clean()
+        start = cleaned_data.get("start_date")
+        end = cleaned_data.get("end_date")
+        if start and end and end < start:
+            raise forms.ValidationError(
+                "La fecha de término no puede ser anterior a la fecha de inicio."
+            )
+        return cleaned_data
 
-@admin.register(ItemMedicion)
-class ItemMedicionAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'meta', 'unidad_medida', 'linea_base', 'valor_objetivo')
-    list_filter = ('meta__delegacion', 'tipo')
-    search_fields = ('nombre',)
-    list_select_related = ('meta',)
-    ordering = ('nombre',)
+
+@admin.register(Delegation)
+class DelegationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'created_at', 'updated_at')
+    search_fields = ('name',)
+    ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(Period)
+class PeriodAdmin(admin.ModelAdmin):
+    form = PeriodForm
+    list_display = ('name', 'quarter', 'start_date', 'end_date', 'status')
+    list_filter = ('status', 'quarter')
+    search_fields = ('name',)
+    ordering = ('-start_date',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(InstitutionalGoal)
+class InstitutionalGoalAdmin(admin.ModelAdmin):
+    list_display = ('name', 'delegation', 'weight', 'period')
+    list_filter = ('period', 'delegation')
+    search_fields = ('name',)
+    # list_select_related optimiza la BD al traer las FK de una sola vez (Requisito de rúbrica)
+    list_select_related = ('delegation', 'period')
+    ordering = ('-period__start_date', 'name')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(Achievement)
+class AchievementAdmin(admin.ModelAdmin):
+    list_display = ('goal', 'percentage', 'updated_at')
+    list_filter = ('goal__delegation',)
+    list_select_related = ('goal',)
+    ordering = ('-updated_at',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(MeasurementItem)
+class MeasurementItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'goal', 'unit_of_measure', 'baseline', 'target_value')
+    list_filter = ('goal__delegation',)
+    search_fields = ('name',)
+    list_select_related = ('goal',)
+    ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at')

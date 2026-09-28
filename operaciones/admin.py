@@ -1,72 +1,104 @@
 from django import forms
 from django.contrib import admin
-from .models import AtencionSocial, Compromiso, Actividad, Evidencia
+from django.utils import timezone
+from .models import Task, Activity, Evidence, Employee
 
 
-
-class EvidenciaInline(admin.TabularInline):
-    model = Evidencia
+#Admin Pro: Inlines ----------
+class EvidenceInline(admin.TabularInline):
+    model = Evidence
     extra = 0
-    fields = ('codigo_unico', 'verificador', 'estado_validacion', 'motivo_rechazo', 'fecha_subida')
-    readonly_fields = ('fecha_subida',)
+    fields = ('image_url', 'is_validated', 'created_at')
+    readonly_fields = ('created_at',)
 
 
-@admin.register(AtencionSocial)
-class AtencionSocialAdmin(admin.ModelAdmin):
-    list_display = ('rut_usuario_atendido', 'nombre_usuario_atendido', 'tipo_gestion', 'resultado', 'fecha_registro')
-    search_fields = ('rut_usuario_atendido', 'nombre_usuario_atendido')
-    ordering = ('-fecha_registro',)
+class ActivityInline(admin.TabularInline):
+    model = Activity
+    extra = 0
+    fields = ('name', 'execution_date')
 
 
-@admin.register(Compromiso)
-class CompromisoAdmin(admin.ModelAdmin):
-    list_display = ('titulo', 'estado', 'territorio', 'fecha_limite', 'funcionario', 'meta')
-    list_filter = ('estado', 'territorio', 'funcionario__delegacion')
-    search_fields = ('titulo', 'solicitante')
-    list_select_related = ('funcionario', 'meta')
-    ordering = ('-fecha_limite',)
-
-
-@admin.register(Actividad)
-class ActividadAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'estado', 'funcionario', 'item_medicion', 'fecha_limite')
-    list_filter = ('estado', 'funcionario__delegacion')
-    search_fields = ('nombre', 'descripcion')
-    list_select_related = ('funcionario', 'item_medicion')
-    ordering = ('-fecha_limite','nombre')
-    inlines = [EvidenciaInline]   # ← Admin Pro: Inline
-
-
-# validación con clean() 
-class EvidenciaForm(forms.ModelForm):
+#Admin Pro: validación con clean() ----------
+class TaskForm(forms.ModelForm):
     class Meta:
-        model = Evidencia
+        model = Task
         fields = "__all__"
 
     def clean(self):
         cleaned_data = super().clean()
-        estado = cleaned_data.get("estado_validacion")
-        motivo = cleaned_data.get("motivo_rechazo")
-        if estado in ("Rechazada", "Observada") and not motivo:
-            raise forms.ValidationError(
-                "Debe indicar el motivo de rechazo u observación para este estado."
-            )
+        goal = cleaned_data.get("goal")
+        due_date = cleaned_data.get("due_date")
+        if goal and due_date:
+            period = goal.period
+            if not (period.start_date <= due_date <= period.end_date):
+                raise forms.ValidationError(
+                    f"El plazo debe estar dentro del período de la meta "
+                    f"({period.start_date:%d/%m/%Y} - {period.end_date:%d/%m/%Y})."
+                )
         return cleaned_data
 
 
-#Admin Pro: acción personalizada 
-@admin.action(description="Aprobar evidencias seleccionadas")
-def aprobar_evidencias(modeladmin, request, queryset):
-    actualizadas = queryset.exclude(estado_validacion="Aprobada").update(estado_validacion="Aprobada")
-    modeladmin.message_user(request, f"{actualizadas} evidencia(s) aprobada(s).")
+#Admin Pro: acción personalizada ----------
+@admin.action(description="Validar evidencias seleccionadas")
+def validate_evidences(modeladmin, request, queryset):
+    # update() no dispara auto_now, por eso se actualiza updated_at a mano
+    updated = queryset.filter(is_validated=False).update(
+        is_validated=True, updated_at=timezone.now()
+    )
+    modeladmin.message_user(request, f"{updated} evidencia(s) validada(s).")
 
 
-@admin.register(Evidencia)
-class EvidenciaAdmin(admin.ModelAdmin):
-    form = EvidenciaForm
-    list_display = ('codigo_unico', 'actividad', 'estado_validacion', 'verificador', 'fecha_subida')
-    list_filter = ('estado_validacion', 'fecha_subida')
-    search_fields = ('codigo_unico', 'actividad__nombre')
-    list_select_related = ('actividad', 'verificador')
-    ordering = ('-fecha_subida',)
-    actions = [aprobar_evidencias]
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'rut', 'delegation')
+    list_filter = ('delegation',)
+    search_fields = ('rut', 'user__username')
+    list_select_related = ('user', 'delegation')
+    ordering = ('user__username',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    form = TaskForm
+    list_display = ('title', 'goal', 'due_date', 'status')
+    list_filter = ('status',)
+    search_fields = ('title',)
+    list_select_related = ('goal', 'goal__delegation')
+    ordering = ('due_date',)
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [ActivityInline]
+
+    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Si es superadministrador, ve todo
+        if request.user.is_superuser:
+            return qs
+        # Si es un funcionario normal, solo ve las tareas de su delegación
+        if hasattr(request.user, 'employee'):
+            return qs.filter(goal__delegation=request.user.employee.delegation)
+        # Si no tiene empleado asociado, no ve nada
+        return qs.none()
+
+
+@admin.register(Activity)
+class ActivityAdmin(admin.ModelAdmin):
+    list_display = ('name', 'task', 'execution_date')
+    list_filter = ('execution_date',)
+    search_fields = ('name', 'task__title')
+    list_select_related = ('task',)
+    ordering = ('-execution_date',)
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [EvidenceInline]
+
+
+@admin.register(Evidence)
+class EvidenceAdmin(admin.ModelAdmin):
+    list_display = ('activity', 'is_validated', 'created_at')
+    list_filter = ('is_validated', 'created_at')
+    search_fields = ('activity__name',)
+    list_select_related = ('activity',)
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
+    actions = [validate_evidences]
