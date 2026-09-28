@@ -5,6 +5,7 @@ from .models import Periodo, MetaInstitucional, Cumplimiento, ItemMedicion
 class PeriodoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'trimestre', 'fecha_inicio', 'fecha_fin', 'dias_computables', 'estado')
     list_filter = ('estado', 'trimestre')
+    ordering = ('-fecha_inicio',)
 
 @admin.register(MetaInstitucional)
 class MetaInstitucionalAdmin(admin.ModelAdmin):
@@ -12,12 +13,14 @@ class MetaInstitucionalAdmin(admin.ModelAdmin):
     list_filter = ('delegacion', 'periodo')
     search_fields = ('nombre',)
     list_select_related = ('delegacion', 'periodo')
+    ordering = ('nombre',)
 
 @admin.register(Cumplimiento)
 class CumplimientoAdmin(admin.ModelAdmin):
     list_display = ('meta', 'porcentaje', 'fecha_calculo')
     list_filter = ('meta__delegacion', 'fecha_calculo')
     list_select_related = ('meta',)
+    ordering = ('-fecha_calculo',)
 
 @admin.register(ItemMedicion)
 class ItemMedicionAdmin(admin.ModelAdmin):
@@ -25,3 +28,4 @@ class ItemMedicionAdmin(admin.ModelAdmin):
     list_filter = ('meta__delegacion', 'tipo')
     search_fields = ('nombre',)
     list_select_related = ('meta',)
+    ordering = ('nombre',)

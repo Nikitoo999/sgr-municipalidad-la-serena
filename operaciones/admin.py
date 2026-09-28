@@ -15,6 +15,7 @@ class EvidenciaInline(admin.TabularInline):
 class AtencionSocialAdmin(admin.ModelAdmin):
     list_display = ('rut_usuario_atendido', 'nombre_usuario_atendido', 'tipo_gestion', 'resultado', 'fecha_registro')
     search_fields = ('rut_usuario_atendido', 'nombre_usuario_atendido')
+    ordering = ('-fecha_registro',)
 
 
 @admin.register(Compromiso)
@@ -23,6 +24,7 @@ class CompromisoAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'territorio', 'funcionario__delegacion')
     search_fields = ('titulo', 'solicitante')
     list_select_related = ('funcionario', 'meta')
+    ordering = ('-fecha_limite',)
 
 
 @admin.register(Actividad)
@@ -31,6 +33,7 @@ class ActividadAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'funcionario__delegacion')
     search_fields = ('nombre', 'descripcion')
     list_select_related = ('funcionario', 'item_medicion')
+    ordering = ('-fecha_limite','nombre')
     inlines = [EvidenciaInline]   # ← Admin Pro: Inline
 
 
@@ -65,4 +68,5 @@ class EvidenciaAdmin(admin.ModelAdmin):
     list_filter = ('estado_validacion', 'fecha_subida')
     search_fields = ('codigo_unico', 'actividad__nombre')
     list_select_related = ('actividad', 'verificador')
+    ordering = ('-fecha_subida',)
     actions = [aprobar_evidencias]
