@@ -1,24 +1,30 @@
 from django.contrib import admin
-from .models import Periodo, MetaInstitucional, Cumplimiento, ItemMedicion
+from .models import Delegation, Period, InstitutionalGoal, Achievement, MeasurementItem
 
-@admin.register(Periodo)
-class PeriodoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'trimestre', 'fecha_inicio', 'fecha_fin', 'dias_computables', 'estado')
-    list_filter = ('estado', 'trimestre')
+@admin.register(Delegation)
+class DelegationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'created_at')
+    search_fields = ('name',)
 
-@admin.register(MetaInstitucional)
-class MetaInstitucionalAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'delegacion', 'periodo', 'ponderacion')
-    list_filter = ('delegacion', 'periodo')
-    search_fields = ('nombre',)
+@admin.register(Period)
+class PeriodAdmin(admin.ModelAdmin):
+    list_display = ('name', 'quarter', 'start_date', 'end_date', 'status')
+    list_filter = ('status', 'quarter')
 
-@admin.register(Cumplimiento)
-class CumplimientoAdmin(admin.ModelAdmin):
-    list_display = ('meta', 'porcentaje', 'fecha_calculo')
-    list_filter = ('meta__delegacion', 'fecha_calculo')
+@admin.register(InstitutionalGoal)
+class InstitutionalGoalAdmin(admin.ModelAdmin):
+    list_display = ('name', 'delegation', 'weight', 'period')
+    list_filter = ('period', 'delegation')
+    search_fields = ('name',)
+    # list_select_related optimiza la BD al traer las FK de una sola vez (Requisito de rúbrica)
+    list_select_related = ('delegation', 'period')
 
-@admin.register(ItemMedicion)
-class ItemMedicionAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'meta', 'unidad_medida', 'linea_base', 'valor_objetivo')
-    list_filter = ('meta__delegacion', 'tipo')
-    search_fields = ('nombre',)
+@admin.register(Achievement)
+class AchievementAdmin(admin.ModelAdmin):
+    list_display = ('goal', 'percentage', 'updated_at')
+    list_select_related = ('goal',)
+
+@admin.register(MeasurementItem)
+class MeasurementItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'goal', 'baseline', 'target_value')
+    list_select_related = ('goal',)

@@ -20,7 +20,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Aplicaciones del dominio SGR
-    'rrhh.apps.RrhhConfig',
     'sgr_core.apps.SgrCoreConfig',
     'operaciones.apps.OperacionesConfig',
 ]
