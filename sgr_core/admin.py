@@ -43,7 +43,7 @@ class InstitutionalGoalAdmin(admin.ModelAdmin):
     list_display = ('name', 'delegation', 'weight', 'period')
     list_filter = ('period', 'delegation')
     search_fields = ('name',)
-    # list_select_related optimiza la BD al traer las FK de una sola vez (Requisito de rúbrica)
+    # list_select_related optimiza la BD al traer las FK de una sola vez 
     list_select_related = ('delegation', 'period')
     ordering = ('-period__start_date', 'name')
     readonly_fields = ('created_at', 'updated_at')
