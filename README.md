@@ -16,7 +16,7 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 |--------------|--------------------------------|
 | Lenguaje     | Python 3.11 o superior (el entorno de desarrollo actual usa Python 3.14.7) |
 | Framework    | Django 5.2.x (`requirements.txt`: `Django>=5.2,<5.3`; instalado: 5.2.17) |
-| Base de datos| SQLite en desarrollo (definida en `config/settings.py`). El diseño relacional de referencia está en `database/sgr_municipalidad_laserena_mysql.sql` (MySQL 8). `psycopg2-binary` queda disponible si se migra a Postgres |
+| Base de datos| SQLite por defecto, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/sgr_municipalidad_laserena_mysql.sql` (MySQL 8); `psycopg2-binary` ya está en `requirements.txt` para Postgres |
 | Variables de entorno | `python-dotenv` (archivo `.env`) |
 
 ## 📁 Estructura del proyecto
@@ -133,6 +133,12 @@ cp .env.example .env     # Windows PowerShell:  Copy-Item .env.example .env
 | `DJANGO_SECRET_KEY`  | Clave secreta de Django                                 | `tu-clave-secreta`       |
 | `DEBUG`              | `True` / `False` (si no se define, se asume `True`)     | `True`                   |
 | `ALLOWED_HOSTS`      | Hosts permitidos, separados por coma                    | `localhost,127.0.0.1`    |
+| `DB_ENGINE`          | Motor de base de datos (por defecto SQLite)             | `django.db.backends.sqlite3` |
+| `DB_NAME`            | Ruta o nombre de la base de datos                       | `db.sqlite3`             |
+| `DB_USER`            | Usuario del motor (solo si no es SQLite)                | `usuario`                |
+| `DB_PASSWORD`        | Contraseña del motor (solo si no es SQLite)             | `clave`                  |
+| `DB_HOST`            | Host del motor (solo si no es SQLite)                   | `127.0.0.1`              |
+| `DB_PORT`            | Puerto del motor (solo si no es SQLite)                 | `5432`                   |
 
 Para generar una clave secreta:
 
@@ -141,6 +147,27 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 ```
 
 > **Seguridad:** la `SECRET_KEY` nunca debe hardcodearse ni subirse a git. El archivo `.env` está excluido por `.gitignore`. `config/settings.py` incluye una clave por defecto válida **sólo para desarrollo**: define siempre `DJANGO_SECRET_KEY` en tu `.env`.
+
+#### Cambiar de motor de base de datos
+
+`config/settings.py` arma `DATABASES` leyendo `.env`, así que **no hay que modificar código** para cambiar de motor:
+
+1. Define el motor y sus parámetros en tu `.env` (si no defines `DB_ENGINE`, se usa SQLite):
+
+   ```
+   DB_ENGINE=django.db.backends.postgresql
+   DB_NAME=sgr_municipalidad_laserena
+   DB_USER=usuario
+   DB_PASSWORD=clave
+   DB_HOST=127.0.0.1
+   DB_PORT=5432
+   ```
+
+2. Instala el driver del motor elegido: `psycopg2-binary` ya viene en `requirements.txt` (Postgres); para MySQL 8 se necesita `mysqlclient`, que **no** está en `requirements.txt`.
+
+3. Aplica las migraciones: `python manage.py migrate`.
+
+Si defines `DB_NAME` como ruta relativa (por ejemplo `db.sqlite3`), se resuelve dentro del proyecto.
 
 ### 4. Migraciones y superusuario
 

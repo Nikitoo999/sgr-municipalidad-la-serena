@@ -92,6 +92,18 @@ class ActivityAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     inlines = [EvidenceInline]
 
+    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Si es superadministrador, ve todo
+        if request.user.is_superuser:
+            return qs
+        # Si es un funcionario normal, solo ve las actividades de su delegación
+        if hasattr(request.user, 'employee'):
+            return qs.filter(task__goal__delegation=request.user.employee.delegation)
+        # Si no tiene empleado asociado, no ve nada
+        return qs.none()
+
 
 @admin.register(Evidence)
 class EvidenceAdmin(admin.ModelAdmin):
@@ -102,3 +114,15 @@ class EvidenceAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
     actions = [validate_evidences]
+
+    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Si es superadministrador, ve todo
+        if request.user.is_superuser:
+            return qs
+        # Si es un funcionario normal, solo ve las evidencias de su delegación
+        if hasattr(request.user, 'employee'):
+            return qs.filter(activity__task__goal__delegation=request.user.employee.delegation)
+        # Si no tiene empleado asociado, no ve nada
+        return qs.none()
