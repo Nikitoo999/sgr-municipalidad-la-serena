@@ -11,6 +11,7 @@ class BaseModel(models.Model):
 class Delegation(BaseModel):
     name = models.CharField(max_length=50, verbose_name="Nombre de Delegación")
     description = models.TextField(blank=True, null=True, verbose_name="Descripción")
+    color = models.CharField(max_length=7, blank=True, default="", help_text="Código hex, ej: #E63946", verbose_name="Color distintivo")
 
     class Meta:
         verbose_name = "Delegación"

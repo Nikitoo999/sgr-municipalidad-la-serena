@@ -18,7 +18,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from operaciones.models import Activity, Employee, Evidence, Task
+from operaciones.models import Activity, Benefit, Employee, Evidence, Task, TaskReassignment
 from sgr_core.models import Achievement, Delegation, InstitutionalGoal, MeasurementItem, Period
 
 DEMO_PASSWORD = "Demo2026!"
@@ -100,6 +100,23 @@ EVIDENCES = [
     ("Encuesta de percepción vecinal", "https://ejemplo.cl/evidencias/ev-0004.jpg", True),
     ("Revisión de señalética existente", "https://ejemplo.cl/evidencias/ev-0005.jpg", False),
     ("Charla informativa a comerciantes", "https://ejemplo.cl/evidencias/ev-0006.jpg", False),
+]
+
+# (titulo_tarea, username_origen, username_destino, motivo, dias_atras, notas)
+REASSIGNMENTS = [
+    ("Operativo de limpieza calle Cienfuegos", "diego.molina", "elena.campas", "vacation", 8,
+     "La funcionaria asume el operativo durante las vacaciones del titular."),
+    ("Reunión con comerciantes del casco antiguo", "elena.campas", "diego.molina", "absence", 3,
+     "Derivación por licencia médica del titular."),
+    ("Inspección de accesos a playa", "gabriela.rojas", "hugo.pizarro", "other", 2,
+     "Apoyo del equipo en la inspección de señalética."),
+]
+
+# (username, tipo_beneficio, dias_atras, entregado)
+BENEFITS = [
+    ("diego.molina", "food_basket", 5, True),
+    ("elena.campas", "school_kit", 3, False),
+    ("gabriela.rojas", "medical_aid", 1, True),
 ]
 
 
@@ -188,6 +205,34 @@ class Command(BaseCommand):
             Evidence.objects.get_or_create(
                 activity=activities[nombre_act],
                 defaults={"image_url": url, "is_validated": validado},
+            )
+
+        # --- Derivaciones de tareas (TaskReassignment) ---
+        # Repartidas entre 2 delegaciones (Centro y Avenida del Mar) para poder
+        # comprobar el scoping por delegación en el admin.
+        for titulo, origen, destino, motivo, dias, notas in REASSIGNMENTS:
+            TaskReassignment.objects.get_or_create(
+                task=tasks[titulo],
+                original_employee=empleados[origen],
+                reassigned_employee=empleados[destino],
+                defaults={
+                    "reason": motivo,
+                    "reassigned_at": timezone.now() - timedelta(days=dias),
+                    "notes": notas,
+                },
+            )
+
+        # --- Beneficios (Benefit) ---
+        # delivery_area debe coincidir con la delegación del funcionario (lo valida clean())
+        for username, tipo, dias, entregado in BENEFITS:
+            emp = empleados[username]
+            Benefit.objects.get_or_create(
+                employee=emp, benefit_type=tipo,
+                defaults={
+                    "delivery_area": emp.delegation,
+                    "delivered_at": (timezone.now() - timedelta(days=dias)) if entregado else None,
+                    "delivered": entregado,
+                },
             )
 
         # --- Usuarios del Django Admin (administrador y limitado) ---

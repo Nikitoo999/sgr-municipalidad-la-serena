@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.contrib.auth.models import User
 from sgr_core.models import BaseModel, InstitutionalGoal, Delegation
@@ -49,6 +50,7 @@ class Employee(BaseModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee', verbose_name="Usuario de Sistema")
     rut = models.CharField(max_length=12, unique=True, verbose_name="RUT")
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Teléfono")
+    address = models.CharField(max_length=255, blank=True, default="", verbose_name="Dirección")
     delegation = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name='employees', verbose_name="Delegación Asignada")
 
     class Meta:
@@ -60,3 +62,43 @@ class Employee(BaseModel):
         # Si el usuario no tiene nombre configurado, mostrará el username
         nombre = self.user.get_full_name() or self.user.username
         return f"{nombre} - {self.delegation.name}"
+
+
+class TaskReassignment(BaseModel):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="reassignments", verbose_name="Tarea Derivada")
+    original_employee = models.ForeignKey(Employee, on_delete=models.RESTRICT, related_name="original_reassignments", verbose_name="Funcionario Original")
+    reassigned_employee = models.ForeignKey(Employee, on_delete=models.RESTRICT, related_name="received_reassignments", verbose_name="Funcionario Receptor")
+    reason = models.CharField(max_length=20, choices=[("vacation", "Vacaciones"), ("absence", "Ausencia"), ("other", "Otro")], verbose_name="Motivo de la Derivación")
+    reassigned_at = models.DateTimeField(verbose_name="Fecha de Derivación")
+    notes = models.TextField(blank=True, null=True, verbose_name="Observaciones")
+
+    class Meta:
+        verbose_name = "Derivación de tarea"
+        verbose_name_plural = "Derivaciones de tareas"
+        db_table = "derivacion_tarea"
+
+    def __str__(self):
+        return f"{self.task.title} ({self.original_employee} a {self.reassigned_employee})"
+
+
+class Benefit(BaseModel):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="benefits", verbose_name="Funcionario Beneficiario")
+    benefit_type = models.CharField(max_length=30, choices=[("food_basket", "Canasta de alimentos"), ("school_kit", "Kit escolar"), ("medical_aid", "Ayuda médica"), ("other", "Otro")], verbose_name="Tipo de Beneficio")
+    delivery_area = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name="delivered_benefits", verbose_name="Delegación de Entrega")
+    delivered_at = models.DateTimeField(blank=True, null=True, verbose_name="Fecha de Entrega")
+    delivered = models.BooleanField(default=False, verbose_name="Entregado")
+
+    class Meta:
+        verbose_name = "Beneficio"
+        verbose_name_plural = "Beneficios"
+        db_table = "beneficio"
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.delivery_area_id and self.delivery_area != self.employee.delegation:
+            raise ValidationError({
+                "delivery_area": "La delegación de entrega debe coincidir con la delegación del funcionario.",
+            })
+
+    def __str__(self):
+        return f"{self.employee} - {self.get_benefit_type_display()} ({self.delivery_area.name})"
