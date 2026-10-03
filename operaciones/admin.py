@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.utils import timezone
-from .models import Task, Activity, Evidence, Employee
+from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
 
 
 #Admin Pro: Inlines ----------
@@ -52,7 +52,7 @@ def validate_evidences(modeladmin, request, queryset):
 class EmployeeAdmin(admin.ModelAdmin):
     list_display = ('user', 'rut', 'delegation')
     list_filter = ('delegation',)
-    search_fields = ('rut', 'user__username')
+    search_fields = ('rut', 'user__username', 'user__first_name', 'user__last_name', 'address')
     list_select_related = ('user', 'delegation')
     ordering = ('user__username',)
     readonly_fields = ('created_at', 'updated_at')
@@ -124,5 +124,49 @@ class EvidenceAdmin(admin.ModelAdmin):
         # Si es un funcionario normal, solo ve las evidencias de su delegación
         if hasattr(request.user, 'employee'):
             return qs.filter(activity__task__goal__delegation=request.user.employee.delegation)
+        # Si no tiene empleado asociado, no ve nada
+        return qs.none()
+
+
+@admin.register(TaskReassignment)
+class TaskReassignmentAdmin(admin.ModelAdmin):
+    list_display = ('task', 'original_employee', 'reassigned_employee', 'reason', 'reassigned_at')
+    list_filter = ('reason',)
+    search_fields = ('task__title', 'original_employee__rut', 'reassigned_employee__rut')
+    list_select_related = ('task', 'original_employee', 'reassigned_employee')
+    ordering = ('-reassigned_at',)
+    readonly_fields = ('created_at', 'updated_at')
+
+    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Si es superadministrador, ve todo
+        if request.user.is_superuser:
+            return qs
+        # Si es un funcionario normal, solo ve las derivaciones de su delegación
+        if hasattr(request.user, 'employee'):
+            return qs.filter(task__goal__delegation=request.user.employee.delegation)
+        # Si no tiene empleado asociado, no ve nada
+        return qs.none()
+
+
+@admin.register(Benefit)
+class BenefitAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'benefit_type', 'delivery_area', 'delivered_at', 'delivered')
+    list_filter = ('benefit_type', 'delivered', 'delivery_area')
+    search_fields = ('employee__rut', 'employee__user__username')
+    list_select_related = ('employee', 'employee__user', 'delivery_area')
+    ordering = ('-delivered_at',)
+    readonly_fields = ('created_at', 'updated_at')
+
+    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Si es superadministrador, ve todo
+        if request.user.is_superuser:
+            return qs
+        # Si es un funcionario normal, solo ve los beneficios de su delegación
+        if hasattr(request.user, 'employee'):
+            return qs.filter(employee__delegation=request.user.employee.delegation)
         # Si no tiene empleado asociado, no ve nada
         return qs.none()
