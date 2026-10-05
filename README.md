@@ -16,7 +16,7 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 |--------------|--------------------------------|
 | Lenguaje     | Python 3.11 o superior (el entorno de desarrollo actual usa Python 3.14.7) |
 | Framework    | Django 5.2.x (`requirements.txt`: `Django>=5.2,<5.3`; instalado: 5.2.17) |
-| Base de datos| SQLite por defecto, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/sgr_municipalidad_laserena_mysql.sql` (MySQL 8); `psycopg2-binary` ya está en `requirements.txt` para Postgres |
+| Base de datos| MariaDB/MySQL en producción y SQLite por defecto en desarrollo, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/sgr_municipalidad_laserena_mysql.sql` (MySQL 8); el driver `mysqlclient` está en `requirements.txt` |
 | Variables de entorno | `python-dotenv` (archivo `.env`) |
 
 ## 📁 Estructura del proyecto
@@ -138,7 +138,7 @@ cp .env.example .env     # Windows PowerShell:  Copy-Item .env.example .env
 | `DB_USER`            | Usuario del motor (solo si no es SQLite)                | `usuario`                |
 | `DB_PASSWORD`        | Contraseña del motor (solo si no es SQLite)             | `clave`                  |
 | `DB_HOST`            | Host del motor (solo si no es SQLite)                   | `127.0.0.1`              |
-| `DB_PORT`            | Puerto del motor (solo si no es SQLite)                 | `5432`                   |
+| `DB_PORT`            | Puerto del motor (solo si no es SQLite)                 | `3306`                   |
 
 Para generar una clave secreta:
 
@@ -155,15 +155,15 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 1. Define el motor y sus parámetros en tu `.env` (si no defines `DB_ENGINE`, se usa SQLite):
 
    ```
-   DB_ENGINE=django.db.backends.postgresql
+   DB_ENGINE=django.db.backends.mysql
    DB_NAME=sgr_municipalidad_laserena
    DB_USER=usuario
    DB_PASSWORD=clave
    DB_HOST=127.0.0.1
-   DB_PORT=5432
+   DB_PORT=3306
    ```
 
-2. Instala el driver del motor elegido: `psycopg2-binary` ya viene en `requirements.txt` (Postgres); para MySQL 8 se necesita `mysqlclient`, que **no** está en `requirements.txt`.
+2. Instala el driver del motor elegido: `mysqlclient` ya viene en `requirements.txt` (MariaDB/MySQL).
 
 3. Aplica las migraciones: `python manage.py migrate`.
 
@@ -204,4 +204,42 @@ Panel de administración: <http://127.0.0.1:8000/admin/>
 - `SECRET_KEY` se lee desde `DJANGO_SECRET_KEY` (variable de entorno / `.env`).
 - Las contraseñas de los funcionarios se gestionan con el sistema de autenticación de Django (`Employee.user`), por lo que se almacenan **hasheadas** (pbkdf2), nunca en texto plano.
 - `db.sqlite3` no se versiona (ver `.gitignore`).
-- Para producción: `DEBUG=False`, `ALLOWED_HOSTS` con el dominio real, sustituir la clave por defecto de `settings.py`, configurar `STATIC_ROOT` para `collectstatic` y evaluar MySQL/Postgres como base de datos.
+- Para producción: `DEBUG=False`, `ALLOWED_HOSTS` con el dominio real, sustituir la clave por defecto de `settings.py`, configurar `STATIC_ROOT` para `collectstatic` y usar MariaDB/MySQL como base de datos.
+
+---
+
+## Despliegue en producción (EC2)
+
+> ⚠️ **En producción, `DEBUG` debe ser `False` y `ALLOWED_HOSTS` debe incluir la IP pública real de la instancia** (o su dominio). Nunca despliegues con `DEBUG=True`.
+
+1. **Instalar dependencias** (en la instancia, con el venv activado):
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Configurar `.env` de producción** (copia `.env.example` a `.env` y ajusta):
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Define al menos: `DJANGO_SECRET_KEY` (genera una nueva), `DEBUG=False`, `ALLOWED_HOSTS=<IP_PUBLICA_REAL>` y las variables `DB_*` de MariaDB (`DB_ENGINE=django.db.backends.mysql`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT=3306`).
+
+3. **Recolectar estáticos y migrar**:
+
+   ```bash
+   python manage.py collectstatic --noinput
+   python manage.py migrate
+   ```
+
+4. **Levantar el servicio con systemd** (usa la plantilla `deploy/sgr.service`; reemplaza `<RUTA_PROYECTO>` y `<USUARIO>` con los valores reales de la instancia):
+
+   ```bash
+   sudo cp deploy/sgr.service /etc/systemd/system/sgr.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now sgr
+   sudo systemctl status sgr
+   ```
+
+   El servicio corre `gunicorn config.wsgi:application` para que el proceso siga vivo al cerrar la sesión SSH.
