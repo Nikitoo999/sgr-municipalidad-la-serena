@@ -22,7 +22,8 @@ class PeriodForm(forms.ModelForm):
 
 @admin.register(Delegation)
 class DelegationAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at')
+    list_display = ('name', 'color', 'created_at', 'updated_at')
+    list_editable = ('color',)
     search_fields = ('name',)
     ordering = ('name',)
     readonly_fields = ('created_at', 'updated_at')
