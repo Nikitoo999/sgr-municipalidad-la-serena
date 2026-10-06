@@ -1,0 +1,44 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SGR La Serena — Panel</title>
+    <link rel="stylesheet" href="{% static 'portal/style.css' %}">
+</head>
+<body>
+    <header class="topbar" data-color="{{ delegation_color|default:'#C62828' }}">
+        <div>
+            <strong>{{ delegation_name }}</strong>
+            <span class="muted">SGR Municipalidad de La Serena</span>
+        </div>
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm" data-color="{{ delegation_color|default:'#C62828' }}">Cerrar sesión</button>
+        </form>
+    </header>
+    <main class="card">
+        <h1>Bienvenido, {{ user.get_full_name|default:user.username }}</h1>
+        <p class="subtitle">Delegación: {{ delegation_name }}</p>
+        <div class="actions">
+            <a class="btn" data-color="{{ delegation_color|default:'#C62828' }}" href="#">Ver tareas</a>
+            <a class="btn" data-color="{{ delegation_color|default:'#C62828' }}" href="#">Ver actividades</a>
+            <a class="btn" data-color="{{ delegation_color|default:'#C62828' }}" href="#">Ver beneficios</a>
+        </div>
+    </main>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-color]').forEach(function (element) {
+                var color = element.dataset.color || '#C62828';
+
+                if (element.classList.contains('topbar')) {
+                    element.style.borderTop = '6px solid ' + color;
+                } else if (element.classList.contains('btn')) {
+                    element.style.backgroundColor = color;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SGR La Serena — Ingresar</title>
+    <link rel="stylesheet" href="{% static 'portal/style.css' %}">
+</head>
+<body>
+    <main class="card">
+        <h1>SGR Municipalidad de La Serena</h1>
+        <p class="subtitle">Ingrese con su usuario y clave</p>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+            <button type="submit" class="btn" style="background-color: #C62828;">Ingresar</button>
+        </form>
+    </main>
+</body>
+</html>
