@@ -26,12 +26,12 @@ ADMIN_USER = "admin_demo"
 LIMITED_USER = "limitado_demo"
 
 DELEGATIONS = [
-    ("Avenida del Mar", "Borde costero, turismo, residencial y servicios"),
-    ("Centro", "Centro histórico, administrativo, comercial y patrimonial"),
-    ("La Antena", "Sector urbano oriental y barrios asociados"),
-    ("Las Compañías", "Sector urbano norte de alta densidad y fuerte identidad territorial"),
-    ("La Pampa", "Sector urbano sur y áreas residenciales asociadas"),
-    ("Rural", "Localidades y comunidades rurales dispersas"),
+    ("Avenida del Mar", "Borde costero, turismo, residencial y servicios", "#1D6FA5"),
+    ("Centro", "Centro histórico, administrativo, comercial y patrimonial", "#C62828"),
+    ("La Antena", "Sector urbano oriental y barrios asociados", "#2E7D32"),
+    ("Las Compañías", "Sector urbano norte de alta densidad y fuerte identidad territorial", "#6A1B9A"),
+    ("La Pampa", "Sector urbano sur y áreas residenciales asociadas", "#E65100"),
+    ("Rural", "Localidades y comunidades rurales dispersas", "#00796B"),
 ]
 
 # (username, first_name, last_name, rut, delegacion)
@@ -105,11 +105,11 @@ EVIDENCES = [
 # (titulo_tarea, username_origen, username_destino, motivo, dias_atras, notas)
 REASSIGNMENTS = [
     ("Operativo de limpieza calle Cienfuegos", "diego.molina", "elena.campas", "vacation", 8,
-     "La funcionaria asume el operativo durante las vacaciones del titular."),
+    "La funcionaria asume el operativo durante las vacaciones del titular."),
     ("Reunión con comerciantes del casco antiguo", "elena.campas", "diego.molina", "absence", 3,
-     "Derivación por licencia médica del titular."),
+    "Derivación por licencia médica del titular."),
     ("Inspección de accesos a playa", "gabriela.rojas", "hugo.pizarro", "other", 2,
-     "Apoyo del equipo en la inspección de señalética."),
+    "Apoyo del equipo en la inspección de señalética."),
 ]
 
 # (username, tipo_beneficio, dias_atras, entregado)
@@ -130,8 +130,11 @@ class Command(BaseCommand):
 
         # --- Delegaciones ---
         delegs = {}
-        for nombre, desc in DELEGATIONS:
-            d, _ = Delegation.objects.get_or_create(name=nombre, defaults={"description": desc})
+        for nombre, desc, color in DELEGATIONS:
+            d, _ = Delegation.objects.get_or_create(name=nombre, defaults={"description": desc, "color": color})
+            if d.color != color:
+                d.color = color
+                d.save(update_fields=["color"])
             delegs[nombre] = d
 
         # --- Usuarios + Funcionarios (Employee) ---
@@ -153,12 +156,12 @@ class Command(BaseCommand):
         periodo, _ = Period.objects.get_or_create(
             name="Trimestre Jul-Sep 2026",
             defaults={"start_date": date(2026, 7, 1), "end_date": date(2026, 9, 30),
-                      "quarter": 3, "status": "En curso"},
+                    "quarter": 3, "status": "En curso"},
         )
         Period.objects.get_or_create(
             name="Trimestre Abr-Jun 2026",
             defaults={"start_date": date(2026, 4, 1), "end_date": date(2026, 6, 30),
-                      "quarter": 2, "status": "Cerrado"},
+                    "quarter": 2, "status": "Cerrado"},
         )
 
         # --- Metas institucionales + ítems + cumplimiento ---
