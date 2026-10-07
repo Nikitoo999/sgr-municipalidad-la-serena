@@ -3,6 +3,11 @@ from django.db import models
 from django.contrib.auth.models import User
 from sgr_core.models import BaseModel, InstitutionalGoal, Delegation
 
+ROLE_CHOICES = [
+    ("jefatura", "Jefatura"),
+    ("usuario", "Usuario"),
+]
+
 # ... aquí siguen tus clases Task, Activity, etc.
 
 class Task(BaseModel):
@@ -11,6 +16,10 @@ class Task(BaseModel):
     description = models.TextField(blank=True, null=True, verbose_name="Descripción")
     due_date = models.DateField(verbose_name="Fecha de Plazo")
     status = models.CharField(max_length=50, choices=[('Pendiente', 'Pendiente'), ('En Progreso', 'En Progreso'), ('Completada', 'Completada')], default='Pendiente', verbose_name="Estado")
+    assigned_to = models.ForeignKey(
+        "Employee", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="assigned_tasks", verbose_name="Responsable asignado",
+    )
 
     class Meta:
         verbose_name = "Tarea"
@@ -52,6 +61,7 @@ class Employee(BaseModel):
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Teléfono")
     address = models.CharField(max_length=255, blank=True, default="", verbose_name="Dirección")
     delegation = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name='employees', verbose_name="Delegación Asignada")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="usuario", verbose_name="Rol")
 
     class Meta:
         verbose_name = "Funcionario"
