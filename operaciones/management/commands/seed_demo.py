@@ -24,6 +24,7 @@ from sgr_core.models import Achievement, Delegation, InstitutionalGoal, Measurem
 DEMO_PASSWORD = "Demo2026!"
 ADMIN_USER = "admin_demo"
 LIMITED_USER = "limitado_demo"
+BOSS_USER = "jefatura_centro"
 
 DELEGATIONS = [
     ("Avenida del Mar", "Borde costero, turismo, residencial y servicios", "#1D6FA5"),
@@ -34,12 +35,12 @@ DELEGATIONS = [
     ("Rural", "Localidades y comunidades rurales dispersas", "#00796B"),
 ]
 
-# (username, first_name, last_name, rut, delegacion)
+# (username, first_name, last_name, rut, delegacion, rol)
 EMPLOYEES = [
-    ("diego.molina", "Diego", "Molina Pinto", "10.000.004-4", "Centro"),
-    ("elena.campas", "Elena", "Campas Mora", "10.000.005-5", "Centro"),
-    ("gabriela.rojas", "Gabriela", "Rojas Lagos", "10.000.007-7", "Avenida del Mar"),
-    ("hugo.pizarro", "Hugo", "Pizarro Reyes", "10.000.008-8", "Avenida del Mar"),
+    ("diego.molina", "Diego", "Molina Pinto", "10.000.004-4", "Centro", "usuario"),
+    ("elena.campas", "Elena", "Campas Mora", "10.000.005-5", "Centro", "usuario"),
+    ("gabriela.rojas", "Gabriela", "Rojas Lagos", "10.000.007-7", "Avenida del Mar", "usuario"),
+    ("hugo.pizarro", "Hugo", "Pizarro Reyes", "10.000.008-8", "Avenida del Mar", "usuario"),
 ]
 
 # delegacion -> [(nombre_meta, ponderacion, [(item, unidad, objetivo)])]
@@ -80,6 +81,10 @@ TASKS = [
     "Coordinación estacional y espacios públicos", "Revisar señalética y baños públicos."),
     ("hugo.pizarro", "Charla de prevención en borde costero", "Completada", -15,
     "Seguridad y prevención", "Coordinar con Seguridad Ciudadana."),
+    # Tarea visible para limitado_demo (usuario de Centro): se asigna a elena
+    # aquí y se reasigna a su Employee propio más abajo, cuando ya existe.
+    ("elena.campas", "Catastro de luminarias apagadas en Centro", "Pendiente", 7,
+    "Gestión del espacio público", "Registrar postes sin luz para derivar a Obras."),
 ]
 
 # (titulo_tarea, nombre_actividad, dias_ejecucion_relativos)
@@ -90,6 +95,7 @@ ACTIVITIES = [
     ("Reunión con residentes de edificios costeros", "Encuesta de percepción vecinal", -7),
     ("Inspección de accesos a playa", "Revisión de señalética existente", -1),
     ("Charla de prevención en borde costero", "Charla informativa a comerciantes", -15),
+    ("Catastro de luminarias apagadas en Centro", "Relevamiento de postes sin iluminación", -1),
 ]
 
 # (nombre_actividad, url_imagen, validado)
@@ -100,6 +106,7 @@ EVIDENCES = [
     ("Encuesta de percepción vecinal", "https://ejemplo.cl/evidencias/ev-0004.jpg", True),
     ("Revisión de señalética existente", "https://ejemplo.cl/evidencias/ev-0005.jpg", False),
     ("Charla informativa a comerciantes", "https://ejemplo.cl/evidencias/ev-0006.jpg", False),
+    ("Relevamiento de postes sin iluminación", "https://ejemplo.cl/evidencias/ev-0007.jpg", False),
 ]
 
 # (titulo_tarea, username_origen, username_destino, motivo, dias_atras, notas)
@@ -139,7 +146,7 @@ class Command(BaseCommand):
 
         # --- Usuarios + Funcionarios (Employee) ---
         empleados = {}
-        for username, first, last, rut, deleg in EMPLOYEES:
+        for username, first, last, rut, deleg, rol in EMPLOYEES:
             u, creado = User.objects.get_or_create(
                 username=username,
                 defaults={"first_name": first, "last_name": last, "email": f"{username}@ejemplo.cl", "is_staff": True},
@@ -148,8 +155,11 @@ class Command(BaseCommand):
                 u.set_password(DEMO_PASSWORD)
                 u.save()
             emp, _ = Employee.objects.get_or_create(
-                user=u, defaults={"rut": rut, "delegation": delegs[deleg]},
+                user=u, defaults={"rut": rut, "delegation": delegs[deleg], "role": rol},
             )
+            if emp.role != rol:
+                emp.role = rol
+                emp.save(update_fields=["role"])
             empleados[username] = emp
 
         # --- Períodos ---
@@ -192,6 +202,10 @@ class Command(BaseCommand):
                 title=titulo, goal=goal,
                 defaults={"description": desc, "due_date": plazo, "status": estado},
             )
+            resp = empleados[username]
+            if t.assigned_to_id != resp.id:
+                t.assigned_to = resp
+                t.save(update_fields=["assigned_to"])
             tasks[titulo] = t
 
         # --- Actividades (Activity) ---
@@ -255,15 +269,42 @@ class Command(BaseCommand):
         lim_u.save()
         # el usuario limitado también necesita su propio Employee, para que
         # TaskAdmin.get_queryset() pueda filtrar por su delegación (scoping)
-        Employee.objects.get_or_create(
-            user=lim_u, defaults={"rut": "10.000.099-9", "delegation": delegs["Centro"]},
+        lim_emp, _ = Employee.objects.get_or_create(
+            user=lim_u, defaults={"rut": "10.000.099-9", "delegation": delegs["Centro"], "role": "usuario"},
         )
+        if lim_emp.role != "usuario":
+            lim_emp.role = "usuario"
+            lim_emp.save(update_fields=["role"])
         permisos = Permission.objects.filter(
             content_type__app_label="operaciones",
             codename__in=["view_task", "change_task", "view_activity", "view_evidence", "change_evidence"],
         )
         lim_u.user_permissions.set(permisos)
+        # Tarea propia del usuario limitado: se reasigna a su Employee para
+        # poder probar el scoping de Usuario (assigned_to propio).
+        t_lim = tasks.get("Catastro de luminarias apagadas en Centro")
+        if t_lim is not None and t_lim.assigned_to_id != lim_emp.id:
+            t_lim.assigned_to = lim_emp
+            t_lim.save(update_fields=["assigned_to"])
+
+        # --- Jefatura de delegación (Centro): ve todo lo de su delegación ---
+        boss_u, _ = User.objects.get_or_create(
+            username=BOSS_USER,
+            defaults={"first_name": "Jefatura", "last_name": "Centro", "email": f"{BOSS_USER}@ejemplo.cl", "is_staff": True},
+        )
+        boss_u.is_staff = True
+        boss_u.is_superuser = False
+        boss_u.set_password(DEMO_PASSWORD)
+        boss_u.save()
+        boss_emp, _ = Employee.objects.get_or_create(
+            user=boss_u, defaults={"rut": "10.000.100-2", "delegation": delegs["Centro"], "role": "jefatura"},
+        )
+        if boss_emp.role != "jefatura" or boss_emp.delegation_id != delegs["Centro"].id:
+            boss_emp.role, boss_emp.delegation = "jefatura", delegs["Centro"]
+            boss_emp.save(update_fields=["role", "delegation"])
+        boss_u.user_permissions.set(permisos)
 
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
         self.stdout.write(f"  Administrador:  {ADMIN_USER} / {DEMO_PASSWORD}")
         self.stdout.write(f"  Usuario limitado (delegación Centro): {LIMITED_USER} / {DEMO_PASSWORD}")
+        self.stdout.write(f"  Jefatura (delegación Centro): {BOSS_USER} / {DEMO_PASSWORD}")
