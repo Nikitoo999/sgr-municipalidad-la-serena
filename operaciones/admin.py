@@ -3,43 +3,81 @@ from django.contrib import admin
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from sgr_core.admin_base import StandardAdmin
 from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
-
-
+ 
+ 
 def _get_employee(request):
     return getattr(request.user, "employee", None)
-
-
+ 
+ 
 def _is_jefatura(request):
     emp = _get_employee(request)
     return emp is not None and emp.role == "jefatura"
-
-
+ 
+ 
 def _is_usuario(request):
     emp = _get_employee(request)
     return emp is not None and emp.role == "usuario"
-
-
+ 
+ 
 #Admin Pro: Inlines ----------
 class EvidenceInline(admin.TabularInline):
     model = Evidence
     extra = 0
     fields = ('image_url', 'is_validated', 'created_at')
     readonly_fields = ('created_at',)
-
-
+ 
+ 
 class ActivityInline(admin.TabularInline):
     model = Activity
     extra = 0
     fields = ('name', 'execution_date')
-
-
+ 
+ 
+class TaskReassignmentInline(admin.TabularInline):
+    """Historial de derivaciones visible dentro de la tarea.
+ 
+    Las derivaciones ya registradas se ven de solo lectura (es un historial);
+    solo Jefatura/superusuario puede agregar una nueva.
+    """
+    model = TaskReassignment
+    extra = 0
+    fields = ('reassigned_at', 'original_employee', 'reassigned_employee', 'reason', 'notes')
+    autocomplete_fields = ('original_employee', 'reassigned_employee')
+    ordering = ('-reassigned_at',)
+    verbose_name_plural = "Historial de derivaciones"
+ 
+    def _allowed(self, request):
+        return request.user.is_superuser or _is_jefatura(request)
+ 
+    def has_view_permission(self, request, obj=None):
+        return self._allowed(request)
+ 
+    def has_add_permission(self, request, obj=None):
+        return self._allowed(request)
+ 
+    def has_change_permission(self, request, obj=None):
+        return False
+ 
+    def has_delete_permission(self, request, obj=None):
+        return False
+ 
+ 
+class BenefitInline(admin.TabularInline):
+    """Beneficios entregados a un funcionario (se ven dentro del funcionario)."""
+    model = Benefit
+    extra = 0
+    fields = ('benefit_type', 'delivery_area', 'delivered', 'delivered_at')
+    show_change_link = True
+ 
+ 
 #Admin Pro: validación con clean() ----------
 class TaskForm(forms.ModelForm):
     class Meta:
         model = Task
         fields = "__all__"
-
+ 
     def clean(self):
         cleaned_data = super().clean()
         goal = cleaned_data.get("goal")
@@ -52,8 +90,8 @@ class TaskForm(forms.ModelForm):
                     f"({period.start_date:%d/%m/%Y} - {period.end_date:%d/%m/%Y})."
                 )
         return cleaned_data
-
-
+ 
+ 
 #Admin Pro: acción personalizada ----------
 @admin.action(description="Validar evidencias seleccionadas")
 def validate_evidences(modeladmin, request, queryset):
@@ -69,17 +107,24 @@ def validate_evidences(modeladmin, request, queryset):
         is_validated=True, updated_at=timezone.now()
     )
     modeladmin.message_user(request, f"{updated} evidencia(s) validada(s).")
-
-
+ 
+ 
 @admin.register(Employee)
-class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('user', 'rut', 'delegation', 'role')
+class EmployeeAdmin(StandardAdmin):
+    list_display = ('nombre_completo', 'user', 'rut', 'address', 'delegation', 'role')
     list_filter = ('delegation', 'role')
+    # Búsqueda de encargados por RUT, nombre y dirección
+    # (varias palabras: cada una debe coincidir con algún campo, ej. "Juan Pérez")
     search_fields = ('rut', 'user__username', 'user__first_name', 'user__last_name', 'address')
     list_select_related = ('user', 'delegation')
     ordering = ('user__username',)
     readonly_fields = ('created_at', 'updated_at')
-
+    inlines = [BenefitInline]
+ 
+    @admin.display(description="Nombre", ordering='user__first_name')
+    def nombre_completo(self, obj):
+        return obj.user.get_full_name() or "—"
+ 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
@@ -87,7 +132,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         if _is_jefatura(request):
             return qs.filter(delegation=request.user.employee.delegation).exclude(user__is_superuser=True)
         return qs.none()
-
+ 
     def save_model(self, request, obj, form, change):
         if not request.user.is_superuser and obj.user_id:
             from django.contrib.auth.models import User
@@ -97,17 +142,17 @@ class EmployeeAdmin(admin.ModelAdmin):
             if target is not None and target.is_superuser:
                 raise PermissionDenied("No puedes modificar un funcionario de superusuario.")
         super().save_model(request, obj, form, change)
-
+ 
     def has_delete_permission(self, request, obj=None):
         if request.user.is_superuser:
             return super().has_delete_permission(request, obj)
         if obj is not None and getattr(getattr(obj, "user", None), "is_superuser", False):
             return False
         return super().has_delete_permission(request, obj)
-
-
+ 
+ 
 @admin.register(Task)
-class TaskAdmin(admin.ModelAdmin):
+class TaskAdmin(StandardAdmin):
     form = TaskForm
     list_display = ('title', 'goal', 'due_date', 'status', 'assigned_to')
     list_filter = ('status', 'assigned_to')
@@ -115,8 +160,8 @@ class TaskAdmin(admin.ModelAdmin):
     list_select_related = ('goal', 'goal__delegation', 'assigned_to')
     ordering = ('due_date',)
     readonly_fields = ('created_at', 'updated_at')
-    inlines = [ActivityInline]
-
+    inlines = [ActivityInline, TaskReassignmentInline]
+ 
     # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -132,10 +177,10 @@ class TaskAdmin(admin.ModelAdmin):
             return qs
         # Si no tiene empleado asociado, no ve nada
         return qs.none()
-
-
+ 
+ 
 @admin.register(Activity)
-class ActivityAdmin(admin.ModelAdmin):
+class ActivityAdmin(StandardAdmin):
     list_display = ('name', 'task', 'execution_date')
     list_filter = ('execution_date',)
     search_fields = ('name', 'task__title')
@@ -143,7 +188,7 @@ class ActivityAdmin(admin.ModelAdmin):
     ordering = ('-execution_date',)
     readonly_fields = ('created_at', 'updated_at')
     inlines = [EvidenceInline]
-
+ 
     # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -158,10 +203,10 @@ class ActivityAdmin(admin.ModelAdmin):
             return qs
         # Si no tiene empleado asociado, no ve nada
         return qs.none()
-
-
+ 
+ 
 @admin.register(Evidence)
-class EvidenceAdmin(admin.ModelAdmin):
+class EvidenceAdmin(StandardAdmin):
     list_display = ('activity', 'is_validated', 'created_at')
     list_filter = ('is_validated', 'created_at')
     search_fields = ('activity__name',)
@@ -169,7 +214,7 @@ class EvidenceAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
     actions = [validate_evidences]
-
+ 
     # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -184,17 +229,27 @@ class EvidenceAdmin(admin.ModelAdmin):
             return qs
         # Si no tiene empleado asociado, no ve nada
         return qs.none()
-
-
+ 
+ 
 @admin.register(TaskReassignment)
-class TaskReassignmentAdmin(admin.ModelAdmin):
+class TaskReassignmentAdmin(StandardAdmin):
     list_display = ('task', 'original_employee', 'reassigned_employee', 'reason', 'reassigned_at')
     list_filter = ('reason',)
-    search_fields = ('task__title', 'original_employee__rut', 'reassigned_employee__rut')
-    list_select_related = ('task', 'original_employee', 'reassigned_employee')
+    search_fields = (
+        'task__title',
+        'original_employee__rut', 'original_employee__user__first_name', 'original_employee__user__last_name',
+        'reassigned_employee__rut', 'reassigned_employee__user__first_name', 'reassigned_employee__user__last_name',
+    )
+    list_select_related = (
+        'task',
+        'original_employee', 'original_employee__user', 'original_employee__delegation',
+        'reassigned_employee', 'reassigned_employee__user', 'reassigned_employee__delegation',
+    )
+    date_hierarchy = 'reassigned_at'
     ordering = ('-reassigned_at',)
     readonly_fields = ('created_at', 'updated_at')
-
+    autocomplete_fields = ('original_employee', 'reassigned_employee')
+ 
     # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -206,24 +261,28 @@ class TaskReassignmentAdmin(admin.ModelAdmin):
             return qs.filter(task__goal__delegation=request.user.employee.delegation)
         # Si no tiene empleado asociado, no ve nada
         return qs.none()
-
+ 
     def has_module_permission(self, request):
         if request.user.is_superuser or _is_jefatura(request):
             return super().has_module_permission(request)
         if _is_usuario(request):
             return False
         return super().has_module_permission(request)
-
-
+ 
+ 
 @admin.register(Benefit)
-class BenefitAdmin(admin.ModelAdmin):
+class BenefitAdmin(StandardAdmin):
     list_display = ('employee', 'benefit_type', 'delivery_area', 'delivered_at', 'delivered')
     list_filter = ('benefit_type', 'delivered', 'delivery_area')
-    search_fields = ('employee__rut', 'employee__user__username')
-    list_select_related = ('employee', 'employee__user', 'delivery_area')
+    search_fields = (
+        'employee__rut', 'employee__user__username',
+        'employee__user__first_name', 'employee__user__last_name', 'employee__address',
+    )
+    list_select_related = ('employee', 'employee__user', 'employee__delegation', 'delivery_area')
+    date_hierarchy = 'delivered_at'
     ordering = ('-delivered_at',)
     readonly_fields = ('created_at', 'updated_at')
-
+ 
     # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -235,7 +294,7 @@ class BenefitAdmin(admin.ModelAdmin):
             return qs.filter(employee__delegation=request.user.employee.delegation)
         # Si no tiene empleado asociado, no ve nada
         return qs.none()
-
+ 
     def has_module_permission(self, request):
         if request.user.is_superuser or _is_jefatura(request):
             return super().has_module_permission(request)
