@@ -1,0 +1,8 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<table>{% for label, value in fields %}<tr><th style="width:30%">{{ label }}</th><td>{{ value }}</td></tr>{% endfor %}</table>
+<p><a class="btn btn-light" href="{% url url_prefix|add:'_list' %}">Volver</a>
+{% if can_edit %}<a class="btn" href="{% url url_prefix|add:'_update' object.pk %}">Editar</a>{% endif %}</p>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="get" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+<input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre, código u otro campo..." style="flex:1;min-width:220px">
+<select name="estado">
+    <option value="">Todos los estados</option>
+    <option value="activo" {% if estado == 'activo' %}selected{% endif %}>Activos</option>
+    <option value="inactivo" {% if estado == 'inactivo' %}selected{% endif %}>Inactivos</option>
+</select>
+<button class="btn">Buscar</button>
+{% if can_create %}<a class="btn" href="{% url url_prefix|add:'_create' %}">+ Nuevo registro</a>{% endif %}
+</form>
+<table>
+<thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th>Acciones</th></tr></thead>
+<tbody>
+{% for r in rows %}
+    <tr>{% for cell in r.cells %}<td>{{ cell }}</td>{% endfor %}
+    <td>
+        <a href="{% url url_prefix|add:'_detail' r.pk %}">Ver</a>
+        {% if can_edit %}<a href="{% url url_prefix|add:'_update' r.pk %}">Editar</a>{% endif %}
+        {% if can_delete %}
+        <form method="post" action="{% url url_prefix|add:'_delete' r.pk %}" data-confirm="Se desactivará este registro (no se elimina)." style="display:inline">
+        {% csrf_token %}<button class="btn btn-light">Desactivar</button></form>
+        {% endif %}
+    </td></tr>
+{% empty %}
+    <tr><td colspan="{{ columns|length|add:1 }}">{% if q or estado %}No hay coincidencias para los filtros aplicados.{% else %}Aún no hay registros.{% endif %}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+<p>Mostrando {{ page_obj.start_index }} a {{ page_obj.end_index }} de {{ total }} registros</p>
+{% if is_paginated %}
+<p>
+{% if page_obj.has_previous %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+Página {{ page_obj.number }} de {{ paginator.num_pages }}
+{% if page_obj.has_next %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}

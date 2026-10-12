@@ -1,0 +1,31 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ title }}<script>
+  // Evita doble envío
+document.querySelector('form[method=post]').addEventListener('submit', function (e) {
+    var b = this.querySelector('button[type=submit]'); if (b) { setTimeout(function () { b.disabled = true; }, 0); }
+});
+</script>
+{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="help">Los campos con * son obligatorios.</p>
+<form method="post" novalidate>
+{% csrf_token %}
+{{ form.non_field_errors }}
+{% for field in form %}
+<div class="field">
+    <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+    {{ field }}{% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+    {{ field.errors }}
+</div>
+{% endfor %}
+<button class="btn" type="submit">Guardar</button>
+<a class="btn btn-light" href="{% url url_prefix|add:'_list' %}">Cancelar</a>
+</form>
+<script>
+  // Evita doble envío
+document.querySelector('form[method=post]').addEventListener('submit', function (e) {
+    var b = this.querySelector('button[type=submit]'); if (b) { setTimeout(function () { b.disabled = true; }, 0); }
+});
+</script>
+{% endblock %}

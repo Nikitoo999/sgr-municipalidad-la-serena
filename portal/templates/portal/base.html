@@ -1,0 +1,65 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}SGR La Serena{% endblock %}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.min.css">
+<style>
+    /* Estilo mínimo funcional: el compañero de Frontend lo reemplaza por el template oficial. */
+    body{font-family:Arial,sans-serif;margin:0;background:#f6f6f6;color:#222}
+    header{background:#a00;color:#fff;display:flex;gap:1rem;align-items:center;justify-content:space-between;padding:.6rem 1rem;flex-wrap:wrap}
+    .badge{background:#fde;color:#a00;padding:.2rem .6rem;border-radius:4px;font-weight:bold}
+    nav a{display:inline-block;margin:.4rem .6rem;color:#a00;text-decoration:none}
+    main{max-width:1000px;margin:1rem auto;background:#fff;padding:1rem;border-radius:6px}
+    table{width:100%;border-collapse:collapse} th,td{padding:.4rem;border-bottom:1px solid #ddd;text-align:left}
+    .btn{background:#a00;color:#fff;border:0;padding:.4rem .8rem;border-radius:4px;text-decoration:none;cursor:pointer}
+    .btn-light{background:#e6e9ee;color:#222}.errorlist{color:#a00;list-style:none;padding:0;margin:.2rem 0}
+    .field{margin:.6rem 0}.field label{display:block;font-weight:bold}.help{color:#666;font-size:.85em}
+</style>
+</head>
+<body>
+{% if user.is_authenticated %}
+<header>
+<strong>SISTEMA MUNICIPAL</strong>
+{% if sgr_active_delegation %}
+<span class="badge" title="Delegación activa">🏛 {{ sgr_active_delegation.code }} | {{ sgr_active_delegation.name }}</span>
+{% endif %}
+{% if sgr_allowed_delegations|length > 1 %}
+<form method="post" action="{% url 'switch_delegation' %}" onsubmit="return confirm('Los cambios sin guardar se perderán. ¿Cambiar de delegación?')">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+    <select name="delegation" onchange="this.form.requestSubmit()">
+    {% for d in sgr_allowed_delegations %}<option value="{{ d.pk }}" {% if d.pk == sgr_active_delegation.pk %}selected{% endif %}>{{ d }}</option>{% endfor %}
+    </select>
+</form>
+{% endif %}
+<span>{{ user.get_full_name|default:user.username }} · {{ sgr_role_name }}
+    <form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button class="btn btn-light">Salir</button></form></span>
+</header>
+<nav>
+<a href="{% url 'dashboard' %}">Inicio</a>
+{% if 'delegation.view' in sgr_perms %}<a href="{% url 'delegation_list' %}">Delegaciones</a>{% endif %}
+{% if 'role.view' in sgr_perms %}<a href="{% url 'role_list' %}">Roles</a>{% endif %}
+{% if 'user.view' in sgr_perms %}<a href="{% url 'user_list' %}">Usuarios</a>{% endif %}
+</nav>
+{% endif %}
+<main>{% block content %}{% endblock %}</main>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js"></script>
+<script>
+  // Mensajes de Django -> SweetAlert2 (solo comunican; la validación real está en el servidor)
+{% for m in messages %}
+Swal.fire({icon: {% if m.level_tag == 'success' %}'success'{% elif m.level_tag == 'error' %}'error'{% elif m.level_tag == 'warning' %}'warning'{% else %}'info'{% endif %}, text: "{{ m.message|escapejs }}", confirmButtonColor:'#a00'});
+{% endfor %}
+  // Confirmación de desactivación
+document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (f.dataset.confirm) {
+    e.preventDefault();
+    Swal.fire({icon:'warning', title:'¿Confirmar?', text:f.dataset.confirm, showCancelButton:true,
+                confirmButtonText:'Sí, desactivar', cancelButtonText:'Cancelar', confirmButtonColor:'#a00'})
+        .then(function (r) { if (r.isConfirmed) { f.removeAttribute('data-confirm'); f.submit(); } });
+    }
+});
+</script>
+</body>
+</html>

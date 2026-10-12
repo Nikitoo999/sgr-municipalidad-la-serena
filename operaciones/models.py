@@ -1,7 +1,9 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.contrib.auth.models import User
-from sgr_core.models import BaseModel, InstitutionalGoal, Delegation
+from sgr_core.models import (
+    AttentionSubtype, AttentionType, BaseModel, Delegation, InstitutionalGoal, Requester, Role,
+)
 
 ROLE_CHOICES = [
     ("jefatura", "Jefatura"),
@@ -61,7 +63,11 @@ class Employee(BaseModel):
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Teléfono")
     address = models.CharField(max_length=255, blank=True, default="", verbose_name="Dirección")
     delegation = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name='employees', verbose_name="Delegación Asignada")
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="usuario", verbose_name="Rol")
+    # Campo heredado (jefatura/usuario): se conserva para no romper Admin ni seed_demo del equipo.
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="usuario", verbose_name="Rol (heredado)")
+    # Rol de seguridad real del sistema (superadministrador, coordinador, delegado_municipal, funcionario).
+    app_role = models.ForeignKey(Role, on_delete=models.PROTECT, null=True, blank=True, related_name="employees", verbose_name="Rol del sistema")
+    authorized_delegations = models.ManyToManyField(Delegation, blank=True, related_name="authorized_employees", verbose_name="Delegaciones autorizadas")
 
     class Meta:
         verbose_name = "Funcionario"
@@ -112,3 +118,30 @@ class Benefit(BaseModel):
 
     def __str__(self):
         return f"{self.employee} - {self.get_benefit_type_display()} ({self.delivery_area.name})"
+
+
+class Attention(BaseModel):
+    """Atención ciudadana. Conserva la delegación y el responsable que la crearon."""
+    requester = models.ForeignKey(Requester, on_delete=models.PROTECT, related_name="attentions", verbose_name="Solicitante")
+    attention_type = models.ForeignKey(AttentionType, on_delete=models.PROTECT, related_name="attentions", verbose_name="Tipo de Atención")
+    subtype = models.ForeignKey(AttentionSubtype, on_delete=models.PROTECT, related_name="attentions", verbose_name="Sub Atención")
+    description = models.TextField(verbose_name="Descripción de la atención")
+    delegation = models.ForeignKey(Delegation, on_delete=models.PROTECT, related_name="attentions", verbose_name="Delegación")
+    created_by = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="created_attentions", verbose_name="Responsable")
+
+    class Meta:
+        verbose_name = "Atención"
+        verbose_name_plural = "Atenciones"
+        db_table = "atencion"
+        ordering = ("-created_at",)
+
+    def clean(self):
+        super().clean()
+        if self.subtype_id and self.attention_type_id:
+            if self.subtype.attention_type_id != self.attention_type_id:
+                raise ValidationError({"subtype": "La Sub Atención no pertenece al Tipo de Atención elegido."})
+            if not self.subtype.is_active or not self.attention_type.is_active:
+                raise ValidationError({"subtype": "Solo se pueden usar Tipos y Sub Atenciones activos."})
+
+    def __str__(self):
+        return f"ATN-{self.pk or 'nueva'} ({self.requester.full_name})"

@@ -49,6 +49,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'portal.context.sgr_context',
             ],
         },
     },
@@ -110,3 +111,26 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+
+AUTHENTICATION_BACKENDS = ['portal.backends.EmailOrUsernameBackend']
+
+# --- Recuperación de contraseña (valores referenciales del PDF, configurables) --
+PASSWORD_RESET_TTL_SECONDS = int(os.getenv('PASSWORD_RESET_TTL_SECONDS', '600'))
+PASSWORD_RESET_RESEND_SECONDS = int(os.getenv('PASSWORD_RESET_RESEND_SECONDS', '45'))
+PASSWORD_RESET_MAX_ATTEMPTS = int(os.getenv('PASSWORD_RESET_MAX_ATTEMPTS', '5'))
+PASSWORD_RESET_MAX_PER_HOUR = int(os.getenv('PASSWORD_RESET_MAX_PER_HOUR', '5'))
+
+# --- Correo: en desarrollo imprime el código en consola ------------------------
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@sgr.example.test')
+
+# --- Sesión y cookies --------------------------------------------------------
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_AGE = 60 * 60 * 8
