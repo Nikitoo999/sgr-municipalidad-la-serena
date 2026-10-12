@@ -3,10 +3,11 @@
 Backend del **Sistema de Gestión de Resultados (SGR)** para la Municipalidad de La Serena.
 Construido con **Django 5.2** sobre **Python 3.11+**.
 
-> **Estado:** proyecto en fase inicial. El backend expone hoy únicamente el panel de
-> administración de Django (`/admin/`) sobre los modelos de datos: todavía no hay
-> vistas, API ni pruebas propias. Los modelos y sus migraciones iniciales ya están
-> creados y aplicados.
+> **Estado:** el backend expone el panel de administración de Django (`/admin/`) con
+> los catálogos y la gestión de resultados, y un portal con login, dashboard y
+> recuperación de contraseña por correo. Incluye datos de demostración, pruebas
+> automáticas y de estrés, y guía de despliegue en EC2 (ver
+> [Documentación](#-documentación)). Versión actual: `v1.0.0`.
 
 ---
 
@@ -28,6 +29,11 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 ├── mockup/          # Prototipo funcional interactivo (HTML/CSS/JS, sin backend)
 ├── sgr_core/        # Gestión de resultados: períodos, metas, cumplimiento e ítems
 ├── operaciones/     # Tareas, actividades, evidencias y funcionarios
+├── catalogos/       # Catálogos: Tipo de Atención y Sub Atención
+├── portal/          # Login, dashboard y recuperación de contraseña
+├── deploy/          # Servicio systemd (gunicorn)
+├── docs/            # Guías: correo AWS SES y pruebas
+├── tests/stress/    # Prueba de estrés (Locust)
 ├── manage.py
 ├── requirements.txt # Dependencias del proyecto
 └── .env.example     # Plantilla de variables de entorno (copiar a .env)
@@ -51,9 +57,14 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 - `Evidence` (tabla `evidencia`): respaldo de una actividad y su validación de jefatura.
 - `Employee` (tabla `funcionario`): funcionario municipal. Se enlaza con el usuario de Django (`django.contrib.auth.models.User`) mediante `OneToOneField` e incorpora RUT, teléfono y delegación asignada.
 
+**catalogos** (`catalogos/models.py`)
+
+- `AttentionType` (tabla `tipo_atencion`): Tipo de Atención (nombre único, descripción, activo).
+- `AttentionSubtype` (tabla `sub_atencion`): Sub Atención; pertenece a un tipo y su nombre es único dentro de él.
+
 ### 🔐 Panel de administración
 
-Los 9 modelos están registrados en el admin de Django con `list_select_related` para
+Todos los modelos están registrados en el admin de Django con `list_select_related` para
 evitar consultas N+1. Además, `TaskAdmin` (`operaciones/admin.py`) aplica *scoping*
 por delegación:
 
@@ -61,12 +72,23 @@ por delegación:
 - Funcionario con `Employee` asociado: sólo las tareas de su delegación.
 - Usuario sin `Employee`: no ve ninguna.
 
+**CRUD de catálogos, Metas e Ítems (admin):**
+
+- *Tipos de Atención* y *Sub Atenciones*: alta, edición, búsqueda, filtros y borrado; las sub
+  atenciones se editan dentro del tipo (inline) y un tipo con sub atenciones no se puede borrar.
+- *Metas Institucionales*: la ponderación debe estar entre 0 y 100 y la suma por período y
+  delegación no puede superar 100 %. Los *Ítems de Medición* se editan dentro de la meta.
+- *Ítems de Medición*: línea base y valor objetivo no negativos; nombre único por meta.
+- Los catálogos los gestiona el superusuario (permisos estándar de Django).
+
 ### 🗃️ Migraciones
 
 ```
 ├── sgr_core/migrations/0001_initial.py      # Delegation, Period, InstitutionalGoal,
 │                                            #   Achievement, MeasurementItem
 └── operaciones/migrations/0001_initial.py   # Task, Activity, Evidence, Employee
+    (0002 y 0003: dirección, derivaciones, beneficios, rol y responsable)
+catalogos/migrations/0001_initial.py         # AttentionType, AttentionSubtype
 ```
 
 ---
@@ -187,6 +209,51 @@ Panel de administración: <http://127.0.0.1:8000/admin/>
 
 ---
 
+## 🧪 Datos de demostración
+
+```bash
+python manage.py seed_demo
+```
+
+Es idempotente (se puede repetir). Carga delegaciones, funcionarios, períodos, metas e ítems,
+tareas, actividades, evidencias, derivaciones, beneficios y los catálogos de atención.
+Usuarios (clave `Demo2026!`): `admin_demo` (superusuario), `jefatura_centro` (Jefatura) y
+`limitado_demo` (usuario limitado). Todos los datos son **ficticios**. Opción
+`--demo-email <correo>` asigna un correo real a `jefatura_centro` para probar el correo de recuperación.
+
+## 📧 Recuperación de contraseña
+
+En `/login/` → *¿Olvidó su contraseña?* (`/password-reset/`). El enlace llega por correo y vence a
+la hora. Sin configuración, el correo se imprime en la consola del servidor; con las variables
+`EMAIL_*` del `.env` se envía por **AWS SES** (ver [docs/CORREO_AWS_SES.md](docs/CORREO_AWS_SES.md)).
+
+## ✅ Pruebas
+
+```bash
+python manage.py test                       # pruebas automáticas (funcionales)
+pip install -r requirements-dev.txt         # solo para la prueba de estrés
+locust -f tests/stress/locustfile.py --host http://<servidor>
+```
+
+Detalle, checklist manual y registro de resultados en [docs/PRUEBAS.md](docs/PRUEBAS.md).
+
+## 🏷️ Versionado
+
+Las versiones se marcan con etiquetas de Git (`v1.0.0`, …):
+
+```bash
+git tag -a v1.0.0 -m "SGR v1.0.0: catálogos, recuperación de contraseña, pruebas y despliegue"
+git push origin v1.0.0
+git tag -n          # ver etiquetas existentes
+```
+
+## 📚 Documentación
+
+| Documento | Contenido |
+|---|---|
+| [docs/CORREO_AWS_SES.md](docs/CORREO_AWS_SES.md) | Configurar el correo de recuperación con Amazon SES |
+| [docs/PRUEBAS.md](docs/PRUEBAS.md) | Pruebas automáticas, checklist funcional y prueba de estrés |
+
 ## Comandos útiles
 
 | Comando | Descripción |
@@ -198,6 +265,8 @@ Panel de administración: <http://127.0.0.1:8000/admin/>
 | `python manage.py shell` | Consola interactiva de Django |
 | `python manage.py createsuperuser` | Crea usuario admin |
 | `python manage.py runserver` | Levanta el servidor de desarrollo |
+| `python manage.py seed_demo` | Carga datos de demostración |
+| `python manage.py test` | Ejecuta las pruebas automáticas |
 
 ## Notas de seguridad
 
