@@ -18,6 +18,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
+from catalogos.models import AttentionSubtype, AttentionType
 from operaciones.models import Activity, Benefit, Employee, Evidence, Task, TaskReassignment
 from sgr_core.models import Achievement, Delegation, InstitutionalGoal, MeasurementItem, Period
 
@@ -41,6 +42,10 @@ EMPLOYEES = [
     ("elena.campas", "Elena", "Campas Mora", "10.000.005-5", "Centro", "usuario"),
     ("gabriela.rojas", "Gabriela", "Rojas Lagos", "10.000.007-7", "Avenida del Mar", "usuario"),
     ("hugo.pizarro", "Hugo", "Pizarro Reyes", "10.000.008-8", "Avenida del Mar", "usuario"),
+    ("ines.vera", "Inés", "Vera Salas", "10.000.011-1", "La Antena", "usuario"),
+    ("jorge.araya", "Jorge", "Araya Tapia", "10.000.012-2", "Las Compañías", "usuario"),
+    ("karen.soto", "Karen", "Soto Núñez", "10.000.013-3", "La Pampa", "usuario"),
+    ("luis.cortes", "Luis", "Cortés Ibarra", "10.000.014-4", "Rural", "usuario"),
 ]
 
 # delegacion -> [(nombre_meta, ponderacion, [(item, unidad, objetivo)])]
@@ -62,6 +67,53 @@ GOALS = {
         ("Seguridad y prevención", "40.00", [
             ("Actividades preventivas realizadas", "actividades", "10.00"),
         ]),
+    ],
+    "La Antena": [
+        ("Fortalecimiento de organizaciones comunitarias", "100.00", [
+            ("Capacitaciones a dirigentes", "capacitaciones", "6.00"),
+            ("Organizaciones visitadas", "organizaciones", "25.00"),
+        ]),
+    ],
+    "Las Compañías": [
+        ("Operativos de salud y bienestar", "70.00", [
+            ("Operativos de salud realizados", "operativos", "10.00"),
+            ("Vecinos atendidos", "personas", "300.00"),
+        ]),
+        ("Mantención de áreas verdes", "30.00", [
+            ("Plazas intervenidas", "plazas", "8.00"),
+        ]),
+    ],
+    "La Pampa": [
+        ("Gestión de reclamos vecinales", "100.00", [
+            ("Reclamos resueltos en plazo", "reclamos", "50.00"),
+        ]),
+    ],
+    "Rural": [
+        ("Atención a localidades rurales", "100.00", [
+            ("Visitas a localidades", "visitas", "14.00"),
+            ("Beneficiarios de ayuda en terreno", "personas", "120.00"),
+        ]),
+    ],
+}
+
+# Catálogos: Tipo de Atención -> [(sub atención, descripción)]
+ATTENTION_CATALOG = {
+    "Atención Social": [
+        ("Ayuda social directa", "Entrega de canastas, kits escolares y ayudas puntuales."),
+        ("Orientación y derivación", "Orienta al vecino y lo deriva a la red municipal."),
+        ("Visita domiciliaria", "Visita para evaluar la situación del hogar."),
+    ],
+    "Atención Territorial": [
+        ("Operativo en terreno", "Jornadas masivas de atención en el barrio."),
+        ("Reunión con junta vecinal", "Coordinación con dirigentes vecinales."),
+    ],
+    "Atención de Espacios Públicos": [
+        ("Reporte de deterioro", "Registro de daños en plazas, veredas o luminarias."),
+        ("Inspección", "Revisión programada de espacios públicos."),
+    ],
+    "Atención Comunitaria": [
+        ("Capacitación", "Talleres y charlas para organizaciones."),
+        ("Actividad preventiva", "Charlas y campañas de prevención."),
     ],
 }
 
@@ -85,6 +137,14 @@ TASKS = [
     # aquí y se reasigna a su Employee propio más abajo, cuando ya existe.
     ("elena.campas", "Catastro de luminarias apagadas en Centro", "Pendiente", 7,
     "Gestión del espacio público", "Registrar postes sin luz para derivar a Obras."),
+    ("ines.vera", "Taller para dirigentes de La Antena", "En Progreso", 6,
+    "Fortalecimiento de organizaciones comunitarias", "Coordinar sede y materiales."),
+    ("jorge.araya", "Operativo de salud en Las Compañías", "Pendiente", 9,
+    "Operativos de salud y bienestar", "Coordinar con CESFAM."),
+    ("karen.soto", "Revisión de reclamos pendientes La Pampa", "Completada", -5,
+    "Gestión de reclamos vecinales", "Clasificar reclamos por tipo."),
+    ("luis.cortes", "Ruta de visitas a localidades rurales", "En Progreso", 8,
+    "Atención a localidades rurales", "Definir calendario de visitas."),
 ]
 
 # (titulo_tarea, nombre_actividad, dias_ejecucion_relativos)
@@ -130,6 +190,13 @@ BENEFITS = [
 class Command(BaseCommand):
     help = "Carga datos ficticios de demostración sobre los modelos actuales (idempotente)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--demo-email", default="",
+            help="Correo REAL para jefatura_centro (sirve para probar la recuperación de "
+                 "contraseña con AWS SES; en modo sandbox debe estar verificado en SES).",
+        )
+
     @transaction.atomic
     def handle(self, *args, **options):
         hoy = timezone.localdate()
@@ -161,6 +228,16 @@ class Command(BaseCommand):
                 emp.role = rol
                 emp.save(update_fields=["role"])
             empleados[username] = emp
+
+        # --- Catálogos: Tipo de Atención y Sub Atención ---
+        for tipo_nombre, subs in ATTENTION_CATALOG.items():
+            tipo, _ = AttentionType.objects.get_or_create(
+                name=tipo_nombre, defaults={"description": f"Catálogo de {tipo_nombre.lower()}."},
+            )
+            for sub_nombre, sub_desc in subs:
+                AttentionSubtype.objects.get_or_create(
+                    attention_type=tipo, name=sub_nombre, defaults={"description": sub_desc},
+                )
 
         # --- Períodos ---
         periodo, _ = Period.objects.get_or_create(
@@ -303,6 +380,9 @@ class Command(BaseCommand):
             boss_emp.role, boss_emp.delegation = "jefatura", delegs["Centro"]
             boss_emp.save(update_fields=["role", "delegation"])
         boss_u.user_permissions.set(permisos)
+        if options.get("demo_email"):
+            boss_u.email = options["demo_email"]
+            boss_u.save(update_fields=["email"])
 
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
         self.stdout.write(f"  Administrador:  {ADMIN_USER} / {DEMO_PASSWORD}")

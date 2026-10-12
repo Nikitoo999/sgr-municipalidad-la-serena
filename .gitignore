@@ -7,3 +7,7 @@ __pycache__/
 *.pyo
 .vscode/
 .DS_Store
+
+# Archivos generados al desplegar o al probar
+staticfiles/
+resultados/

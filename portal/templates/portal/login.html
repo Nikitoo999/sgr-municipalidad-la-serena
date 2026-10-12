@@ -17,6 +17,7 @@
             {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
             <button type="submit" class="btn" style="background-color: #C62828;">Ingresar</button>
         </form>
+        <p class="subtitle"><a href="{% url 'password_reset' %}">¿Olvidó su contraseña?</a></p>
     </main>
 </body>
 </html>
