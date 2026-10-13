@@ -14,8 +14,11 @@
 <a class="skip" href="#main">Saltar al contenido</a>
 <header class="top">
   <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="side">{% sgr_icon 'menu' 22 %}</button>
-  {# Bloque de logo: único lugar fácil de cambiar cuando llegue el logo oficial. #}
-  <div class="brand">SISTEMA MUNICIPAL</div>
+  {# Logo institucional oficial: portal/static/portal/img/logo_muni.png #}
+  <div class="brand">
+    <span class="brand-logo-box"><img src="{% static 'portal/img/logo_muni.png' %}" alt="Municipalidad de La Serena" class="brand-logo"></span>
+    <span class="brand-tx">SGR</span>
+  </div>
   <div class="ctx">
     <span class="dpill" data-dc="{{ sgr_badge_dc }}" data-dm="{{ sgr_badge_dm }}">
       <span class="dp-ic">{% sgr_icon 'building' 22 %}</span>

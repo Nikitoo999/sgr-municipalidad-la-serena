@@ -137,7 +137,11 @@ a{color:var(--muni)}
 .skip{position:absolute;left:-999px;top:8px;background:#fff;color:var(--ink);padding:8px 12px;border-radius:6px;z-index:200}
 .skip:focus{left:8px}
 .top{height:var(--header-h);background:var(--muni);color:#fff;display:flex;align-items:center;gap:16px;padding:0 20px;position:sticky;top:0;z-index:30}
-.brand{font-weight:700;font-size:18px;letter-spacing:.02em;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:.02em;white-space:nowrap;min-width:0}
+.brand-logo-box{flex:none;display:grid;place-items:center;height:48px;padding:0 2px}
+.brand-logo{height:44px;width:auto;display:block}
+.brand-tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brand-tx small{font-weight:600;opacity:.85;font-size:13px}
 .ctx{flex:1;display:flex;justify-content:center;min-width:0}
 .dpill{--dc:#920000;--dm:#ce8c8c;display:inline-flex;align-items:center;min-width:0;max-width:100%;height:44px;border-radius:12px;border:2px solid rgba(255,255,255,.92);overflow:hidden;color:var(--ink);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.18);background:linear-gradient(90deg,var(--dc) 0,var(--dc) 46px,var(--dm) 84px,#fff 100%)}
 .dpill .dp-ic{flex:none;width:46px;height:100%;display:grid;place-items:center;color:#fff}
@@ -197,11 +201,13 @@ h2.sec{font-size:18px;margin-top:8px}
   main{padding:18px 16px 40px}
   .top{gap:10px;padding:0 12px}
   .brand{font-size:15px}
+  .brand-tx{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brand-logo{height:34px}
   .who-tx,.out-tx{display:none}
   .out{padding:0;width:38px}
   .titlebar h1{font-size:22px}
 }
-@media (max-width:560px){.dpill select,.dpill .dp-tx{max-width:150px;font-size:13px}}
+@media (max-width:560px){.dpill select,.dpill .dp-tx{max-width:150px;font-size:13px}.brand-tx small{display:none}}
 
 /* ==================== Responsive ==================== */
 @media (max-width:480px){

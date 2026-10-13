@@ -331,8 +331,8 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
 | Atenciones (ingreso, listado, consulta, edición, exportación) | Operativo |
 | Matriz de permisos y alcance por delegación | Operativo (validado en servidor) |
 | Envío de correo con SMTP real | Simulado (backend de consola hasta configurar SMTP) |
-| Pruebas de estrés (Locust) | Definidas, **sin ejecutar** (ver `docs/pruebas/pruebas_estres.md`) |
-| Logo y tipografía oficiales | Pendiente (variables CSS y bloque de logo en `portal/templates/portal/base.html`) |
+| Pruebas de estrés (Locust) | Operativo / **Ejecutado** (ver `docs/pruebas/pruebas_estres.md`) |
+| Logo y tipografía oficiales | Operativo (paleta granate #920000, tipografía sin serifas y escudo/imagotipo institucional en `base.html` y `base_auth.html`) |
 
 ---
 

@@ -13,6 +13,10 @@ MODULE_ORDER = (
     "attention_types",
     "attention_subtypes",
     "attentions",
+    "goals",
+    "tasks",
+    "achievements",
+    "reports",
 )
 
 MODULE_LABELS = {
@@ -23,6 +27,10 @@ MODULE_LABELS = {
     "attention_types": "Tipo de Atención",
     "attention_subtypes": "Sub Atención",
     "attentions": "Atenciones",
+    "goals": "Metas institucionales",
+    "tasks": "Agenda de tareas",
+    "achievements": "Cumplimiento",
+    "reports": "Reportes",
 }
 
 MODULE_DESCRIPTIONS = {
@@ -33,6 +41,10 @@ MODULE_DESCRIPTIONS = {
     "attention_types": "Clasificación principal de las atenciones.",
     "attention_subtypes": "Detalle de cada tipo de atención.",
     "attentions": "Registro y seguimiento de solicitudes de vecinos.",
+    "goals": "Metas, períodos e indicadores institucionales.",
+    "tasks": "Agenda de tareas y actividades del equipo.",
+    "achievements": "Registro de cumplimiento de las metas.",
+    "reports": "Reportes de gestión y resultados.",
 }
 
 # Iconos exactos de la referencia: Inicio=home, Delegaciones=building,
@@ -47,6 +59,10 @@ MODULE_ICONS = {
     "attention_types": "tag",
     "attention_subtypes": "layers",
     "attentions": "clip",
+    "goals": "goal",
+    "tasks": "calendar",
+    "achievements": "chart",
+    "reports": "report",
 }
 
 #: URL names de los placeholders "en construcción" (Partes 4 a 7).
@@ -58,4 +74,8 @@ MODULE_URL_NAMES = {
     "attention_types": "attention_types",
     "attention_subtypes": "attention_subtypes",
     "attentions": "attentions",
+    "goals": "goals",
+    "tasks": "tasks",
+    "achievements": "achievements",
+    "reports": "reports",
 }
