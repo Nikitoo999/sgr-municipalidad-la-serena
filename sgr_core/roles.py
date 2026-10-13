@@ -13,6 +13,10 @@ MODULES = (
     ('attention_types', 'Tipos de atención'),
     ('attention_subtypes', 'Subtipos de atención'),
     ('attentions', 'Atenciones'),
+    ('goals', 'Metas institucionales'),
+    ('tasks', 'Agenda de tareas'),
+    ('achievements', 'Cumplimiento'),
+    ('reports', 'Reportes'),
 )
 
 ACTIONS = (
@@ -80,6 +84,10 @@ BASE_ROLES = (
             'items': STD_ACTIONS,
             'attention_types': STD_ACTIONS,
             'attention_subtypes': STD_ACTIONS,
+            'goals': ('view',),
+            'tasks': ('view',),
+            'achievements': ('view',),
+            'reports': ('view',),
             'attentions': STD_ACTIONS,
         },
     },
@@ -92,6 +100,7 @@ BASE_ROLES = (
         'permissions': {
             'users': STD_ACTIONS,
             'items': ('view', 'export'),
+            'tasks': ('view',),
             'attentions': STD_ACTIONS,
         },
     },
@@ -103,6 +112,7 @@ BASE_ROLES = (
         'is_system': False,
         'permissions': {
             'attentions': ('view', 'create', 'export'),
+            'tasks': ('view',),
         },
     },
 )

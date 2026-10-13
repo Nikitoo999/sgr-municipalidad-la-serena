@@ -204,8 +204,8 @@ class CrudRolesTestCase(TestCase):
         self.assertContains(resp, "perfil base del sistema", status_code=200)
         rol.refresh_from_db()
         self.assertEqual(rol.name, "Superadministrador")
-        # La matriz original del sistema queda intacta (7 módulos × 5 acciones).
-        self.assertEqual(len(permission_pairs(rol)), 35)
+        # La matriz original del sistema queda intacta (11 módulos × 5 acciones).
+        self.assertEqual(len(permission_pairs(rol)), 55)
 
     def test_rol_sistema_no_eliminable(self):
         self._login("superadmin")

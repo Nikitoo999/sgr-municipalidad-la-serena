@@ -1,6 +1,6 @@
 """Pruebas de cierre (Parte 8): matriz de permisos parametrizada y alcance.
 
-- La matriz recorre los 4 roles × 7 módulos × 5 acciones y, para cada
+- La matriz recorre los 4 roles × 11 módulos × 5 acciones y, para cada
   combinación, comprueba ``has_permission`` contra la matriz declarada en
   ``sgr_core.roles.BASE_ROLES`` (fuente única de verdad), incluyendo el rol
   virtual del superusuario (todos los permisos).

@@ -19,12 +19,10 @@ def _placeholder_kwargs(module):
 
 
 _placeholder_paths = {
-    "roles": "roles/",
-    "users": "usuarios/",
-    "items": "items/",
-    "attention_types": "tipos-atencion/",
-    "attention_subtypes": "sub-atenciones/",
-    "attentions": "atenciones/",
+    "goals": "metas-institucionales/",
+    "tasks": "agenda-tareas/",
+    "achievements": "cumplimiento/",
+    "reports": "reportes/",
 }
 
 #: Módulos que ya tienen CRUD real (Parte 4+): los gestiona portal.crud.urls.

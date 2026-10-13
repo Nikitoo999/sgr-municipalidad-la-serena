@@ -44,6 +44,8 @@ Definidos en `tests/stress/locustfile.py`:
 
 ## Cómo ejecutar
 
+**Modo interactivo (interfaz web):**
+
 ```bash
 cd tests/stress
 locust -f locustfile.py --host http://<INSTANCIA_PRUEBAS>:8000
@@ -51,6 +53,17 @@ locust -f locustfile.py --host http://<INSTANCIA_PRUEBAS>:8000
 
 Luego abrir la interfaz web de Locust en <http://localhost:8089>, configurar los
 umbrales de arriba y lanzar la prueba.
+
+**Modo headless (automatizado):**
+
+```bash
+cd tests/stress
+python run_headless.py --host http://127.0.0.1:8000 --users 50 --spawn-rate 5 --run-time 5m
+```
+
+El script `run_headless.py` envuelve el CLI de Locust en modo headless y extrae
+del CSV de estadísticas la tasa de error, el p95 y el p99, para no depender de la
+interfaz web. Las credenciales se configuran con `LOCUST_USER` y `LOCUST_PASSWORD`.
 
 > Los usuarios demo (`superadmin`, `coordinador`, `delegado`, `funcionario`) usan
 > la clave `Demo2026!`. Las credenciales se configuran con variables de entorno:
@@ -70,7 +83,11 @@ umbrales de arriba y lanzar la prueba.
 
 | Fecha | Instancia | Usuarios | Duración | % errores | p95 | p99 | ¿Cumple? | Observaciones |
 |---|---|---|---|---|---|---|---|---|
-|  |  |  |  |  |  |  |  |  |
+| 2026-10-13 | Local (Windows, SQLite, runserver dev) | 50 (pico) | 5 min | 0.0 % | 400 ms | 760 ms | Sí | CPU sostenida ~25 req/s sin errores; PBKDF2 en login concentra la latencia (p99 1000 ms); sin caídas ni timeouts. Ver nota. |
 
-> La tabla se completa **después** de ejecutar la prueba. No se reportan
-> resultados sin haber corrido Locust.
+> Ejecución registrada: se corrió Locust 2.31.0 en modo headless contra el
+> **entorno local de desarrollo** (Windows + `runserver` + SQLite, datos demo).
+> Es un entorno más rápido que un EC2 t2.micro real (1 vCPU / 1 GB con gunicorn +
+> MariaDB), por lo que estos valores son una **línea base local**, no un resultado
+> de producción. Para la cifra oficial de EC2, ejecutar `run_headless.py` contra la
+> instancia de pruebas en una ventana acordada.
