@@ -476,12 +476,15 @@ class UserForm(CrudModelForm):
             d for d in self.current_delegations
             if d not in self.administrable
         ]
-        self.fields["delegations"].choices = [
-            (str(d.pk), f"{d.code} | Delegación {d.name}") for d in offered
-        ]
+        # El widget se asigna ANTES de las choices: la propiedad 
+        # ``choices`` del campo propaga su valor al widget actual, así que si
+        # se reemplaza el widget después, el nuevo quedaría sin opciones (bug).
         self.fields["delegations"].widget = forms.CheckboxSelectMultiple(
             attrs={"id": "id_delegations"},
         )
+        self.fields["delegations"].choices = [
+            (str(d.pk), f"{d.code} | Delegación {d.name}") for d in offered
+        ]
         self.fields["delegations"].label = self._delegations_label()
 
         if self.editing:
