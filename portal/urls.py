@@ -21,7 +21,7 @@ def _placeholder_kwargs(module):
 _placeholder_paths = {
     "roles": "roles/",
     "users": "usuarios/",
-    "items": "items-metas/",
+    "items": "items/",
     "attention_types": "tipos-atencion/",
     "attention_subtypes": "sub-atenciones/",
     "attentions": "atenciones/",

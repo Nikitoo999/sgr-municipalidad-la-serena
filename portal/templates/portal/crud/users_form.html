@@ -1,0 +1,35 @@
+{% extends 'portal/crud/form.html' %}
+{% block scripts %}
+{{ block.super }}
+<script>
+// Usuarios (Etapa 2): muestra u oculta el bloque de delegaciones según el
+// alcance del rol seleccionado. El servidor sigue siendo la autoridad: esto
+// solo ayuda a la interfaz (un POST manipulado se rechaza en el formulario).
+(function () {
+  'use strict';
+  var form = document.getElementById('crudForm');
+  if (!form) return;
+  var roleSel = document.getElementById('id_role');
+  var delField = document.getElementById('id_delegations');
+  if (!roleSel || !delField) return;
+  var scopes = {};
+  try { scopes = JSON.parse(form.dataset.roleScopes || '{}'); } catch (e) {}
+  // El contenedor del campo (el div.grid > div que envuelve el label).
+  var wrap = delField.closest('.grid > div') || delField.parentElement;
+
+  function refresh() {
+    var scope = scopes[roleSel.value];
+    if (!wrap) return;
+    if (scope === 'all') {
+      wrap.hidden = true;      // El rol abarca todas: no aplica.
+    } else if (scope === 'own_delegation' || scope === 'own_records') {
+      wrap.hidden = false;     // Alcance de una sola delegación (radio implícito).
+    } else {
+      wrap.hidden = false;     // 'authorized' o sin scope conocido.
+    }
+  }
+  roleSel.addEventListener('change', refresh);
+  refresh();
+})();
+</script>
+{% endblock %}

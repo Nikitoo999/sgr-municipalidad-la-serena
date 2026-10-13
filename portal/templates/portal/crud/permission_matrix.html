@@ -1,0 +1,31 @@
+<fieldset>
+  <legend>{{ widget.label }}</legend>
+  <div class="tablewrap">
+    <table class="perm">
+      <caption class="sr">Permisos por módulo y acción</caption>
+      <thead>
+        <tr>
+          <th scope="col">Módulo</th>
+          {% for action in widget.matrix.0.actions %}
+          <th scope="col">{{ action.label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for module in widget.matrix %}
+        <tr>
+          <th scope="row">{{ module.label }}</th>
+          {% for action in module.actions %}
+          <td>
+            <input type="checkbox" name="{{ widget.name }}" value="{{ module.key }}.{{ action.key }}"
+                   aria-label="{{ module.label }}: {{ action.label }}"
+                   {% if action.checked %}checked{% endif %}
+                   {% if widget.disabled %}disabled{% endif %}>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</fieldset>

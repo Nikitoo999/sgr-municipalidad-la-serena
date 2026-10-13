@@ -1,6 +1,17 @@
 from django import forms
 from django.contrib import admin
-from .models import Delegation, Period, InstitutionalGoal, Achievement, MeasurementItem, Role, RolePermission
+from .models import (
+    AttentionSubtype,
+    AttentionType,
+    Delegation,
+    Period,
+    InstitutionalGoal,
+    Achievement,
+    MeasurementItem,
+    ProjectItem,
+    Role,
+    RolePermission,
+)
 
 
 # ---------- Admin Pro: validación con clean() ----------
@@ -83,4 +94,32 @@ class MeasurementItemAdmin(admin.ModelAdmin):
     search_fields = ('name',)
     list_select_related = ('goal',)
     ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(ProjectItem)
+class ProjectItemAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'status')
+    list_filter = ('status',)
+    search_fields = ('code', 'name')
+    ordering = ('code',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(AttentionType)
+class AttentionTypeAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'status')
+    list_filter = ('status',)
+    search_fields = ('code', 'name')
+    ordering = ('code',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(AttentionSubtype)
+class AttentionSubtypeAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'attention_type', 'status')
+    list_filter = ('status', 'attention_type')
+    search_fields = ('code', 'name')
+    list_select_related = ('attention_type',)
+    ordering = ('code',)
     readonly_fields = ('created_at', 'updated_at')

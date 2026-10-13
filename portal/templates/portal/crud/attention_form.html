@@ -1,0 +1,114 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Atención{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'attentions' %}">Atenciones</a></nav>
+<div class="titlebar"><h1>{% if is_create %}Ingreso de atención{% elif is_view %}Consulta de atención{% else %}Editar atención{% endif %}</h1></div>
+
+<form class="card fgrid" method="post" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}>
+  {% csrf_token %}
+  <div id="crudFormErrors" aria-live="polite">
+    {% for error in form.non_field_errors %}
+    <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="grid">
+    {# Vecino o solicitante: búsqueda al crear; texto fijo al editar/ver #}
+    <div>
+      <label class="fl" for="f_sol">Vecino o solicitante {% if is_create %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+      {% if is_create %}
+      {{ form.neighbor }}
+      <input class="in" id="f_sol" type="text" placeholder="Buscar por identificador o nombre..." autocomplete="off" aria-required="true" aria-describedby="id_neighbor-e f_sol-h">
+      <div class="nb-results" id="f_sol_results" hidden></div>
+      <p class="help" id="f_sol-h">Escribe para buscar y elige un solicitante de la lista.</p>
+      {% else %}
+      <input class="in" id="f_sol" value="{{ neighbor_label }}" readonly disabled>
+      {% endif %}
+      <div id="id_neighbor-e" aria-live="polite">
+        {% for error in form.neighbor.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Delegación de atención: select (coordinador/superadmin al crear) o fijo #}
+    <div>
+      <label class="fl" for="id_delegation">Delegación de atención {% if delegation_is_select %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+      {% if delegation_is_select %}
+      {{ form.delegation }}
+      <div id="id_delegation-e" aria-live="polite">
+        {% for error in form.delegation.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <input class="in" id="id_delegation" value="{{ fixed_delegation_label }}" readonly disabled aria-describedby="id_delegation-e">
+      {% endif %}
+    </div>
+
+    {# Tipo de atención (solo activos) #}
+    <div>
+      <label class="fl" for="id_attention_type">Tipo de Atención {% if not is_view %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+      {{ form.attention_type }}
+      <div id="id_attention_type-e" aria-live="polite">
+        {% for error in form.attention_type.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Sub atención (solo activas y del tipo elegido) #}
+    <div>
+      <label class="fl" for="id_attention_subtype">Sub Atención {% if not is_view %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+      {{ form.attention_subtype }}
+      <p class="help" id="f_sub_h"></p>
+      <div id="id_attention_subtype-e" aria-live="polite">
+        {% for error in form.attention_subtype.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Descripción con contador en vivo #}
+    <div class="full">
+      <label class="fl" for="id_description">Descripción de la atención {% if not is_view %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+      {{ form.description }}
+      <p class="help" id="f_desc_c"></p>
+      <div id="id_description-e" aria-live="polite">
+        {% for error in form.description.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Estado: editable solo al editar #}
+    {% if status_in_form %}
+    <div>
+      <label class="fl" for="id_status">Estado</label>
+      {{ form.status }}
+      <div id="id_status-e" aria-live="polite">
+        {% for error in form.status.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <p class="meta">Responsable: {{ responsible_name }}{% if is_create %} (usuario de sesión){% endif %} | Fecha y hora: {{ attention_date_text }}</p>
+  <div class="formfoot">
+    <a class="btn ghost" href="{{ cancel_url }}" id="cancelBtn">{% if is_view %}Volver{% else %}Cancelar{% endif %}</a>
+    {% if not is_view %}
+    <button class="btn primary" type="submit" id="saveBtn">{% if is_create %}Guardar atención{% else %}Guardar cambios{% endif %}</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+{{ subtype_type_map|json_script:"subtype-type-map" }}
+<script src="{% static 'portal/js/crud.js' %}"></script>
+<script src="{% static 'portal/js/attention.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Atenciones{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Atenciones</nav>
+<div class="titlebar"><h1>Atenciones</h1>
+  {% if can_create %}
+  <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
+  {% endif %}
+</div>
+
+{% if scope_note %}
+<div class="scope" role="note">{% sgr_icon 'info' 18 %}<span>{{ scope_note }}</span></div>
+{% endif %}
+
+{# Búsqueda, filtro de estado y exportación: un solo formulario GET #}
+<section class="card toolbar" aria-label="Búsqueda y filtros">
+  <form method="get" action="{{ search_url }}" id="toolbarForm" role="search">
+    <div class="grow">
+      <label for="q">Búsqueda inteligente</label>
+      <input class="in" id="q" name="q" type="search"
+              placeholder="Buscar por N°, solicitante, tipo, sub atención, responsable o delegación..."
+              value="{{ query }}" autocomplete="off">
+    </div>
+    <div class="statebox">
+      <label for="estado">Filtrar estado</label>
+      <select class="in" id="estado" name="estado">
+        <option value=""{% if not estado %} selected{% endif %}>Todos</option>
+        {% for option in status_options %}
+        <option value="{{ option.0 }}"{% if estado == option.0 %} selected{% endif %}>{{ option.1 }}</option>
+        {% endfor %}
+      </select>
+    </div>
+      <a class="btn-outline" href="{{ search_url }}" id="clearBtn">Limpiar filtros</a>
+    {% if can_export %}
+    <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
+    {% endif %}
+  </form>
+</section>
+
+{% if rows %}
+<div class="tablewrap">
+  <table>
+    <caption class="sr">Atenciones</caption>
+    <thead>
+      <tr>
+        {% for column in columns %}
+        <th scope="col">{{ column.header }}</th>
+        {% endfor %}
+        <th scope="col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        {% for cell in row.cells %}
+        <td>
+          {% if cell.kind == 'status' %}
+          <span class="badge {% if cell.text == 'Ingresada' %}b-info{% elif cell.text == 'En gestión' %}b-warn{% elif cell.text == 'Resuelta' %}b-ok{% else %}b-off{% endif %}">{{ cell.text }}</span>
+          {% elif cell.kind == 'delegation' %}
+            {% for chip in cell.chips %}
+            <span class="chip" title="{{ chip.name }}"><svg class="sq" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" fill="{{ chip.color }}"/></svg>{{ chip.code }}</span>
+            {% endfor %}
+          {% else %}
+          {{ cell.text }}
+          {% endif %}
+        </td>
+        {% endfor %}
+        <td>
+          <div class="acts">
+            <a class="ib v" href="{% url detail_url_name row.pk %}" data-tip="Ver detalle" aria-label="Ver detalle de la atención {{ row.pk }}">{% sgr_icon 'eye' 18 %}</a>
+            {% if can_edit %}
+            <a class="ib e" href="{% url edit_url_name row.pk %}" data-tip="Editar" aria-label="Editar la atención {{ row.pk }}">{% sgr_icon 'pencil' 18 %}</a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="pager">
+  <span>Mostrando {{ showing_from }} a {{ showing_to }} de {{ total }} registros</span>
+  <nav class="pages" aria-label="Paginación">
+    {% if page_obj.has_previous %}
+    <a class="pg" href="{{ prev_url }}" aria-label="Página anterior">Anterior</a>
+    {% else %}
+    <span class="pg" aria-disabled="true">Anterior</span>
+    {% endif %}
+    {% for link in page_links %}
+    <a class="pg" href="{{ link.url }}"{% if link.current %} aria-current="page"{% endif %}>{{ link.number }}</a>
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a class="pg" href="{{ next_url }}" aria-label="Página siguiente">Siguiente</a>
+    {% else %}
+    <span class="pg" aria-disabled="true">Siguiente</span>
+    {% endif %}
+  </nav>
+</div>
+{% else %}
+<div class="state">
+  <div class="ic">{% sgr_icon 'search' 24 %}</div>
+  {% if empty_kind == 'records' %}
+  <h2>Aún no hay registros</h2>
+  <p>Cuando se ingrese la primera atención aparecerá en esta lista.</p>
+  {% if can_create %}<a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
+  {% else %}
+  <h2>No encontramos resultados</h2>
+  <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>
+  <a class="btn primary" href="{{ search_url }}">Limpiar filtros</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'portal/js/crud.js' %}"></script>
+{% endblock %}

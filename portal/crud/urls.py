@@ -13,6 +13,20 @@ Se generan por cada módulo registrado en :mod:`portal.crud.config`:
 from django.urls import path
 
 from . import delegations  # noqa: F401  (registra el módulo al importar)
+from . import roles  # noqa: F401  (registra el módulo al importar)
+from . import users  # noqa: F401  (registra el módulo al importar)
+from . import items  # noqa: F401  (registra el módulo al importar)
+from . import attention_types  # noqa: F401  (registra el módulo al importar)
+from . import attention_subtypes  # noqa: F401  (registra el módulo al importar)
+from . import attentions  # noqa: F401  (registra el módulo al importar)
+from .attentions import (
+    AttentionCreateView,
+    AttentionDetailView,
+    AttentionExportView,
+    AttentionListView,
+    AttentionNeighborsView,
+    AttentionUpdateView,
+)
 from .config import registered_modules
 from .views import (
     CrudCreateView,
@@ -24,27 +38,45 @@ from .views import (
 )
 
 
+#: Vistas por módulo que usan una implementación propia (Atenciones, Parte 7).
+_CUSTOM_MODULE_VIEWS = {
+    "attentions": {
+        "list": AttentionListView,
+        "create": AttentionCreateView,
+        "detail": AttentionDetailView,
+        "edit": AttentionUpdateView,
+        "export": AttentionExportView,
+    },
+}
+
+
 def _module_paths(config):
     key = config.module_key
+    custom = _CUSTOM_MODULE_VIEWS.get(key, {})
+    list_view = custom.get("list", CrudListView)
+    create_view = custom.get("create", CrudCreateView)
+    detail_view = custom.get("detail", CrudDetailView)
+    edit_view = custom.get("edit", CrudUpdateView)
+    export_view = custom.get("export", CrudExportView)
     return [
         path(
             f"{config.slug}/",
-            CrudListView.as_view(module_key=key),
+            list_view.as_view(module_key=key),
             name=key,
         ),
         path(
             f"{config.slug}/nuevo/",
-            CrudCreateView.as_view(module_key=key),
+            create_view.as_view(module_key=key),
             name=f"{key}_new",
         ),
         path(
             f"{config.slug}/<int:pk>/",
-            CrudDetailView.as_view(module_key=key),
+            detail_view.as_view(module_key=key),
             name=f"{key}_detail",
         ),
         path(
             f"{config.slug}/<int:pk>/editar/",
-            CrudUpdateView.as_view(module_key=key),
+            edit_view.as_view(module_key=key),
             name=f"{key}_edit",
         ),
         path(
@@ -54,7 +86,7 @@ def _module_paths(config):
         ),
         path(
             f"{config.slug}/exportar/",
-            CrudExportView.as_view(module_key=key),
+            export_view.as_view(module_key=key),
             name=f"{key}_export",
         ),
     ]
@@ -65,3 +97,8 @@ urlpatterns = [
     for config in registered_modules()
     for route in _module_paths(config)
 ]
+
+# Endpoint de búsqueda de solicitantes para el ingreso de atención.
+urlpatterns.append(
+    path("atenciones/solicitantes/", AttentionNeighborsView.as_view(), name="attention_neighbors"),
+)

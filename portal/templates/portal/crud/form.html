@@ -8,11 +8,16 @@
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url config.module_key %}">{{ config.list_title }}</a> / {{ page_action }}</nav>
 <div class="titlebar"><h1>{{ config.list_title }}: {{ page_action|lower }}</h1></div>
 
-<form class="card fgrid" method="post" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}>
+<form class="card fgrid" method="post" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}{% if form.role_scopes_json %} data-role-scopes="{{ form.role_scopes_json }}"{% endif %}>
   {% csrf_token %}
+  <div id="crudFormErrors" aria-live="polite">
+    {% for error in form.non_field_errors %}
+    <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+    {% endfor %}
+  </div>
   <div class="grid">
     {% for field in form %}
-    <div class="{% if field.name == 'description' or field.name == 'address' %}full{% endif %}">
+    <div class="{% if field.name in form.full_width_fields %}full{% endif %}">
       <label class="fl" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required and not is_view %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
       {% if field.name == 'color' %}
       <div class="colorrow">
@@ -27,7 +32,7 @@
       {{ field }}
       {% endif %}
       {% if field.help_text and not is_view %}
-      <p class="help" id="{{ field.id_for_label }}-help">{{ field.help_text|safe }}</p>
+      <p class="help" id="{{ field.id_for_label }}-help">{{ field.help_text }}</p>
       {% endif %}
       <div id="{{ field.id_for_label }}-e" aria-live="polite">
         {% for error in field.errors %}

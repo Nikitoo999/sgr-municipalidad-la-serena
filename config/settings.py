@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -7,6 +8,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-municipalidad-laserena-sgr-2026-key')
+
+# Los tests usan un hasher de contraseñas rápido: el PBKDF2 por defecto hace que
+# la suite (que crea decenas de usuarios demo) tarde minutos. En producción y
+# desarrollo se conserva el hasher seguro por defecto.
+if 'test' in sys.argv:
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
@@ -124,6 +131,15 @@ AUTHENTICATION_BACKENDS = [
     'portal.backends.EmailOrUsernameBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# --- Seguridad (cabeceras y cookies) -------------------------------------
+# X-Frame-Options lo envía XFrameOptionsMiddleware (DENY por defecto).
+# X-Content-Type-Options: nosniff.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+# La cookie de sesión no debe ser legible por JavaScript.
+SESSION_COOKIE_HTTPONLY = True
+# El servidor de pruebas/despliegue actual sirve por HTTP: no se activan
+# SESSION_COOKIE_SECURE ni SECURE_SSL_REDIRECT. Actívalos solo al pasar a HTTPS.
 
 # --- Rutas de autenticación -----------------------------------------------
 LOGIN_URL = 'login'

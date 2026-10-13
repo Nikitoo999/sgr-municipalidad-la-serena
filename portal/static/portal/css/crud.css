@@ -81,6 +81,19 @@ input[type="color"]{width:44px;height:44px;padding:2px;border:1px solid #c6ccd4;
 .badge-preview{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:6px 12px 6px 8px;background:#fff;font-weight:600;font-size:13px;white-space:nowrap}
 .badge-preview .bp-ic{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:#fff}
 
+/* ---- Matriz de permisos módulo × acción (Parte 5: Roles) ---- */
+/* Base visual copiada de docs/diseno/sgr_interfaz_referencia (2).html (.perm) */
+fieldset{border:0;margin:0;padding:0;min-width:0}
+fieldset>legend{font-weight:600;margin-bottom:8px;padding:0}
+.perm{width:100%;border-collapse:collapse;min-width:560px}
+.perm th,.perm td{padding:8px 12px;border-top:1px solid var(--line);text-align:center}
+.perm th:first-child,.perm td:first-child{text-align:left}
+.perm th{background:#eceef1;border-top:0}
+.perm tbody th[scope="row"]{background:#fff;font-weight:600}
+.perm input{width:17px;height:17px;accent-color:var(--muni)}
+.perm input:disabled{opacity:.55;cursor:not-allowed}
+
+
 @media (max-width:900px){
   .grid{grid-template-columns:1fr}
 }
@@ -88,4 +101,18 @@ input[type="color"]{width:44px;height:44px;padding:2px;border:1px solid #c6ccd4;
   .toolbar{padding:14px}
   .pager{justify-content:center}
 }
+
+/* ---- Aviso de alcance (Parte 7: Atenciones) ---- */
+.scope{display:flex;gap:10px;align-items:flex-start;background:#eef3fa;border:1px solid #c9d9ee;color:#1b3f6e;border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.scope svg{flex:none;margin-top:2px}
+
+/* ---- Línea informativa del formulario de atención ---- */
+.meta{color:var(--muted);margin-top:4px}
+
+/* ---- Resultados de la búsqueda de solicitante ---- */
+.nb-results{position:relative;margin-top:6px}
+.nb-results .nb-list{position:absolute;left:0;right:0;top:0;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:220px;overflow:auto;z-index:10}
+.nb-results .nb-item{display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:#fff;font:inherit;color:var(--ink);cursor:pointer}
+.nb-results .nb-item:hover,.nb-results .nb-item:focus-visible{background:var(--off-bg)}
+.nb-results .nb-empty{padding:9px 12px;color:var(--muted);font-size:13px}
 

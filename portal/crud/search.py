@@ -30,8 +30,23 @@ def split_terms(query: str) -> list:
 
 def _field_values(obj, search_fields) -> str:
     return " ".join(
-        normalize(getattr(obj, name, "") or "") for name in search_fields
+        normalize(_resolve(obj, name)) for name in search_fields
     )
+
+
+def _resolve(obj, name):
+    """Valor de un campo del modelo para la búsqueda en SQLite.
+
+    Acepta nombres planos (``code``), properties (``scope_label``) y rutas a
+    modelos relacionados con ``__`` (``delegation__name``), que ``getattr`` no
+    resuelve por sí solo. Los nombres planos se comportan igual que antes.
+    """
+    value = obj
+    for part in name.split("__"):
+        if value is None:
+            return ""
+        value = getattr(value, part, "")
+    return value
 
 
 def apply_search(queryset, search_fields, query):

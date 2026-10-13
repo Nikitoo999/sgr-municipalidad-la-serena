@@ -51,12 +51,34 @@ def _display(value):
     return str(value)
 
 
+def _export_value(obj, column):
+    """Valor plano de una columna para el Excel (nunca datos sensibles)."""
+    value = getattr(obj, column.field_name, None)
+    if hasattr(value, "all"):  # relación (manager/queryset)
+        value = list(value.all())
+    if isinstance(value, (list, tuple)):
+        parts = []
+        for item in value:
+            code = getattr(item, "code", "")
+            name = getattr(item, "name", "")
+            if code and name:
+                parts.append(f"{code} · {name}")
+            else:
+                parts.append(str(item))
+        value = ", ".join(parts)
+    elif callable(value):
+        value = value()
+    return _display(value)
+
+
 def _delegation_chips(value):
-    """Normaliza una delegación o un conjunto a una lista de objetos."""
+    """Normaliza una delegación, un conjunto o una lista a objetos."""
     if value is None:
         return []
     if hasattr(value, "all"):  # manager / queryset (varios chips)
         return list(value.all())
+    if isinstance(value, (list, tuple)):
+        return list(value)
     return [value]
 
 
@@ -247,6 +269,10 @@ class CrudFormView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, For
     mode = "create"
     object = None
 
+    def get_template_names(self):
+        """Plantilla del módulo (por defecto ``portal/crud/form.html``)."""
+        return [self.config.form_template]
+
     def get_form_class(self):
         return self.config.form_class
 
@@ -254,6 +280,9 @@ class CrudFormView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, For
         kwargs = super().get_form_kwargs()
         if self.object is not None:
             kwargs["instance"] = self.object
+        # El request permite al formulario resolver reglas que dependen del
+        # operador (roles ofrecidos, delegaciones administrables).
+        kwargs["request"] = self.request
         return kwargs
 
     def get_success_url(self):
@@ -348,6 +377,9 @@ class CrudUpdateView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, F
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["instance"] = self.object
+        # El formulario de Usuarios exige el operador (request) para resolver
+        # roles y delegaciones administrables en el servidor.
+        kwargs["request"] = self.request
         return kwargs
 
     def get_success_url(self):
@@ -398,7 +430,7 @@ class CrudDeleteView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, V
         )
 
         if self.config.delete_guard is not None:
-            reason = self.config.delete_guard(obj)
+            reason = self.config.delete_guard(obj, request)
             if reason:
                 audit(
                     request, "delete", module=self.config.module_key,
@@ -447,13 +479,8 @@ class CrudExportView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, V
 
         for row_index, obj in enumerate(rows_all, start=2):
             for col_index, column in enumerate(columns, start=1):
-                value = getattr(obj, column.field_name, None)
-                if hasattr(value, "all"):  # relación (manager/queryset)
-                    value = ", ".join(str(item) for item in value.all())
-                elif callable(value):
-                    value = value()
                 cell = sheet.cell(
-                    row=row_index, column=col_index, value=_display(value)
+                    row=row_index, column=col_index, value=_export_value(obj, column)
                 )
                 cell.border = BORDER
 
@@ -461,7 +488,7 @@ class CrudExportView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, V
             letter = get_column_letter(index)
             width = max(len(column.header) + 2, 14)
             for obj in rows_all:
-                width = max(width, len(_display(getattr(obj, column.field_name, None))))
+                width = max(width, len(_export_value(obj, column)))
             sheet.column_dimensions[letter].width = min(width, 48)
         sheet.freeze_panes = "A2"
 
