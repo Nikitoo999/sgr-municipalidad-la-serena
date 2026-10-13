@@ -1,0 +1,11 @@
+{% extends 'portal/base.html' %}
+{% load sgr_icons %}
+{% block title %}Página no encontrada{% endblock %}
+{% block content %}
+<div class="state" style="margin-top:24px">
+  <div class="ic">{% sgr_icon 'search' 24 %}</div>
+  <h2>No encontramos esta página</h2>
+  <p>La dirección no existe o el registro ya no está disponible.</p>
+  <a class="btn primary" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+{% endblock %}

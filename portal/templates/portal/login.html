@@ -1,22 +1,37 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SGR La Serena — Ingresar</title>
-    <link rel="stylesheet" href="{% static 'portal/style.css' %}">
-</head>
-<body>
-    <main class="card">
-        <h1>SGR Municipalidad de La Serena</h1>
-        <p class="subtitle">Ingrese con su usuario y clave</p>
-        <form method="post">
-            {% csrf_token %}
-            {{ form.as_p }}
-            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-            <button type="submit" class="btn" style="background-color: #C62828;">Ingresar</button>
-        </form>
-    </main>
-</body>
-</html>
+{% extends 'portal/base_auth.html' %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block content %}
+<p class="auth-sub">Gestión de Atención Ciudadana</p>
+<h1 class="auth-title">Iniciar sesión</h1>
+<p class="auth-lead">Accede con tu cuenta institucional.</p>
+
+<form method="post" novalidate id="loginForm">
+  {% csrf_token %}
+  <div class="field">
+    <label class="fl" for="id_username">Usuario o correo</label>
+    <input class="in" type="text" name="username" id="id_username"
+           autocomplete="username" required
+           aria-describedby="username-error">
+    <div id="username-error" class="err-slot" aria-live="polite"></div>
+  </div>
+
+  <div class="field">
+    <label class="fl" for="id_password">Contraseña</label>
+    <div class="pwrow">
+      <input class="in" type="password" name="password" id="id_password"
+             autocomplete="current-password" required
+             aria-describedby="password-error">
+      <button type="button" id="togglePw" aria-pressed="false">Mostrar</button>
+    </div>
+    <div id="password-error" class="err-slot" aria-live="polite"></div>
+  </div>
+
+  <input type="hidden" name="next" value="{{ next }}">
+
+  <button class="btn primary block" type="submit" id="loginBtn">Ingresar</button>
+</form>
+
+<p class="auth-links">
+  <a href="{% url 'password_reset_request' %}">¿Olvidaste tu contraseña?</a>
+</p>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'portal/base.html' %}
+{% load sgr_icons %}
+{% block title %}Error del servidor{% endblock %}
+{% block content %}
+<div class="state err" style="margin-top:24px">
+  <div class="ic" aria-hidden="true">{% sgr_icon 'alert' 26 %}</div>
+  <h2>Ocurrió un error inesperado</h2>
+  <p>Intenta nuevamente en unos minutos. Si el problema continúa, avisa al equipo de soporte.</p>
+  <a class="btn primary" href="/">Volver al inicio</a>
+</div>
+{% endblock %}
+

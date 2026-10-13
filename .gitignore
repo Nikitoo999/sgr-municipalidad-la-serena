@@ -7,3 +7,9 @@ __pycache__/
 *.pyo
 .vscode/
 .DS_Store
+*_out.txt
+zz_run_suite.py
+_dump_hrefs.py
+*.bak
+staticfiles/
+*.log

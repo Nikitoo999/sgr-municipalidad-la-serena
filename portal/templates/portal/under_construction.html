@@ -1,0 +1,13 @@
+{% extends 'portal/base.html' %}
+{% load sgr_icons %}
+{% block title %}{{ module_label }}{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }}</nav>
+<div class="titlebar"><h1>{{ module_label }}</h1></div>
+<div class="state">
+  <div class="ic">{% sgr_icon module_icon 24 %}</div>
+  <h2>Módulo en construcción</h2>
+  <p>La gestión de {{ module_label|lower }} estará disponible en la siguiente etapa. Por ahora puedes volver al inicio.</p>
+  <a class="btn primary" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+{% endblock %}

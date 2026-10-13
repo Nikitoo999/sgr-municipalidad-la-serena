@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#920000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23920000'/%3E%3Cpath d='M9 25V8h10v17M19 13h4v12M12 12h4M12 16h4M12 20h4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<title>Sistema Municipal – Interfaz de referencia</title>
+<style>
+:root{
+  --muni:#920000;--muni-dark:#6f0000;--muni-tint:#fbeaea;
+  --ink:#1f2328;--muted:#5b6370;--line:#dde1e6;--bg:#f5f6f8;
+  --ok:#17663b;--ok-bg:#e3f3ea;--warn:#7a4f00;--warn-bg:#fcf0d0;--bad:#9b1c1c;--bad-bg:#fbe4e4;
+  --info:#1b4f8a;--info-bg:#e4eef9;--off:#4b5260;--off-bg:#eceef1;
+  --header-h:60px;--side-w:236px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:14px/1.5 "Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+h1{font-size:26px;line-height:1.2;font-weight:700}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--muni)}
+:focus-visible{outline:3px solid #1b4f8a;outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:-999px;top:8px;background:#fff;color:var(--ink);padding:8px 12px;border-radius:6px;z-index:200}
+.skip:focus{left:8px}
+
+/* Cabecera */
+.top{height:var(--header-h);background:var(--muni);color:#fff;display:flex;align-items:center;gap:16px;padding:0 20px;position:sticky;top:0;z-index:30}
+.brand{font-weight:700;font-size:18px;letter-spacing:.02em;white-space:nowrap}
+.brand small{font-weight:400;opacity:.9;font-size:16px;letter-spacing:0}
+.ctx{flex:1;display:flex;justify-content:center;min-width:0}
+.dpill{--dc:#920000;--dm:#ce8c8c;display:inline-flex;align-items:center;min-width:0;max-width:100%;height:44px;border-radius:12px;border:2px solid rgba(255,255,255,.92);overflow:hidden;color:var(--ink);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.18);background:linear-gradient(90deg,var(--dc) 0,var(--dc) 46px,var(--dm) 84px,#fff 100%)}
+.dpill .dp-ic{flex:none;width:46px;height:100%;display:grid;place-items:center;color:#fff}
+.dpill .dp-ic svg{filter:drop-shadow(0 1px 0 rgba(0,0,0,.2))}
+.dpill .dp-tx{padding:0 6px 0 38px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpill .dp-lock{display:flex;padding:0 12px 0 4px;color:#4b5260}
+.dpill select{border:0;background:transparent;color:var(--ink);font:inherit;font-weight:600;cursor:pointer;height:100%;padding:0 10px 0 38px;max-width:300px;text-overflow:ellipsis}
+.dpill select option{color:var(--ink);background:#fff}
+.sq{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
+.who{display:flex;align-items:center;gap:12px;white-space:nowrap}
+.who-tx{display:grid;text-align:right;line-height:1.25}
+.who-tx strong{font-size:14px}
+.who-tx .role-txt{font-size:12.5px;opacity:.92}
+.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.6);letter-spacing:.02em}
+.out{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;font-weight:600;cursor:pointer;transition:background .15s}
+.out:hover{background:rgba(255,255,255,.26)}
+.menu-btn{display:none;background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:8px;width:40px;height:40px;align-items:center;justify-content:center;cursor:pointer}
+
+/* Estructura */
+.shell{display:grid;grid-template-columns:var(--side-w) 1fr;min-height:calc(100vh - var(--header-h))}
+.side{background:#fff;border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:var(--header-h);align-self:start;height:calc(100vh - var(--header-h));overflow:auto}
+.side-who{display:none;padding:4px 14px 14px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:4px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:500;border-left:4px solid transparent}
+.nav a:hover{background:#f1f2f4;color:var(--ink)}
+.nav a[aria-current=page]{background:var(--muni-tint);color:var(--muni);font-weight:700;border-left-color:var(--muni)}
+main{padding:24px 32px 40px;min-width:0;outline:none}
+.crumbs{color:var(--muted);margin-bottom:6px}
+.titlebar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.foot{margin-top:40px;color:var(--muted);font-size:13px;display:flex;gap:20px;flex-wrap:wrap}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;background:#fff;text-decoration:none;line-height:1.3}
+.btn.primary{background:var(--muni);color:#fff}
+.btn.primary:hover{background:var(--muni-dark)}
+.btn.soft{background:var(--muni-tint);color:var(--muni)}
+.btn.soft:hover{background:#f6d6d6}
+.btn.ghost{background:#fff;border-color:#c6ccd4;color:var(--ink)}
+.btn.ghost:hover{background:#f1f2f4}
+.btn.danger{background:#9b1c1c;color:#fff}
+.btn.block{width:100%}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+
+/* Tarjetas, avisos, barra de búsqueda */
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:24px}
+.scope{display:flex;gap:10px;align-items:flex-start;background:#eef3fa;border:1px solid #c9d9ee;color:#1b3f6e;border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.scope svg{flex:none;margin-top:2px}
+.toolbar{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:16px 18px;margin-bottom:16px}
+.toolbar .grow{flex:1;min-width:240px}
+.toolbar label{display:block;color:var(--muted);margin-bottom:5px}
+.in{width:100%;border:1px solid #c6ccd4;border-radius:8px;padding:10px 12px;background:#fff}
+.in:hover{border-color:#8f98a4}
+.in[aria-invalid=true]{border-color:var(--bad);background:#fff8f8}
+.in[disabled],.in[readonly]{background:#f1f2f4;color:#3d434d}
+textarea.in{resize:vertical;min-height:96px}
+
+/* Tabla */
+.tablewrap{background:#fff;border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:680px}
+th{background:#eceef1;text-align:left;font-weight:700;padding:11px 14px;white-space:nowrap}
+td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle}
+tbody tr:nth-child(even){background:#fafbfc}
+tbody tr:hover{background:#fdf5f5}
+.acts{display:flex;gap:8px}
+.ib{position:relative;width:36px;height:36px;display:inline-grid;place-items:center;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer;padding:0;transition:background .15s,border-color .15s}
+.ib.v{color:var(--info)}.ib.e{color:var(--warn)}.ib.d{color:var(--bad)}
+.ib.v:hover{background:var(--info-bg);border-color:#b9d1ee}
+.ib.e:hover{background:var(--warn-bg);border-color:#f0d9a0}
+.ib.d:hover{background:var(--bad-bg);border-color:#f1bcbc}
+.ib[data-tip]:hover::after,.ib[data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);background:#1f2328;color:#fff;font-size:12.5px;font-weight:600;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:5}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-info{background:var(--info-bg);color:var(--info)}
+.b-off{background:var(--off-bg);color:var(--off)}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:1px 8px;margin:0 4px 4px 0;background:#fff;font-weight:600;font-size:13px;white-space:nowrap}
+.pager{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;color:var(--muted)}
+.pages{display:flex;gap:6px;flex-wrap:wrap}
+.pg{min-width:38px;height:38px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;padding:0 12px;font-weight:600}
+.pg[aria-current=page]{background:var(--muni);border-color:var(--muni);color:#fff}
+.pg[disabled]{opacity:.5;cursor:not-allowed}
+
+/* Estados */
+.state{background:#fff;border:1px dashed #c6ccd4;border-radius:10px;padding:40px 24px;text-align:center}
+.state .ic{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;margin:0 auto 12px;background:var(--off-bg);color:var(--off)}
+.state.err .ic{background:var(--bad-bg);color:var(--bad)}
+.state h2{font-size:18px;margin-bottom:6px}
+.state p{color:var(--muted);max-width:52ch;margin:0 auto 16px}
+.sk{height:14px;border-radius:6px;background:linear-gradient(90deg,#eceef1 25%,#f7f8fa 37%,#eceef1 63%);background-size:400% 100%;animation:sh 1.2s ease infinite}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+
+/* Formularios */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 24px}
+.full{grid-column:1/-1}
+.fl{display:block;font-weight:600;margin-bottom:6px}
+.req{color:var(--muni)}
+.err{color:var(--bad);font-size:13px;margin-top:6px;display:flex;gap:6px;align-items:flex-start}
+.help{color:var(--muted);font-size:13px;margin-top:6px}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{font-weight:600;margin-bottom:8px;padding:0}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.chk{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#fff;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--muni)}
+.formfoot{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;flex-wrap:wrap}
+.meta{color:var(--muted);margin-top:4px}
+.perm{width:100%;border-collapse:collapse;min-width:560px}
+.perm th,.perm td{padding:8px 12px;border-top:1px solid var(--line);text-align:center}
+.perm th:first-child,.perm td:first-child{text-align:left}
+.perm th{background:#eceef1;border-top:0}
+.perm input{width:17px;height:17px;accent-color:var(--muni)}
+
+/* Autenticación */
+.auth{max-width:460px;margin:36px auto;padding:0 16px}
+.auth .card{padding:28px}
+.auth h1{margin:6px 0 4px}
+.lead{color:var(--muted);margin-bottom:18px}
+.subtle{color:var(--muted)}
+.stepline{color:var(--muni);font-weight:700;margin:8px 0 6px}
+.field{margin-bottom:16px}
+.pwrow{position:relative}
+.pwrow .in{padding-right:84px}
+.pwrow button{position:absolute;right:6px;top:6px;bottom:6px;border:0;background:none;color:var(--muni);font-weight:600;cursor:pointer;border-radius:6px;padding:0 10px}
+.demo-box{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.demo-box summary{cursor:pointer;font-weight:600}
+.demo-box table{min-width:0;margin-top:10px}
+.demo-box td,.demo-box th{padding:6px 8px;font-size:13px}
+.code{display:flex;gap:8px;margin:6px 0 10px}
+.code input{width:100%;max-width:52px;height:54px;text-align:center;font-size:22px;font-weight:700;border:1px solid #c6ccd4;border-radius:8px}
+.code input[aria-invalid=true]{border-color:var(--bad);background:#fff8f8}
+.rules{list-style:none;padding:0;margin:8px 0 14px;display:grid;gap:4px}
+.rules li{display:flex;gap:8px;align-items:center;color:var(--muted)}
+.rules li.ok{color:var(--ok)}
+
+/* Inicio */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:18px 0 26px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.stat strong{display:block;font-size:30px;line-height:1.1}
+.stat span{color:var(--muted)}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:12px}
+.mcard{display:flex;gap:12px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;text-decoration:none;color:var(--ink)}
+.mcard:hover{border-color:var(--muni);background:#fffafa}
+.mcard .mi{flex:none;width:38px;height:38px;border-radius:8px;background:var(--muni-tint);color:var(--muni);display:grid;place-items:center}
+.mcard .mt b{display:block;font-size:15px;color:var(--ink)}
+.mcard .mt span{color:var(--muted);font-size:13px}
+h2.sec{font-size:18px;margin-top:8px}
+
+/* Avisos estilo SweetAlert2 y notificaciones */
+.swal-back{position:fixed;inset:0;background:rgba(20,22,26,.55);display:grid;place-items:center;z-index:300;padding:16px}
+.swal{background:#fff;border-radius:14px;width:min(440px,100%);padding:28px 28px 22px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3);animation:pop .16s ease-out}
+@keyframes pop{from{transform:scale(.94);opacity:0}to{transform:none;opacity:1}}
+.swal-ico{width:64px;height:64px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;border:3px solid;font-size:30px;font-weight:700}
+.swal-ico.success{color:var(--ok);border-color:#bfe3cd;background:var(--ok-bg)}
+.swal-ico.error{color:var(--bad);border-color:#f1bcbc;background:var(--bad-bg)}
+.swal-ico.warning{color:var(--warn);border-color:#f0d9a0;background:var(--warn-bg)}
+.swal-ico.question,.swal-ico.info{color:var(--info);border-color:#b9d1ee;background:var(--info-bg)}
+.swal h2{font-size:21px;margin-bottom:8px}
+.swal p{color:var(--muted);margin:0 0 20px}
+.swal-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:320;display:grid;gap:8px;justify-items:center;pointer-events:none;width:max-content;max-width:92vw}
+.toast{background:#1f2328;color:#fff;padding:10px 16px;border-radius:10px;display:flex;gap:8px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);animation:pop .16s ease-out}
+
+/* Panel de demostración */
+#demo[hidden]{display:none}
+.demo-btn{position:fixed;right:16px;bottom:16px;z-index:90;background:#1f2328;color:#fff;border:0;border-radius:999px;padding:10px 16px;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#demoPanel{position:fixed;right:16px;bottom:64px;z-index:90;width:min(320px,calc(100vw - 32px));background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 12px 32px rgba(0,0,0,.2);display:grid;gap:10px}
+#demoPanel[hidden]{display:none}
+.demo-note{color:var(--muted);font-size:13px}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:var(--header-h);bottom:0;height:auto;width:var(--side-w);transform:translateX(-100%);transition:transform .2s;z-index:25;overflow:auto;box-shadow:6px 0 24px rgba(0,0,0,.12)}
+  body.nav-open .side{transform:none}
+  .menu-btn{display:inline-flex}
+  .side-who{display:block}
+  main{padding:18px 16px 40px}
+  .grid{grid-template-columns:1fr}
+  .top{gap:10px;padding:0 12px}
+  .brand{font-size:15px}
+  .who-tx,.out-tx{display:none}
+  .out{padding:0;width:38px}
+  h1{font-size:22px}
+}
+@media (max-width:560px){ .brand small{display:none} .dpill select,.dpill .dp-tx{max-width:150px;font-size:13px} }
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" role="status" aria-live="polite"></div>
+<div id="demo" hidden>
+  <button class="demo-btn" id="demoToggle" aria-expanded="false" aria-controls="demoPanel">Panel de demostración</button>
+  <div id="demoPanel" hidden>
+    <p class="demo-note">No forma parte del sistema. Sirve para revisar cada perfil durante la presentación.</p>
+    <div>
+      <label class="fl" for="demoRole">Ver el sistema como</label>
+      <select class="in" id="demoRole">
+        <option value="superadmin">Superadministrador</option>
+        <option value="coordinador">Coordinador</option>
+        <option value="delegado">Delegado municipal</option>
+        <option value="funcionario">Funcionario</option>
+      </select>
+    </div>
+    <button class="btn ghost" id="demoUrl">Abrir Delegaciones escribiendo la URL</button>
+    <button class="btn ghost" id="demoErr">Simular error de carga</button>
+    <button class="btn ghost" id="demoSrv">Simular error del servidor al guardar</button>
+  </div>
+</div>
+<noscript>Esta interfaz de referencia necesita JavaScript.</noscript>
+
+<script>
+(function(){
+'use strict';
+var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+var $=function(s,r){return (r||document).querySelector(s)};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function fold(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+function pad(n,l){return String(n).padStart(l||2,'0')}
+
+/* ---------- Iconos ---------- */
+var IC={
+ home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+ building:'<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+ shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+ users:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.4"/><path d="M17 14.5c2.4 0 4 1.6 4 4"/>',
+ flag:'<path d="M5 21V4"/><path d="M5 4h12l-2 4 2 4H5"/>',
+ tag:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/>',
+ layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+ clip:'<rect x="6" y="4" width="12" height="17" rx="1.5"/><path d="M9 4V3h6v1M9 10h6M9 14h6"/>',
+ search:'<circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/>',
+ down:'<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ lock:'<rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+ menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+ check:'<path d="M5 12.5l4.5 4.5L19 7"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>',
+ alert:'<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.1"/>',
+ info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.1"/>',
+ eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ pencil:'<path d="M4 20l1-4L16.5 4.5a2 2 0 013 3L8 19l-4 1z"/><path d="M14 7l3 3"/>',
+ trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+ out:'<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>'
+};
+function icon(n,s){s=s||18;return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+IC[n]+'</svg>'}
+function hex2rgb(h){h=h.replace('#','');return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)})}
+function rgb2hex(a){return '#'+a.map(function(v){return pad(Math.round(v).toString(16))}).join('')}
+function lumOf(a){var f=function(v){v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)};return 0.2126*f(a[0])+0.7152*f(a[1])+0.0722*f(a[2])}
+function readable(hex){var a=hex2rgb(hex),n=0;while(1.05/(lumOf(a)+0.05)<4.5&&n<24){a=a.map(function(v){return v*0.94});n++}return rgb2hex(a)}
+function mixWhite(hex,p){return rgb2hex(hex2rgb(hex).map(function(v){return v+(255-v)*p}))}
+function initials(n){return n.split(/\s+/).slice(0,2).map(function(w){return w.charAt(0)}).join('').toUpperCase()}
+
+/* ---------- Datos ficticios ---------- */
+var D={
+ DEL01:{n:'Centro',c:'#C62828',dir:'Calle Referencial 100'},
+ DEL02:{n:'Avenida del Mar',c:'#1D6FA5',dir:'Avenida Referencial 200'},
+ DEL03:{n:'La Antena-La Florida',c:'#2E7D32',dir:'Calle Referencial 300'},
+ DEL04:{n:'Las Compañías',c:'#6A1B9A',dir:'Calle Referencial 400'},
+ DEL05:{n:'La Pampa',c:'#E65100',dir:'Calle Referencial 500'},
+ DEL06:{n:'Rural',c:'#00796B',dir:'Camino Referencial km 6'}
+};
+var PM=['delegaciones','roles','usuarios','items','tipos','subtipos','atenciones'];
+var ACTS=[['ver','Ver'],['crear','Crear'],['editar','Editar'],['eliminar','Eliminar'],['exportar','Exportar']];
+var ALL=ACTS.map(function(a){return a[0]});
+var STD=['ver','crear','editar','exportar'];
+var RANK={'Todas las delegaciones':3,'Delegaciones autorizadas':2,'Su delegación':1,'Solo registros propios':0};
+var DATA={};
+var allPerms={};PM.forEach(function(m){allPerms[m]=ALL.slice()});
+DATA.roles=[
+ {codigo:'ROL01',nombre:'Superadministrador',descripcion:'Administra delegaciones, roles, usuarios y catálogos de todo el sistema.',alcance:'Todas las delegaciones',estado:'Activo',perms:allPerms},
+ {codigo:'ROL02',nombre:'Coordinador',descripcion:'Gestiona usuarios, catálogos y atenciones de varias delegaciones autorizadas.',alcance:'Delegaciones autorizadas',estado:'Activo',perms:{usuarios:STD.slice(),items:STD.slice(),tipos:STD.slice(),subtipos:STD.slice(),atenciones:STD.slice()}},
+ {codigo:'ROL03',nombre:'Delegado municipal',descripcion:'Administra a su equipo y las atenciones de su delegación.',alcance:'Su delegación',estado:'Activo',perms:{usuarios:STD.slice(),items:['ver','exportar'],atenciones:STD.slice()}},
+ {codigo:'ROL04',nombre:'Funcionario',descripcion:'Ingresa atenciones y consulta las que registró.',alcance:'Solo registros propios',estado:'Activo',perms:{atenciones:['ver','crear','exportar']}}
+];
+DATA.delegaciones=Object.keys(D).map(function(c){return {codigo:c,nombre:D[c].n,comuna:'La Serena',direccion:D[c].dir,estado:'Activa'}});
+function U(c,n,e,r,d,s){return {codigo:c,nombre:n,correo:e,rol:r,delegs:d,estado:s||'Activo'}}
+DATA.usuarios=[
+ U('USR001','Valentina Soto','superadmin@example.test','ROL01',Object.keys(D)),
+ U('USR002','Matías Contreras','coordinador@example.test','ROL02',['DEL01','DEL02','DEL03']),
+ U('USR003','Andrea Pizarro','andrea.pizarro@example.test','ROL02',['DEL04','DEL05','DEL06']),
+ U('USR004','Camila Rojas','delegado@example.test','ROL03',['DEL01']),
+ U('USR005','Rodrigo Aguirre','rodrigo.aguirre@example.test','ROL03',['DEL02']),
+ U('USR006','Diego Molina','funcionario@example.test','ROL04',['DEL01']),
+ U('USR007','Elena Campos','elena.campos@example.test','ROL04',['DEL01']),
+ U('USR008','Gabriela Rojas','gabriela.rojas@example.test','ROL04',['DEL02']),
+ U('USR009','Hugo Pizarro','hugo.pizarro@example.test','ROL04',['DEL02']),
+ U('USR010','Ignacio Vera','ignacio.vera@example.test','ROL04',['DEL03'],'Inactivo'),
+ U('USR011','Javiera Tapia','javiera.tapia@example.test','ROL03',['DEL03']),
+ U('USR012','Luis Cortés','luis.cortes@example.test','ROL04',['DEL04']),
+ U('USR013','Paula Herrera','paula.herrera@example.test','ROL04',['DEL05']),
+ U('USR014','Tomás Rivera','tomas.rivera@example.test','ROL04',['DEL06'])
+];
+function I(c,n,d,e){return {codigo:c,nombre:n,descripcion:d,estado:e||'Activo'}}
+DATA.items=[
+ I('ITM-001','Visitas a terreno realizadas','Visitas programadas a sectores de la delegación.'),
+ I('ITM-002','Atenciones sociales resueltas','Solicitudes sociales cerradas dentro del período.'),
+ I('ITM-003','Solicitudes respondidas en plazo','Respuestas entregadas dentro del plazo comprometido.'),
+ I('ITM-004','Cobertura de catastro social','Hogares incorporados al catastro de la delegación.'),
+ I('ITM-005','Reclamos cerrados','Reclamos con respuesta final al vecino.'),
+ I('ITM-006','Actividades comunitarias','Reuniones y actividades con juntas de vecinos.'),
+ I('ITM-007','Capacitaciones a funcionarios','Jornadas de capacitación del equipo.','Inactivo')
+];
+function T(c,n,d,e){return {codigo:c,nombre:n,descripcion:d,estado:e||'Activo'}}
+DATA.tipos=[
+ T('TIP01','Social','Apoyo y beneficios para vecinos.'),
+ T('TIP02','Territorial','Requerimientos del espacio público y los barrios.'),
+ T('TIP03','Administrativa','Certificados, permisos y trámites.'),
+ T('TIP04','Orientación ciudadana','Información y derivación de trámites.'),
+ T('TIP05','Emergencias','Eventos que requieren respuesta inmediata.','Inactivo')
+];
+function S2(c,n,t,e){return {codigo:c,nombre:n,tipo:t,estado:e||'Activo'}}
+DATA.subtipos=[
+ S2('SUB01','Ayuda social','Social'),S2('SUB02','Subsidio y beneficios','Social'),
+ S2('SUB03','Visita a terreno','Territorial'),S2('SUB04','Reparación de luminaria','Territorial'),
+ S2('SUB05','Certificado de residencia','Administrativa'),S2('SUB06','Patente comercial','Administrativa'),
+ S2('SUB07','Orientación de trámites','Orientación ciudadana'),S2('SUB08','Consulta general','Orientación ciudadana','Inactivo')
+];
+DATA.vecinos=[
+ ['V-1001','Marta Zepeda'],['V-1002','Pedro Araya'],['V-1003','Rosa Ibáñez'],['V-1004','Jorge Muñoz'],['V-1005','Ana Ortiz'],
+ ['V-1006','Luis Salinas'],['V-1007','Carmen Vega'],['V-1008','Felipe Rojas'],['V-1009','Teresa Núñez'],['V-1010','Mario Díaz'],
+ ['V-1011','Elisa Parra'],['V-1012','Cristian Lagos'],['V-1013','Sandra Tobar'],['V-1014','Víctor Contreras']
+];
+var DESC0='Solicitud registrada por el vecino. Antecedentes en revisión.';
+function A(n,f,s,t,sub,d,r,e){return {n:'ATN-'+pad(n,4),fecha:f,solicitante:s,tipo:t,sub:sub,delegacion:d,responsable:r,estado:e,descripcion:DESC0}}
+DATA.atenciones=[
+ A(1,'02-10-2026 09:15','Marta Zepeda','Social','Ayuda social','DEL01','Diego Molina','En gestión'),
+ A(2,'02-10-2026 10:40','Pedro Araya','Administrativa','Certificado de residencia','DEL01','Elena Campos','Resuelta'),
+ A(3,'03-10-2026 11:05','Rosa Ibáñez','Territorial','Visita a terreno','DEL02','Gabriela Rojas','Ingresada'),
+ A(4,'03-10-2026 12:30','Jorge Muñoz','Orientación ciudadana','Orientación de trámites','DEL01','Diego Molina','Resuelta'),
+ A(5,'05-10-2026 08:50','Ana Ortiz','Social','Subsidio y beneficios','DEL03','Javiera Tapia','En gestión'),
+ A(6,'05-10-2026 09:20','Luis Salinas','Territorial','Reparación de luminaria','DEL04','Luis Cortés','Ingresada'),
+ A(7,'06-10-2026 10:10','Carmen Vega','Administrativa','Patente comercial','DEL02','Hugo Pizarro','En gestión'),
+ A(8,'06-10-2026 15:45','Felipe Rojas','Social','Ayuda social','DEL01','Elena Campos','Ingresada'),
+ A(9,'07-10-2026 09:00','Teresa Núñez','Orientación ciudadana','Orientación de trámites','DEL05','Paula Herrera','Resuelta'),
+ A(10,'07-10-2026 11:25','Mario Díaz','Territorial','Visita a terreno','DEL06','Tomás Rivera','En gestión'),
+ A(11,'08-10-2026 10:00','Elisa Parra','Social','Subsidio y beneficios','DEL01','Diego Molina','Ingresada'),
+ A(12,'08-10-2026 12:15','Cristian Lagos','Administrativa','Certificado de residencia','DEL03','Ignacio Vera','Resuelta'),
+ A(13,'09-10-2026 09:35','Sandra Tobar','Social','Ayuda social','DEL02','Gabriela Rojas','En gestión'),
+ A(14,'09-10-2026 10:55','Víctor Contreras','Territorial','Reparación de luminaria','DEL01','Elena Campos','En gestión')
+];
+
+/* ---------- Sesión y permisos ---------- */
+var ALLD=Object.keys(D);
+var ACTORS={
+ superadmin:{rol:'ROL01',rank:3,nombre:'Valentina Soto',correo:'superadmin@example.test',delegs:ALLD},
+ coordinador:{rol:'ROL02',rank:2,nombre:'Matías Contreras',correo:'coordinador@example.test',delegs:['DEL01','DEL02','DEL03']},
+ delegado:{rol:'ROL03',rank:1,nombre:'Camila Rojas',correo:'delegado@example.test',delegs:['DEL01']},
+ funcionario:{rol:'ROL04',rank:0,nombre:'Diego Molina',correo:'funcionario@example.test',delegs:['DEL01']}
+};
+var PASS='Demo2026!';
+var S={role:null,deleg:null,list:{},forceErr:false,forceSave:false,timers:[],dirty:false};
+function actor(){return ACTORS[S.role]}
+function roleRow(){return DATA.roles.filter(function(r){return r.codigo===actor().rol})[0]}
+function roleName(codigo){var r=DATA.roles.filter(function(x){return x.codigo===codigo})[0];return r?r.nombre:codigo}
+function can(m,a){var p=roleRow().perms[m];return !!p&&p.indexOf(a)>-1}
+function canSee(m){return m==='inicio'||can(m,'ver')}
+function defaultDeleg(k){return k==='superadmin'?'ALL':'DEL01'}
+function ctxDelegs(){return S.deleg==='ALL'?ALLD.slice():[S.deleg]}
+function allowedDelegs(){return actor().delegs}
+function creatableRoles(){
+  var rk=actor().rank;
+  return DATA.roles.filter(function(r){return r.estado==='Activo'&&(S.role==='superadmin'||RANK[r.alcance]<rk)});
+}
+function scoped(mod){
+  var rows=DATA[mod].slice(),cd=ctxDelegs();
+  if(mod==='usuarios'){
+    rows=rows.filter(function(u){
+      var r=DATA.roles.filter(function(x){return x.codigo===u.rol})[0];
+      var rk=r?RANK[r.alcance]:0;
+      return (S.role==='superadmin'||rk<actor().rank)&&u.delegs.some(function(d){return cd.indexOf(d)>-1});
+    });
+  }
+  if(mod==='atenciones'){
+    rows=rows.filter(function(a){return cd.indexOf(a.delegacion)>-1});
+    if(S.role==='funcionario')rows=rows.filter(function(a){return a.responsable===actor().nombre});
+  }
+  return rows;
+}
+function delegLabel(c){return c+' | Delegación '+D[c].n}
+
+/* ---------- Módulos ---------- */
+var STATES_ACT=['Activo','Inactivo'];
+var MOD={
+ delegaciones:{label:'Delegaciones',title:'Delegaciones municipales',ico:'building',one:'delegación',idk:'codigo',desc:'Zonas de atención y su estado.',
+  cols:[['codigo','Código'],['nombre','Nombre'],['comuna','Comuna'],['direccion','Dirección'],['estado','Estado']],est:['Activa','Inactiva'],
+  fields:[{k:'codigo',l:'Código',req:1,max:8,ph:'Ej. DEL07',help:'Identificador único. No se puede repetir.',key:1},{k:'nombre',l:'Nombre',req:1,max:60},{k:'comuna',l:'Comuna',req:1,max:40},{k:'direccion',l:'Dirección',req:1,max:100,full:1},{k:'estado',l:'Estado',t:'select',o:['Activa','Inactiva'],req:1}]},
+ roles:{label:'Roles',title:'Roles y permisos',ico:'shield',one:'rol',idk:'codigo',desc:'Perfiles, alcance y permisos por módulo.',
+  cols:[['codigo','Código'],['nombre','Nombre'],['alcance','Alcance'],['modulos','Módulos habilitados'],['estado','Estado']],est:STATES_ACT,
+  fields:[{k:'codigo',l:'Código',req:1,max:8,ph:'Ej. ROL05',key:1,help:'Identificador único. No se puede repetir.'},{k:'nombre',l:'Nombre del rol',req:1,max:50},{k:'descripcion',l:'Descripción',t:'textarea',full:1,max:200},{k:'alcance',l:'Alcance de datos',t:'select',o:Object.keys(RANK),req:1,help:'Define qué delegaciones puede ver el rol.'},{k:'estado',l:'Estado',t:'select',o:STATES_ACT,req:1},{k:'perms',t:'perms',full:1}]},
+ usuarios:{label:'Usuarios',title:'Usuarios del sistema',ico:'users',one:'usuario',idk:'codigo',desc:'Cuentas, roles y delegaciones autorizadas.',
+  cols:[['nombre','Nombre'],['correo','Correo'],['rol','Rol'],['delegs','Delegaciones'],['estado','Estado']],est:STATES_ACT,
+  fields:[{k:'nombre',l:'Nombre completo',req:1,max:80},{k:'correo',l:'Correo electrónico',t:'email',req:1,max:100,ph:'nombre@dominio.cl'},{k:'rol',l:'Rol',t:'select',req:1,o:function(){return creatableRoles().map(function(r){return {v:r.codigo,t:r.nombre}})},help:'Solo puedes asignar roles de menor alcance que el tuyo.'},{k:'estado',l:'Estado',t:'select',o:STATES_ACT,req:1},{k:'delegs',t:'delegs',full:1}]},
+ items:{label:'Ítems y metas',title:'Ítems y metas',ico:'flag',one:'ítem',idk:'codigo',desc:'Catálogo de ítems y metas del proyecto.',
+  cols:[['codigo','Código'],['nombre','Nombre'],['descripcion','Descripción'],['estado','Estado']],est:STATES_ACT,
+  fields:[{k:'codigo',l:'Código',req:1,max:8,ph:'Ej. ITM-008',key:1,help:'Identificador único. No se puede repetir.'},{k:'nombre',l:'Nombre',req:1,max:80},{k:'descripcion',l:'Descripción',t:'textarea',full:1,max:200,req:1},{k:'estado',l:'Estado',t:'select',o:STATES_ACT,req:1}]},
+ tipos:{label:'Tipo de Atención',title:'Tipos de atención',ico:'tag',one:'tipo de atención',idk:'codigo',desc:'Clasificación principal de las atenciones.',
+  cols:[['codigo','Código'],['nombre','Nombre'],['descripcion','Descripción'],['estado','Estado']],est:STATES_ACT,
+  fields:[{k:'codigo',l:'Código',req:1,max:8,ph:'Ej. TIP06',key:1,help:'Identificador único. No se puede repetir.'},{k:'nombre',l:'Nombre',req:1,max:60},{k:'descripcion',l:'Descripción',t:'textarea',full:1,max:200,req:1},{k:'estado',l:'Estado',t:'select',o:STATES_ACT,req:1}]},
+ subtipos:{label:'Sub Atención',title:'Sub atenciones',ico:'layers',one:'sub atención',idk:'codigo',desc:'Detalle de cada tipo de atención.',
+  cols:[['codigo','Código'],['nombre','Nombre'],['tipo','Tipo de atención'],['estado','Estado']],est:STATES_ACT,
+  fields:[{k:'codigo',l:'Código',req:1,max:8,ph:'Ej. SUB09',key:1,help:'Identificador único. No se puede repetir.'},{k:'nombre',l:'Nombre',req:1,max:60},{k:'tipo',l:'Tipo de atención',t:'select',req:1,o:function(){return DATA.tipos.filter(function(t){return t.estado==='Activo'}).map(function(t){return t.nombre})}},{k:'estado',l:'Estado',t:'select',o:STATES_ACT,req:1}]},
+ atenciones:{label:'Atenciones',title:'Atenciones',ico:'clip',one:'atención',idk:'n',desc:'Registro y seguimiento de solicitudes de vecinos.',
+  cols:[['n','N°'],['fecha','Fecha y hora'],['solicitante','Solicitante'],['tipo','Tipo'],['sub','Sub atención'],['delegacion','Delegación'],['responsable','Responsable'],['estado','Estado']],est:['Ingresada','En gestión','Resuelta']}
+};
+var ORDER=['delegaciones','roles','usuarios','items','tipos','subtipos','atenciones'];
+
+function modulosCount(r){return PM.filter(function(m){return r.perms[m]&&r.perms[m].length}).length}
+function plain(mod,r,k){
+  if(k==='rol')return roleName(r.rol);
+  if(k==='delegs')return r.delegs.join(' ');
+  if(k==='delegacion')return r.delegacion+' '+D[r.delegacion].n;
+  if(k==='modulos')return String(modulosCount(r))+' módulos';
+  return r[k];
+}
+function badge(v){var m={Activa:'ok',Activo:'ok',Resuelta:'ok',Inactiva:'off',Inactivo:'off',Ingresada:'info','En gestión':'warn'};return '<span class="badge b-'+(m[v]||'off')+'">'+esc(v)+'</span>'}
+function chip(c){return '<span class="chip" title="'+esc(D[c].n)+'"><span class="sq" style="background:'+D[c].c+'"></span>'+c+'</span>'}
+function cell(mod,r,k){
+  if(k==='estado')return badge(r.estado);
+  if(k==='delegs')return r.delegs.length===ALLD.length?'<span class="chip">Todas</span>':r.delegs.map(chip).join('');
+  if(k==='delegacion')return chip(r.delegacion);
+  return esc(plain(mod,r,k));
+}
+
+/* ---------- Utilidades de interfaz ---------- */
+function clearTimers(){S.timers.forEach(function(t){clearTimeout(t);clearInterval(t)});S.timers=[]}
+function later(fn,ms){var t=setTimeout(fn,ms);S.timers.push(t);return t}
+function go(h){if(location.hash===h)route();else location.hash=h}
+function toast(msg,ic){
+  var el=document.createElement('div');el.className='toast';
+  el.innerHTML=icon(ic||'check',16)+'<span>'+esc(msg)+'</span>';
+  $('#toasts').appendChild(el);
+  setTimeout(function(){el.remove()},3400);
+}
+function swal(o){
+  return new Promise(function(res){
+    var prev=document.activeElement,icn=o.icon||'info';
+    var glyph={success:icon('check',32),error:icon('x',32),warning:icon('alert',32),question:'?',info:'i'}[icn];
+    var w=document.createElement('div');w.className='swal-back';
+    w.innerHTML='<div class="swal" role="dialog" aria-modal="true" aria-labelledby="swt" aria-describedby="swd"><div class="swal-ico '+icn+'">'+glyph+'</div><h2 id="swt">'+esc(o.title)+'</h2><p id="swd">'+esc(o.text||'')+'</p><div class="swal-btns">'+(o.cancel?'<button class="btn ghost" data-r="0">'+esc(o.cancel)+'</button>':'')+'<button class="btn '+(o.danger?'danger':'primary')+'" data-r="1">'+esc(o.confirm||'Aceptar')+'</button></div></div>';
+    document.body.appendChild(w);
+    var btns=$$('button',w);
+    function done(v){document.removeEventListener('keydown',key,true);w.remove();if(prev&&prev.focus)prev.focus();res(v)}
+    function key(e){
+      if(e.key==='Escape'){e.preventDefault();done(false)}
+      if(e.key==='Tab'){var i=btns.indexOf(document.activeElement);e.preventDefault();btns[(i+(e.shiftKey?-1:1)+btns.length)%btns.length].focus()}
+    }
+    document.addEventListener('keydown',key,true);
+    btns.forEach(function(b){b.addEventListener('click',function(){done(b.getAttribute('data-r')==='1')})});
+    (o.danger&&o.cancel?btns[0]:btns[btns.length-1]).focus();
+  });
+}
+function setTitle(t){document.title=t+' – Sistema Municipal'}
+function actLabel(a){return ACTS.filter(function(x){return x[0]===a})[0][1]}
+
+/* ---------- Estructura de la aplicación ---------- */
+function authShell(inner,sub){
+  $('#app').innerHTML='<a class="skip" href="#main">Saltar al contenido</a><header class="top"><div class="brand">SISTEMA MUNICIPAL <small>/ '+esc(sub)+'</small></div></header><main id="main" tabindex="-1"><div class="auth">'+inner+'</div></main>';
+  $('#demo').hidden=true;
+  document.body.classList.remove('nav-open');
+}
+function ctxPill(){
+  var all=S.deleg==='ALL',dc=readable(all?'#920000':D[S.deleg].c),dm=mixWhite(dc,0.55);
+  var style='--dc:'+dc+';--dm:'+dm,ic='<span class="dp-ic">'+icon('building',22)+'</span>';
+  if(S.role==='superadmin'||S.role==='coordinador'){
+    var opts=(S.role==='superadmin'?'<option value="ALL"'+(all?' selected':'')+'>Todas las delegaciones</option>':'')+allowedDelegs().map(function(c){return '<option value="'+c+'"'+(S.deleg===c?' selected':'')+'>'+esc(delegLabel(c))+'</option>'}).join('');
+    return '<span class="dpill" style="'+style+'">'+ic+'<label class="sr" for="ctxSel">Delegación activa</label><select id="ctxSel">'+opts+'</select></span>';
+  }
+  return '<span class="dpill" style="'+style+'" title="Asignada por tu perfil">'+ic+'<span class="dp-tx">'+esc(delegLabel(S.deleg))+'</span><span class="dp-lock">'+icon('lock',14)+'</span></span>';
+}
+function shell(inner,active){
+  var a=actor();
+  var nav=['inicio'].concat(ORDER).filter(canSee).map(function(m){
+    var lab=m==='inicio'?'Inicio':MOD[m].label,ic=m==='inicio'?'home':MOD[m].ico;
+    return '<a href="#/'+m+'"'+(m===active?' aria-current="page"':'')+'>'+icon(ic,18)+'<span>'+esc(lab)+'</span></a>';
+  }).join('');
+  $('#app').innerHTML='<a class="skip" href="#main">Saltar al contenido</a>'+
+   '<header class="top"><button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="side">'+icon('menu',22)+'</button><div class="brand">SISTEMA MUNICIPAL</div><div class="ctx">'+ctxPill()+'</div><div class="who"><span class="who-tx"><strong>'+esc(a.nombre)+'</strong><span class="role-txt">'+esc(roleName(a.rol))+'</span></span><span class="avatar" aria-hidden="true">'+esc(initials(a.nombre))+'</span><button class="out" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">'+icon('out',18)+'<span class="out-tx">Salir</span></button></div></header>'+
+   '<div class="shell"><aside class="side" id="side" aria-label="Menú principal"><div class="side-who"><strong>'+esc(a.nombre)+'</strong><br><span class="subtle">'+esc(roleName(a.rol))+'</span></div><nav class="nav">'+nav+'</nav></aside><main id="main" tabindex="-1">'+inner+'<footer class="foot"><span>Diseño referencial</span><span>Datos ficticios</span><span>Acciones sujetas al perfil</span></footer></main></div>';
+  $('#demo').hidden=false;$('#demoRole').value=S.role;
+  document.body.classList.remove('nav-open');
+  var ctx=$('#ctxSel');
+  if(ctx)ctx.addEventListener('change',async function(){
+    var nv=ctx.value,prev=S.deleg;
+    if(S.dirty){
+      var ok=await swal({icon:'warning',title:'Tienes cambios sin guardar',text:'Si cambias de delegación se perderán los datos que escribiste.',confirm:'Cambiar de delegación',cancel:'Seguir aquí'});
+      if(!ok){ctx.value=prev;return}
+      S.dirty=false;
+    }
+    S.deleg=nv;S.list={};
+    toast('Delegación activa: '+(nv==='ALL'?'todas':delegLabel(nv)),'info');
+    var pp=location.hash.replace(/^#\//,'').split('/');
+    if(pp[1]==='ver'||pp[1]==='editar')go('#/'+pp[0]);else route();
+  });
+  $('#logout').addEventListener('click',logout);
+  var mb=$('#menuBtn');
+  mb.addEventListener('click',function(){var o=document.body.classList.toggle('nav-open');mb.setAttribute('aria-expanded',o)});
+  $$('.nav a').forEach(function(l){l.addEventListener('click',function(){document.body.classList.remove('nav-open')})});
+}
+function afterRender(t){
+  setTitle(t);window.scrollTo(0,0);
+  var m=$('#main');if(m)m.focus({preventScroll:true});
+}
+async function logout(){
+  var ok=await swal({icon:'question',title:'¿Cerrar sesión?',text:'Tendrás que ingresar de nuevo para continuar.',confirm:'Cerrar sesión',cancel:'Cancelar'});
+  if(ok){S.role=null;S.deleg=null;S.list={};go('#/login')}
+}
+
+/* ---------- Login ---------- */
+function renderLogin(){
+  var rows=Object.keys(ACTORS).map(function(k){var a=ACTORS[k];return '<tr><td>'+esc(roleName(a.rol))+'</td><td>'+esc(a.correo)+'</td><td><button type="button" class="btn ghost" data-use="'+k+'" style="padding:4px 10px">Usar</button></td></tr>'}).join('');
+  rows+='<tr><td>Cuenta inactiva</td><td>ignacio.vera@example.test</td><td><button type="button" class="btn ghost" data-email="ignacio.vera@example.test" style="padding:4px 10px">Usar</button></td></tr>';
+  authShell('<div class="card"><p class="subtle" style="font-weight:600;color:var(--ink)">Gestión de Atención Ciudadana</p><h1>Iniciar sesión</h1><p class="lead">Accede con tu cuenta institucional.</p>'+
+   '<form id="lf" novalidate>'+
+   '<div class="field"><label class="fl" for="lu">Usuario o correo</label><input class="in" id="lu" autocomplete="username" aria-describedby="lue"><div id="lue"></div></div>'+
+   '<div class="field"><label class="fl" for="lp">Contraseña</label><div class="pwrow"><input class="in" id="lp" type="password" autocomplete="current-password" aria-describedby="lpe"><button type="button" id="lshow" aria-pressed="false">Mostrar</button></div><div id="lpe"></div></div>'+
+   '<button class="btn primary block" id="lgo" type="submit">Ingresar</button></form>'+
+   '<p style="margin-top:16px"><a href="#/recuperar">¿Olvidaste tu contraseña?</a></p></div>'+
+   '<details class="demo-box"><summary>Cuentas de demostración</summary><p class="subtle" style="margin-top:8px">Contraseña de todas: <strong>'+PASS+'</strong></p><table><thead><tr><th>Rol</th><th>Correo</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></details>','Acceso y recuperación');
+  afterRender('Iniciar sesión');
+  var u=$('#lu'),p=$('#lp');
+  $$('[data-use]').forEach(function(b){b.addEventListener('click',function(){u.value=ACTORS[b.getAttribute('data-use')].correo;p.value=PASS;p.focus()})});
+  $$('[data-email]').forEach(function(b){b.addEventListener('click',function(){u.value=b.getAttribute('data-email');p.value=PASS;p.focus()})});
+  $('#lshow').addEventListener('click',function(){var h=p.type==='password';p.type=h?'text':'password';this.textContent=h?'Ocultar':'Mostrar';this.setAttribute('aria-pressed',h)});
+  $('#lf').addEventListener('submit',async function(e){
+    e.preventDefault();
+    var eu=$('#lue'),ep=$('#lpe');eu.innerHTML='';ep.innerHTML='';u.removeAttribute('aria-invalid');p.removeAttribute('aria-invalid');
+    var bad=false;
+    if(!u.value.trim()){eu.innerHTML='<div class="err">'+icon('alert',16)+'Ingresa tu usuario o correo.</div>';u.setAttribute('aria-invalid','true');bad=true}
+    if(!p.value){ep.innerHTML='<div class="err">'+icon('alert',16)+'Ingresa tu contraseña.</div>';p.setAttribute('aria-invalid','true');bad=true}
+    if(bad){(u.value.trim()?p:u).focus();return}
+    var btn=$('#lgo');btn.disabled=true;btn.textContent='Verificando…';
+    await new Promise(function(r){setTimeout(r,REDUCED?0:600)});
+    var q=fold(u.value.trim());
+    var key=Object.keys(ACTORS).filter(function(k){return q===fold(ACTORS[k].correo)||q===k})[0];
+    var usr=DATA.usuarios.filter(function(x){return fold(x.correo)===q})[0];
+    if(p.value===PASS&&usr&&usr.estado==='Inactivo'){
+      btn.disabled=false;btn.textContent='Ingresar';
+      await swal({icon:'warning',title:'Tu cuenta está inactiva',text:'Comunícate con el coordinador o el delegado de tu delegación para reactivarla.',confirm:'Entendido'});
+      return;
+    }
+    if(key&&p.value===PASS){
+      S.role=key;S.deleg=defaultDeleg(key);S.list={};
+      toast('Bienvenido/a, '+actor().nombre.split(' ')[0]);
+      go('#/inicio');
+    }else{
+      btn.disabled=false;btn.textContent='Ingresar';
+      await swal({icon:'error',title:'No pudimos iniciar tu sesión',text:'El usuario o la contraseña no son correctos. Revisa los datos e inténtalo de nuevo.',confirm:'Entendido'});
+      p.value='';p.focus();
+    }
+  });
+}
+
+/* ---------- Recuperación de contraseña ---------- */
+var R=null;
+function maskEmail(e){var p=e.split('@');return (p[0]||'').charAt(0)+'***@'+(p[1]||'')}
+function renderRecover(){
+  if(!R)R={step:1,email:'',tries:3,exp:0,resend:0};
+  authShell('<div class="card"><p class="subtle" style="font-weight:600;color:var(--ink)">Gestión de Atención Ciudadana</p><h1 id="rtitle">Recuperar contraseña</h1><div id="rc"></div></div>','Acceso y recuperación');
+  afterRender('Recuperar contraseña');
+  recStep();
+}
+function recStep(){
+  clearTimers();
+  var c=$('#rc');
+  $('#rtitle').textContent=['','Recuperar contraseña','Validar código','Crear nueva contraseña'][R.step];
+  if(R.step===1){
+    c.innerHTML='<p class="stepline">Paso 1 de 3 | Solicitar código</p><p class="lead">Ingresa el correo asociado a tu cuenta.</p>'+
+     '<div class="field"><label class="fl" for="re">Correo electrónico</label><input class="in" id="re" type="email" autocomplete="email" placeholder="nombre@dominio.cl" aria-describedby="ree" value="'+esc(R.email)+'"><div id="ree"></div></div>'+
+     '<button class="btn primary block" id="rsend">Enviar código</button><p class="subtle" style="margin:12px 0">Si la cuenta existe, recibirás instrucciones.</p><a href="#/login" id="rback">Volver al inicio de sesión</a>';
+    $('#re').focus();
+    $('#rsend').addEventListener('click',async function(){
+      var i=$('#re'),v=i.value.trim(),er=$('#ree');er.innerHTML='';i.removeAttribute('aria-invalid');
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){er.innerHTML='<div class="err">'+icon('alert',16)+'Ingresa un correo válido, por ejemplo nombre@dominio.cl.</div>';i.setAttribute('aria-invalid','true');i.focus();return}
+      this.disabled=true;this.textContent='Enviando…';
+      await new Promise(function(r){setTimeout(r,REDUCED?0:600)});
+      R.email=v;R.step=2;R.tries=3;R.exp=Date.now()+600000;R.resend=Date.now()+45000;recStep();
+    });
+  }
+  if(R.step===2){
+    c.innerHTML='<p class="stepline">Paso 2 de 3 | Verificación</p><p class="lead">Si el correo está registrado, enviamos un código de 6 dígitos a <strong>'+esc(maskEmail(R.email))+'</strong>. Revisa también la carpeta de spam.</p>'+
+     '<fieldset><legend>Código de verificación</legend><div class="code" id="codeBox">'+[1,2,3,4,5,6].map(function(n){return '<input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Dígito '+n+' de 6">'}).join('')+'</div></fieldset><div id="rce"></div>'+
+     '<p class="subtle" id="rinfo" style="margin:8px 0 14px"></p>'+
+     '<button class="btn primary block" id="rver">Verificar código</button><button class="btn ghost block" id="rres" style="margin-top:10px" disabled>Reenviar código</button>'+
+     '<p class="subtle" style="margin:12px 0">Demostración: el código válido es <strong>123456</strong>.</p><a href="#/login">Volver al inicio de sesión</a>';
+    var ins=$$('#codeBox input'),locked=false;
+    ins[0].focus();
+    ins.forEach(function(inp,i){
+      inp.addEventListener('input',function(){inp.value=inp.value.replace(/\D/g,'').slice(-1);if(inp.value&&ins[i+1])ins[i+1].focus()});
+      inp.addEventListener('keydown',function(e){if(e.key==='Backspace'&&!inp.value&&ins[i-1]){ins[i-1].focus()}if(e.key==='ArrowLeft'&&ins[i-1]){e.preventDefault();ins[i-1].focus()}if(e.key==='ArrowRight'&&ins[i+1]){e.preventDefault();ins[i+1].focus()}});
+      inp.addEventListener('paste',function(e){var cd=e.clipboardData||window.clipboardData;if(!cd)return;var t=(cd.getData('text')||'').replace(/\D/g,'').slice(0,6);if(!t)return;e.preventDefault();t.split('').forEach(function(ch,j){ins[j].value=ch});(ins[Math.min(t.length,5)]).focus()});
+    });
+    function fmt(ms){var s=Math.max(0,Math.ceil(ms/1000));return pad(Math.floor(s/60))+':'+pad(s%60)}
+    function tick(){
+      var left=R.exp-Date.now(),rs=R.resend-Date.now();
+      var info=$('#rinfo'),res=$('#rres'),ver=$('#rver');if(!info)return;
+      if(left<=0){info.innerHTML='El código venció. Solicita uno nuevo.';ver.disabled=true;locked=true}
+      else if(R.tries<=0){info.innerHTML='Superaste el máximo de intentos. Solicita un nuevo código.';ver.disabled=true;locked=true}
+      else{info.innerHTML='El código vence en <strong>'+fmt(left)+'</strong>. Te quedan '+R.tries+(R.tries===1?' intento.':' intentos.')}
+      if(rs>0){res.disabled=true;res.textContent='Reenviar código en '+fmt(rs)}else{res.disabled=false;res.textContent='Reenviar código'}
+    }
+    tick();S.timers.push(setInterval(tick,1000));
+    $('#rver').addEventListener('click',function(){
+      var v=ins.map(function(i){return i.value}).join(''),er=$('#rce');er.innerHTML='';
+      ins.forEach(function(i){i.removeAttribute('aria-invalid')});
+      if(locked)return;
+      if(v.length<6){er.innerHTML='<div class="err">'+icon('alert',16)+'Ingresa los 6 dígitos del código.</div>';ins.forEach(function(i){if(!i.value)i.setAttribute('aria-invalid','true')});return}
+      if(v==='123456'){R.step=3;recStep();return}
+      R.tries--;ins.forEach(function(i){i.setAttribute('aria-invalid','true');i.value=''});ins[0].focus();
+      er.innerHTML='<div class="err">'+icon('alert',16)+(R.tries>0?'El código no es correcto. Revisa el correo e inténtalo de nuevo.':'El código no es correcto y no quedan intentos.')+'</div>';
+      tick();
+    });
+    $('#rres').addEventListener('click',function(){
+      R.tries=3;R.exp=Date.now()+600000;R.resend=Date.now()+45000;locked=false;$('#rver').disabled=false;$('#rce').innerHTML='';
+      ins.forEach(function(i){i.value='';i.removeAttribute('aria-invalid')});ins[0].focus();tick();toast('Enviamos un nuevo código (demostración)','info');
+    });
+  }
+  if(R.step===3){
+    var rules=[['8 caracteres como mínimo',function(v){return v.length>=8}],['Una letra mayúscula',function(v){return /[A-ZÁÉÍÓÚÑ]/.test(v)}],['Una letra minúscula',function(v){return /[a-záéíóúñ]/.test(v)}],['Un número',function(v){return /\d/.test(v)}]];
+    c.innerHTML='<p class="stepline">Paso 3 de 3 | Nueva clave</p><p class="lead">Elige una contraseña que no hayas usado antes.</p>'+
+     '<div class="field"><label class="fl" for="np">Nueva contraseña</label><div class="pwrow"><input class="in" id="np" type="password" autocomplete="new-password"><button type="button" class="tg" data-t="np" aria-pressed="false">Mostrar</button></div></div>'+
+     '<ul class="rules" id="rules" aria-live="polite">'+rules.map(function(r){return '<li>'+icon('check',16)+r[0]+'</li>'}).join('')+'</ul>'+
+     '<div class="field"><label class="fl" for="np2">Confirmar nueva contraseña</label><div class="pwrow"><input class="in" id="np2" type="password" autocomplete="new-password" aria-describedby="np2e"><button type="button" class="tg" data-t="np2" aria-pressed="false">Mostrar</button></div><div id="np2e"></div></div>'+
+     '<button class="btn primary block" id="rsave">Guardar contraseña</button>';
+    var np=$('#np'),np2=$('#np2');np.focus();
+    $$('.tg').forEach(function(b){b.addEventListener('click',function(){var i=$('#'+b.getAttribute('data-t')),h=i.type==='password';i.type=h?'text':'password';b.textContent=h?'Ocultar':'Mostrar';b.setAttribute('aria-pressed',h)})});
+    function chk(){$$('#rules li').forEach(function(li,i){li.className=rules[i][1](np.value)?'ok':''})}
+    np.addEventListener('input',chk);
+    $('#rsave').addEventListener('click',async function(){
+      var e2=$('#np2e');e2.innerHTML='';np2.removeAttribute('aria-invalid');
+      if(!rules.every(function(r){return r[1](np.value)})){np.setAttribute('aria-invalid','true');np.focus();return}
+      np.removeAttribute('aria-invalid');
+      if(np.value!==np2.value){e2.innerHTML='<div class="err">'+icon('alert',16)+'Las contraseñas no coinciden.</div>';np2.setAttribute('aria-invalid','true');np2.focus();return}
+      await swal({icon:'success',title:'Contraseña actualizada',text:'Ya puedes iniciar sesión con tu nueva contraseña.',confirm:'Ir al inicio de sesión'});
+      R=null;go('#/login');
+    });
+  }
+}
+
+/* ---------- Inicio ---------- */
+function renderHome(){
+  var a=actor(),at=scoped('atenciones');
+  var ctx=S.deleg==='ALL'?'Ves todas las delegaciones.':'Delegación activa: '+delegLabel(S.deleg)+'.';
+  var s3=canSee('usuarios')?['Usuarios activos',scoped('usuarios').filter(function(u){return u.estado==='Activo'}).length]:['Atenciones resueltas',at.filter(function(x){return x.estado==='Resuelta'}).length];
+  var cards=ORDER.filter(canSee).map(function(m){
+    var acts=roleRow().perms[m].map(actLabel).join(', ');
+    return '<a class="mcard" href="#/'+m+'"><span class="mi">'+icon(MOD[m].ico,20)+'</span><span class="mt"><b>'+esc(MOD[m].label)+'</b><span>'+esc(MOD[m].desc)+'</span><br><span>Puedes: '+esc(acts.toLowerCase())+'.</span></span></a>';
+  }).join('');
+  var hidden=ORDER.filter(function(m){return !canSee(m)}).map(function(m){return MOD[m].label});
+  shell('<nav class="crumbs" aria-label="Ruta">Gestión municipal / Inicio</nav><div class="titlebar"><h1>Hola, '+esc(a.nombre.split(' ')[0])+'</h1></div>'+
+   '<p>'+esc(ctx)+' Tu perfil es <strong>'+esc(roleName(a.rol))+'</strong> ('+esc(roleRow().alcance.toLowerCase())+').</p>'+
+   '<div class="stats"><div class="stat"><strong>'+at.length+'</strong><span>Atenciones registradas</span></div><div class="stat"><strong>'+at.filter(function(x){return x.estado==='En gestión'}).length+'</strong><span>Atenciones en gestión</span></div><div class="stat"><strong>'+s3[1]+'</strong><span>'+s3[0]+'</span></div></div>'+
+   '<h2 class="sec">Accesos de tu perfil</h2><div class="mgrid">'+cards+'</div>'+
+   (hidden.length?'<h2 class="sec" style="margin-top:26px">Lo que tu perfil no incluye</h2><p class="subtle" style="margin-top:6px;max-width:70ch">'+esc(hidden.join(', '))+'. No aparecen en tu menú y el servidor también rechaza esas direcciones si se escriben a mano.</p>':''),'inicio');
+  afterRender('Inicio');
+}
+
+/* ---------- Acceso restringido ---------- */
+function renderDenied(mod,why){
+  var label=MOD[mod]?MOD[mod].label:'esta sección';
+  var msg=why==='alcance'?'Este registro pertenece a una delegación o a un nivel fuera de tu alcance.':(why==='crear'||why==='editar')?'Tu perfil ('+roleName(actor().rol)+') no permite '+(why==='crear'?'crear registros':'editar registros')+' en '+label+'.':'Tu perfil ('+roleName(actor().rol)+') no tiene acceso a '+label+'.';
+  shell('<div class="state err" style="margin-top:24px"><div class="ic">'+icon('lock',26)+'</div><h2>Acceso restringido</h2><p>'+esc(msg)+'</p><p style="font-size:13px">El servidor valida cada solicitud: escribir la dirección a mano da la misma respuesta. El intento queda registrado en la auditoría.</p><a class="btn primary" href="#/inicio">Volver al inicio</a></div>','');
+  afterRender('Acceso restringido');
+}
+function renderNotFound(){
+  shell('<div class="state" style="margin-top:24px"><div class="ic">'+icon('search',24)+'</div><h2>No encontramos esta página</h2><p>La dirección no existe o el registro ya no está disponible.</p><a class="btn primary" href="#/inicio">Volver al inicio</a></div>','');
+  afterRender('Página no encontrada');
+}
+
+/* ---------- Listados ---------- */
+function filtered(mod){
+  var st=S.list[mod],rows=scoped(mod);
+  if(st.est)rows=rows.filter(function(r){return r.estado===st.est});
+  var toks=fold(st.q).split(/\s+/).filter(Boolean);
+  if(toks.length){rows=rows.filter(function(r){var t=fold(MOD[mod].cols.map(function(c){return plain(mod,r,c[0])}).join(' '));return toks.every(function(k){return t.indexOf(k)>-1})})}
+  return rows;
+}
+function bannerFor(mod){
+  if(mod!=='usuarios'&&mod!=='atenciones')return '';
+  var t;
+  if(S.role==='funcionario'&&mod==='atenciones')t='Tu perfil muestra solo las atenciones que ingresaste tú.';
+  else if(S.role==='superadmin')t=S.deleg==='ALL'?'Vista global: todas las delegaciones.':'Filtrado por '+delegLabel(S.deleg)+'. Cambia la delegación activa en la cabecera.';
+  else if(S.role==='coordinador')t='Delegación activa: '+delegLabel(S.deleg)+'. Puedes cambiarla en la cabecera entre tus '+allowedDelegs().length+' delegaciones autorizadas.';
+  else t='Tu perfil muestra solo registros de '+delegLabel(S.deleg)+'.';
+  return '<div class="scope" role="note">'+icon('info',18)+'<span>'+esc(t)+'</span></div>';
+}
+function renderList(mod){
+  var M=MOD[mod],st=S.list[mod]=S.list[mod]||{q:'',est:'',page:1};
+  var newLabel=mod==='atenciones'?'Ingresar atención':'Nuevo registro';
+  shell('<nav class="crumbs" aria-label="Ruta">Gestión municipal / '+esc(M.label)+'</nav><div class="titlebar"><h1>'+esc(M.title)+'</h1>'+(can(mod,'crear')?'<a class="btn primary" href="#/'+mod+'/nuevo">'+icon('plus',18)+newLabel+'</a>':'')+'</div>'+bannerFor(mod)+
+   '<section class="card toolbar" aria-label="Búsqueda y filtros"><div class="grow"><label for="q">Búsqueda inteligente</label><input class="in" id="q" type="search" placeholder="Buscar por nombre, código u otro campo..." value="'+esc(st.q)+'" autocomplete="off"></div>'+
+   (can(mod,'exportar')?'<button class="btn soft" id="xl">'+icon('down',18)+'Exportar a Excel</button>':'')+
+   '<div><label for="fe">Filtrar estado</label><select class="in" id="fe"><option value="">Todos</option>'+M.est.map(function(s){return '<option'+(st.est===s?' selected':'')+'>'+esc(s)+'</option>'}).join('')+'</select></div><button class="btn ghost" id="clr">Limpiar filtros</button></section><div id="lb" aria-live="polite"></div>',mod);
+  afterRender(M.title);
+  var lb=$('#lb');
+  lb.innerHTML='<div class="tablewrap" aria-busy="true" aria-label="Cargando"><div style="padding:18px;display:grid;gap:16px">'+[1,2,3,4,5].map(function(){return '<div class="sk"></div>'}).join('')+'</div></div>';
+  later(function(){drawList(mod)},REDUCED?0:380);
+  var q=$('#q'),fe=$('#fe');
+  q.addEventListener('input',function(){st.q=q.value;st.page=1;drawList(mod)});
+  fe.addEventListener('change',function(){st.est=fe.value;st.page=1;drawList(mod)});
+  $('#clr').addEventListener('click',function(){st.q='';st.est='';st.page=1;q.value='';fe.value='';drawList(mod);q.focus()});
+  var xl=$('#xl');if(xl)xl.addEventListener('click',function(){exportCsv(mod)});
+  lb.addEventListener('click',function(e){
+    var b=e.target.closest('[data-act],[data-pg],[data-retry],[data-clear]');if(!b)return;
+    if(b.hasAttribute('data-pg')){st.page=+b.getAttribute('data-pg');drawList(mod);$('#lb').scrollIntoView({block:'start'});return}
+    if(b.hasAttribute('data-retry')){S.forceErr=false;lb.innerHTML='<div class="tablewrap"><div style="padding:18px;display:grid;gap:16px">'+[1,2,3].map(function(){return '<div class="sk"></div>'}).join('')+'</div></div>';later(function(){drawList(mod)},REDUCED?0:380);return}
+    if(b.hasAttribute('data-clear')){$('#clr').click();return}
+    var act=b.getAttribute('data-act'),id=b.getAttribute('data-id');
+    if(act==='del')removeRow(mod,id);else go('#/'+mod+'/'+act+'/'+encodeURIComponent(id));
+  });
+}
+function drawList(mod){
+  var lb=$('#lb');if(!lb)return;
+  var M=MOD[mod],st=S.list[mod];
+  if(S.forceErr){lb.innerHTML='<div class="state err"><div class="ic">'+icon('alert',26)+'</div><h2>No pudimos cargar los registros</h2><p>Revisa tu conexión e inténtalo de nuevo. Si el problema continúa, informa el código ERR-503 a soporte (demostración).</p><button class="btn primary" data-retry="1">Reintentar</button></div>';return}
+  var rows=filtered(mod),total=rows.length,size=5,pages=Math.max(1,Math.ceil(total/size));
+  if(st.page>pages)st.page=pages;
+  var hasF=!!(st.q||st.est);
+  if(!total){
+    var none=!scoped(mod).length&&!hasF;
+    lb.innerHTML='<div class="state"><div class="ic">'+icon('search',24)+'</div><h2>'+(none?'Aún no hay registros':'No encontramos resultados')+'</h2><p>'+(none?'Cuando se cree el primer registro aparecerá en esta lista.':'Prueba con otras palabras o quita los filtros para ver todos los registros.')+'</p>'+(hasF?'<button class="btn primary" data-clear="1">Limpiar filtros</button>':(can(mod,'crear')?'<a class="btn primary" href="#/'+mod+'/nuevo">'+icon('plus',18)+(mod==='atenciones'?'Ingresar atención':'Nuevo registro')+'</a>':''))+'</div>';
+    return;
+  }
+  var from=(st.page-1)*size,slice=rows.slice(from,from+size),idk=M.idk;
+  var head=M.cols.map(function(c){return '<th scope="col">'+esc(c[1])+'</th>'}).join('')+'<th scope="col">Acciones</th>';
+  var body=slice.map(function(r){
+    var id=esc(r[idk]);
+    var acts='<button class="ib v" data-act="ver" data-id="'+id+'" data-tip="Ver detalle" aria-label="Ver '+id+'">'+icon('eye',18)+'</button>'+(can(mod,'editar')?'<button class="ib e" data-act="editar" data-id="'+id+'" data-tip="Editar" aria-label="Editar '+id+'">'+icon('pencil',18)+'</button>':'')+(can(mod,'eliminar')?'<button class="ib d" data-act="del" data-id="'+id+'" data-tip="Eliminar" aria-label="Eliminar '+id+'">'+icon('trash',18)+'</button>':'');
+    return '<tr>'+M.cols.map(function(c){return '<td>'+cell(mod,r,c[0])+'</td>'}).join('')+'<td><div class="acts">'+acts+'</div></td></tr>';
+  }).join('');
+  var pg='';
+  function pb(n,l,dis,cur){return '<button class="pg" '+(dis?'disabled':'data-pg="'+n+'"')+(cur?' aria-current="page"':'')+(typeof l==='number'?' aria-label="Página '+l+'"':'')+'>'+l+'</button>'}
+  pg+=pb(st.page-1,'Anterior',st.page===1);
+  for(var i=1;i<=pages;i++)pg+=pb(i,i,false,i===st.page);
+  pg+=pb(st.page+1,'Siguiente',st.page===pages);
+  lb.innerHTML='<div class="tablewrap"><table><caption class="sr">'+esc(M.title)+'</caption><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div><div class="pager"><span>Mostrando '+(from+1)+' a '+(from+slice.length)+' de '+total+' registros</span><nav class="pages" aria-label="Paginación">'+pg+'</nav></div>';
+}
+function exportCsv(mod){
+  var M=MOD[mod],rows=filtered(mod);
+  var csv=[M.cols.map(function(c){return c[1]})].concat(rows.map(function(r){return M.cols.map(function(c){return plain(mod,r,c[0])})})).map(function(l){return l.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n');
+  var d=new Date(),name=mod+'_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.csv';
+  try{var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}catch(e){}
+  toast('Exportación lista: '+rows.length+' registros con los filtros aplicados (demostración en CSV; el sistema genera .xlsx)');
+}
+function blockers(mod,r){
+  if(mod==='delegaciones'){var u=DATA.usuarios.filter(function(x){return x.delegs.indexOf(r.codigo)>-1}).length,a=DATA.atenciones.filter(function(x){return x.delegacion===r.codigo}).length;if(u||a)return 'La delegación '+r.codigo+' tiene '+u+' usuarios y '+a+' atenciones asociadas. Márcala como Inactiva desde Editar para conservar el historial.'}
+  if(mod==='roles'){var n=DATA.usuarios.filter(function(x){return x.rol===r.codigo}).length;if(n)return 'El rol '+r.nombre+' está asignado a '+n+' usuarios. Reasígnalos o márcalo como Inactivo.'}
+  if(mod==='tipos'){var s=DATA.subtipos.filter(function(x){return x.tipo===r.nombre}).length,a2=DATA.atenciones.filter(function(x){return x.tipo===r.nombre}).length;if(s||a2)return 'El tipo '+r.nombre+' tiene '+s+' sub atenciones y '+a2+' atenciones asociadas. Márcalo como Inactivo para conservar el historial.'}
+  if(mod==='subtipos'){var a3=DATA.atenciones.filter(function(x){return x.sub===r.nombre}).length;if(a3)return 'La sub atención '+r.nombre+' tiene '+a3+' atenciones asociadas. Márcala como Inactiva.'}
+  if(mod==='usuarios'){var a4=DATA.atenciones.filter(function(x){return x.responsable===r.nombre}).length;if(a4)return 'La cuenta de '+r.nombre+' tiene '+a4+' atenciones registradas. Márcala como Inactivo para conservar el historial.'}
+  return '';
+}
+async function removeRow(mod,id){
+  var M=MOD[mod],r=DATA[mod].filter(function(x){return String(x[M.idk])===id})[0];if(!r)return;
+  var b=blockers(mod,r);
+  if(b){await swal({icon:'error',title:'No se puede eliminar',text:b,confirm:'Entendido'});return}
+  var ok=await swal({icon:'warning',title:'¿Eliminar este registro?',text:'Se marcará como eliminado y dejará de aparecer en los listados. El historial de auditoría se conserva.',confirm:'Sí, eliminar',cancel:'Cancelar',danger:true});
+  if(ok&&S.forceSave){S.forceSave=false;await swal({icon:'error',title:'No pudimos eliminar',text:'El servidor respondió con un error (500). El registro no se eliminó.',confirm:'Entendido'});return}
+  if(ok){DATA[mod]=DATA[mod].filter(function(x){return x!==r});drawList(mod);toast('Registro eliminado')}
+}
+
+/* ---------- Formularios ---------- */
+function errHTML(m){return '<div class="err" role="alert">'+icon('alert',16)+'<span>'+esc(m)+'</span></div>'}
+function fieldHTML(f,val,mode,isNew){
+  var id='f_'+f.k,dis=(mode==='ver'||(f.key&&!isNew))?' disabled':'',ctl;
+  if(f.t==='select'){
+    var o=typeof f.o==='function'?f.o():f.o;
+    o=o.map(function(x){return typeof x==='object'?x:{v:x,t:x}});
+    if(val&&!o.some(function(x){return String(x.v)===String(val)}))o.push({v:val,t:f.k==='rol'?roleName(val):val});
+    ctl='<select class="in" id="'+id+'" name="'+f.k+'"'+dis+(f.req?' aria-required="true"':'')+' aria-describedby="'+id+'_e"><option value="">Selecciona…</option>'+o.map(function(x){return '<option value="'+esc(x.v)+'"'+(String(val)===String(x.v)?' selected':'')+'>'+esc(x.t)+'</option>'}).join('')+'</select>';
+  }else if(f.t==='textarea'){
+    ctl='<textarea class="in" id="'+id+'" name="'+f.k+'" maxlength="'+(f.max||500)+'"'+dis+(f.req?' aria-required="true"':'')+' aria-describedby="'+id+'_e">'+esc(val||'')+'</textarea>';
+  }else{
+    ctl='<input class="in" id="'+id+'" name="'+f.k+'" type="'+(f.t||'text')+'" maxlength="'+(f.max||100)+'" value="'+esc(val||'')+'"'+(f.ph?' placeholder="'+esc(f.ph)+'"':'')+dis+(f.req?' aria-required="true"':'')+' aria-describedby="'+id+'_e">';
+  }
+  return '<div class="'+(f.full?'full':'')+'"><label class="fl" for="'+id+'">'+esc(f.l)+(f.req&&mode!=='ver'?' <span class="req" aria-hidden="true">*</span>':'')+'</label>'+ctl+(f.help&&mode!=='ver'?'<p class="help">'+esc(f.help)+'</p>':'')+'<div id="'+id+'_e"></div></div>';
+}
+function permsHTML(val,mode,lock){
+  var p=val||{},dis=(mode==='ver'||lock)?' disabled':'';
+  return '<div class="full"><fieldset><legend>Permisos por módulo</legend>'+(lock?'<p class="help" style="margin:-4px 0 8px">El perfil base del sistema no se puede reducir.</p>':'')+'<div class="tablewrap"><table class="perm"><thead><tr><th scope="col">Módulo</th>'+ACTS.map(function(a){return '<th scope="col">'+a[1]+'</th>'}).join('')+'</tr></thead><tbody>'+
+   PM.map(function(m){return '<tr><th scope="row" style="background:#fff;font-weight:600">'+esc(MOD[m].label)+'</th>'+ACTS.map(function(a){return '<td><input type="checkbox" data-m="'+m+'" data-a="'+a[0]+'" aria-label="'+esc(MOD[m].label+': '+a[1])+'"'+((p[m]||[]).indexOf(a[0])>-1?' checked':'')+dis+'></td>'}).join('')+'</tr>'}).join('')+'</tbody></table></div><div id="perms_e"></div></fieldset></div>';
+}
+function delegsHTML(val,mode){
+  var dis=mode==='ver'?' disabled':'';
+  return '<div class="full"><fieldset><legend>Delegaciones autorizadas'+(mode==='ver'?'':' <span class="req" aria-hidden="true">*</span>')+'</legend><div class="checks" id="delegBox">'+allowedDelegs().map(function(c){return '<label class="chk"><input type="checkbox" name="delegs" value="'+c+'"'+((val||[]).indexOf(c)>-1?' checked':'')+dis+'><span class="sq" style="background:'+D[c].c+'"></span>'+esc(delegLabel(c))+'</label>'}).join('')+'</div><p class="help" id="delegHelp"></p><div id="delegs_e"></div></fieldset></div>';
+}
+function renderForm(mod,mode,row){
+  if(mod==='atenciones')return renderAtencion(mode,row);
+  var M=MOD[mod],isNew=mode==='nuevo',ro=mode==='ver';S.dirty=false;
+  var vals=row||{estado:M.est[0],delegs:[],perms:{}};
+  var title=isNew?'Nuevo registro':ro?'Consulta de registro':'Editar registro';
+  var lock=(mod==='roles'&&row&&row.codigo==='ROL01');
+  var fields=M.fields.map(function(f){
+    if(f.t==='perms')return permsHTML(vals.perms,mode,lock);
+    if(f.t==='delegs')return delegsHTML(vals.delegs,mode);
+    return fieldHTML(f,vals[f.k],mode,isNew);
+  }).join('');
+  shell('<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="#/'+mod+'">'+esc(M.label)+'</a> / '+title+'</nav><div class="titlebar"><h1>'+esc(M.title)+': '+title.toLowerCase()+'</h1></div>'+
+   '<form class="card" id="ff" novalidate><div class="grid">'+fields+'</div><div class="formfoot"><button type="button" class="btn ghost" id="cancel">'+(ro?'Volver':'Cancelar')+'</button>'+(ro?'':'<button class="btn primary" type="submit">Guardar cambios</button>')+'</div></form>',mod);
+  afterRender(M.title+' – '+title);
+  var form=$('#ff');
+  form.addEventListener('input',function(){S.dirty=true});
+  $('#cancel').addEventListener('click',async function(){
+    if(S.dirty){var ok=await swal({icon:'question',title:'¿Descartar los cambios?',text:'Los datos que escribiste no se guardarán.',confirm:'Descartar',cancel:'Seguir editando'});if(!ok)return}
+    S.dirty=false;go('#/'+mod);
+  });
+  if(mod==='usuarios')bindDelegs(mode);
+  if(ro)return;
+  form.addEventListener('submit',async function(e){
+    e.preventDefault();
+    $$('[id$="_e"]').forEach(function(x){x.innerHTML=''});$$('.in').forEach(function(x){x.removeAttribute('aria-invalid')});
+    var data={},errs={};
+    M.fields.forEach(function(f){
+      if(f.t==='perms'||f.t==='delegs')return;
+      var el=$('#f_'+f.k);data[f.k]=el.value.trim();
+      if(f.req&&!data[f.k])errs[f.k]=f.t==='select'?'Selecciona una opción.':'Este campo es obligatorio.';
+      else if(f.t==='email'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[f.k]))errs[f.k]='Ingresa un correo válido, por ejemplo nombre@dominio.cl.';
+    });
+    if(isNew&&M.fields.some(function(f){return f.key})&&data.codigo&&!errs.codigo&&DATA[mod].some(function(r){return fold(r.codigo)===fold(data.codigo)}))errs.codigo='Ya existe un registro con este código.';
+    if(mod==='usuarios'){
+      if(isNew&&DATA.usuarios.some(function(r){return fold(r.correo)===fold(data.correo)}))errs.correo=errs.correo||'Ya existe un usuario con este correo.';
+      data.delegs=$$('input[name=delegs]:checked',form).map(function(c){return c.value});
+      var r=DATA.roles.filter(function(x){return x.codigo===data.rol})[0];
+      if(r&&r.alcance!=='Todas las delegaciones'&&!data.delegs.length)errs.delegs='Selecciona al menos una delegación.';
+      if(r&&RANK[r.alcance]<2&&data.delegs.length>1)errs.delegs='Este rol trabaja con una sola delegación.';
+    }
+    if(mod==='roles'){
+      data.perms={};$$('input[data-m]:checked',form).forEach(function(c){var m=c.getAttribute('data-m');(data.perms[m]=data.perms[m]||[]).push(c.getAttribute('data-a'))});
+      var ms=Object.keys(data.perms);
+      if(!ms.length)errs.perms='Habilita al menos un módulo.';
+      else if(ms.some(function(m){return data.perms[m].indexOf('ver')<0}))errs.perms='Cada módulo con acciones debe incluir "Ver".';
+      if(lock)data.perms=row.perms;
+    }
+    var keys=Object.keys(errs);
+    if(keys.length){
+      keys.forEach(function(k){var t=$('#'+(k==='perms'||k==='delegs'?k:'f_'+k)+'_e');if(t)t.innerHTML=errHTML(errs[k]);var el=$('#f_'+k);if(el)el.setAttribute('aria-invalid','true')});
+      var f1=$('#f_'+keys[0]);(f1||$('#'+keys[0]+'_e')).scrollIntoView({block:'center'});if(f1)f1.focus();
+      toast('Revisa los campos marcados para continuar','alert');
+      return;
+    }
+    var sb=$('button[type=submit]',form);sb.disabled=true;
+    if(S.forceSave){S.forceSave=false;sb.disabled=false;await swal({icon:'error',title:'No pudimos guardar',text:'El servidor respondió con un error (500). No se registró ningún cambio. Inténtalo de nuevo.',confirm:'Entendido'});return}
+    if(isNew){
+      var rec={};M.fields.forEach(function(f){if(f.t!=='perms'&&f.t!=='delegs')rec[f.k]=data[f.k]});
+      if(mod==='usuarios'){rec.codigo='USR'+pad(Math.max.apply(null,DATA.usuarios.map(function(u){return +u.codigo.slice(3)}))+1,3);rec.delegs=data.delegs}
+      if(mod==='roles')rec.perms=data.perms;
+      DATA[mod].push(rec);
+    }else{
+      M.fields.forEach(function(f){if(f.t!=='perms'&&f.t!=='delegs'&&!f.key)row[f.k]=data[f.k]});
+      if(mod==='usuarios')row.delegs=data.delegs;
+      if(mod==='roles')row.perms=data.perms;
+    }
+    S.dirty=false;
+    await swal({icon:'success',title:isNew?'Registro creado':'Cambios guardados',text:isNew?'El nuevo registro ya aparece en el listado.':'Los cambios quedaron registrados en la auditoría.',confirm:'Aceptar'});
+    go('#/'+mod);
+  });
+}
+function bindDelegs(mode){
+  if(mode==='ver')return;
+  var rolSel=$('#f_rol'),boxes=$$('input[name=delegs]'),help=$('#delegHelp');
+  function sync(){
+    var r=DATA.roles.filter(function(x){return x.codigo===rolSel.value})[0],rk=r?RANK[r.alcance]:-1;
+    if(!r){help.textContent='Elige un rol para ver cuántas delegaciones admite.';boxes.forEach(function(b){b.disabled=false});return}
+    if(r.alcance==='Todas las delegaciones'){help.textContent='Este rol accede a todas las delegaciones; no se asignan una por una.';boxes.forEach(function(b){b.checked=allowedDelegs().indexOf(b.value)>-1;b.disabled=true})}
+    else if(rk>=2){help.textContent='Este rol puede trabajar con varias delegaciones. Marca las que corresponda.';boxes.forEach(function(b){b.disabled=false})}
+    else{help.textContent='Este rol trabaja con una sola delegación.';boxes.forEach(function(b){b.disabled=false});var on=boxes.filter(function(b){return b.checked});on.slice(1).forEach(function(b){b.checked=false})}
+  }
+  rolSel.addEventListener('change',sync);
+  boxes.forEach(function(b){b.addEventListener('change',function(){
+    var r=DATA.roles.filter(function(x){return x.codigo===rolSel.value})[0];
+    if(r&&RANK[r.alcance]<2&&b.checked)boxes.forEach(function(o){if(o!==b)o.checked=false});
+  })});
+  sync();
+}
+
+/* ---------- Ingreso de atención ---------- */
+function vecLabel(name){var v=DATA.vecinos.filter(function(x){return x[1]===name})[0];return v?v[0]+' | '+v[1]:name}
+function renderAtencion(mode,row){
+  var isNew=mode==='nuevo',ro=mode==='ver',a=actor();S.dirty=false;
+  var fixed=(S.role==='delegado'||S.role==='funcionario');
+  var dsel=row?row.delegacion:(S.deleg!=='ALL'?S.deleg:allowedDelegs()[0]);
+  var tipos=DATA.tipos.filter(function(t){return t.estado==='Activo'}).map(function(t){return t.nombre});
+  if(row&&tipos.indexOf(row.tipo)<0)tipos.push(row.tipo);
+  var title=isNew?'Ingreso de atención':ro?'Consulta de atención':'Editar atención';
+  var dis=ro?' disabled':'';
+  var dField=(fixed||!isNew)?'<input class="in" id="f_deleg" value="'+esc(delegLabel(dsel))+(fixed?'  [Asignada por perfil]':'')+'" readonly aria-describedby="f_deleg_e">':
+   '<select class="in" id="f_deleg" aria-required="true" aria-describedby="f_deleg_e">'+allowedDelegs().map(function(c){return '<option value="'+c+'"'+(c===dsel?' selected':'')+'>'+esc(delegLabel(c))+'</option>'}).join('')+'</select>';
+  shell('<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="#/atenciones">Atenciones</a></nav><div class="titlebar"><h1>'+title+'</h1></div>'+
+   '<form class="card" id="ff" novalidate><div class="grid">'+
+   '<div><label class="fl" for="f_sol">Vecino o solicitante '+(ro?'':'<span class="req" aria-hidden="true">*</span>')+'</label><input class="in" id="f_sol" list="vecinos" placeholder="Buscar por identificador o nombre..." value="'+esc(row?vecLabel(row.solicitante):'')+'" autocomplete="off" aria-required="true" aria-describedby="f_sol_e"'+(ro||!isNew?' disabled':'')+'><datalist id="vecinos">'+DATA.vecinos.map(function(v){return '<option value="'+esc(v[0]+' | '+v[1])+'">'}).join('')+'</datalist><div id="f_sol_e"></div></div>'+
+   '<div><label class="fl" for="f_deleg">Delegación de atención</label>'+dField+'<div id="f_deleg_e"></div></div>'+
+   '<div><label class="fl" for="f_tipo">Tipo de Atención '+(ro?'':'<span class="req" aria-hidden="true">*</span>')+'</label><select class="in" id="f_tipo" aria-required="true" aria-describedby="f_tipo_e"'+dis+'><option value="">Selecciona…</option>'+tipos.map(function(t){return '<option'+(row&&row.tipo===t?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select><div id="f_tipo_e"></div></div>'+
+   '<div><label class="fl" for="f_sub">Sub Atención '+(ro?'':'<span class="req" aria-hidden="true">*</span>')+'</label><select class="in" id="f_sub" aria-required="true" aria-describedby="f_sub_e f_sub_h"'+dis+'></select><p class="help" id="f_sub_h"></p><div id="f_sub_e"></div></div>'+
+   '<div class="full"><label class="fl" for="f_desc">Descripción de la atención '+(ro?'':'<span class="req" aria-hidden="true">*</span>')+'</label><textarea class="in" id="f_desc" maxlength="500" placeholder="Describa la solicitud y los antecedentes necesarios." aria-required="true" aria-describedby="f_desc_e f_desc_c"'+dis+'>'+esc(row?row.descripcion:'')+'</textarea><p class="help" id="f_desc_c"></p><div id="f_desc_e"></div></div>'+
+   (isNew?'':'<div><label class="fl" for="f_est">Estado</label><select class="in" id="f_est"'+dis+'>'+MOD.atenciones.est.map(function(s){return '<option'+(row.estado===s?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>')+
+   '</div><p class="meta">Responsable: '+esc(row?row.responsable:a.nombre)+(row?'':' (usuario de sesión)')+' | Fecha y hora: '+(row?esc(row.fecha):'automáticas')+'</p>'+
+   '<div class="formfoot"><button type="button" class="btn ghost" id="cancel">'+(ro?'Volver':'Cancelar')+'</button>'+(ro?'':'<button class="btn primary" type="submit">'+(isNew?'Guardar atención':'Guardar cambios')+'</button>')+'</div></form>','atenciones');
+  afterRender(title);
+  var tipo=$('#f_tipo'),sub=$('#f_sub'),desc=$('#f_desc'),cnt=$('#f_desc_c');
+  function fillSub(keep){
+    var t=tipo.value,list=DATA.subtipos.filter(function(s){return s.tipo===t&&s.estado==='Activo'}).map(function(s){return s.nombre});
+    if(keep&&list.indexOf(keep)<0&&t===(row&&row.tipo))list.push(keep);
+    sub.innerHTML='<option value="">'+(t?'Selecciona…':'Elige primero el tipo')+'</option>'+list.map(function(s){return '<option'+(s===keep?' selected':'')+'>'+esc(s)+'</option>'}).join('');
+    sub.disabled=ro||!t;$('#f_sub_h').textContent=t?'':'Las opciones dependen del tipo de atención.';
+  }
+  fillSub(row?row.sub:'');
+  tipo.addEventListener('change',function(){fillSub('')});
+  function count(){cnt.textContent=desc.value.length+' de 500 caracteres'}count();desc.addEventListener('input',count);
+  var form=$('#ff');form.addEventListener('input',function(){S.dirty=true});
+  $('#cancel').addEventListener('click',async function(){
+    if(S.dirty){var ok=await swal({icon:'question',title:'¿Descartar la atención?',text:'Los datos que escribiste no se guardarán.',confirm:'Descartar',cancel:'Seguir editando'});if(!ok)return}
+    S.dirty=false;go('#/atenciones');
+  });
+  if(ro)return;
+  form.addEventListener('submit',async function(e){
+    e.preventDefault();
+    $$('[id$="_e"]').forEach(function(x){x.innerHTML=''});$$('.in').forEach(function(x){x.removeAttribute('aria-invalid')});
+    var errs={},sol=$('#f_sol').value.trim(),v=DATA.vecinos.filter(function(x){return (x[0]+' | '+x[1])===sol})[0];
+    if(isNew){if(!sol)errs.sol='Busca y selecciona al solicitante.';else if(!v)errs.sol='Selecciona un solicitante de la lista.'}
+    if(!tipo.value)errs.tipo='Selecciona el tipo de atención.';
+    if(!sub.value)errs.sub='Selecciona la sub atención.';
+    if(desc.value.trim().length<10)errs.desc=desc.value.trim()?'Describe la solicitud con al menos 10 caracteres.':'Este campo es obligatorio.';
+    var keys=Object.keys(errs);
+    if(keys.length){keys.forEach(function(k){$('#f_'+k+'_e').innerHTML=errHTML(errs[k]);$('#f_'+k).setAttribute('aria-invalid','true')});$('#f_'+keys[0]).focus();toast('Revisa los campos marcados para continuar','alert');return}
+    var sb=$('button[type=submit]',form);sb.disabled=true;
+    if(S.forceSave){S.forceSave=false;sb.disabled=false;await swal({icon:'error',title:'No pudimos guardar la atención',text:'El servidor respondió con un error (500). No se registró ninguna atención. Inténtalo de nuevo.',confirm:'Entendido'});return}
+    if(isNew){
+      var d=new Date(),n=Math.max.apply(null,DATA.atenciones.map(function(x){return +x.n.slice(4)}))+1,dc=$('#f_deleg').tagName==='SELECT'?$('#f_deleg').value:dsel;
+      var rec={n:'ATN-'+pad(n,4),fecha:pad(d.getDate())+'-'+pad(d.getMonth()+1)+'-'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes()),solicitante:v[1],tipo:tipo.value,sub:sub.value,delegacion:dc,responsable:a.nombre,estado:'Ingresada',descripcion:desc.value.trim()};
+      DATA.atenciones.unshift(rec);S.dirty=false;
+      await swal({icon:'success',title:'Atención ingresada',text:'Quedó registrada como '+rec.n+' en '+delegLabel(dc)+'. La fecha y la hora se asignaron automáticamente.',confirm:'Aceptar'});
+    }else{
+      row.tipo=tipo.value;row.sub=sub.value;row.descripcion=desc.value.trim();row.estado=$('#f_est').value;S.dirty=false;
+      await swal({icon:'success',title:'Cambios guardados',text:'La atención '+row.n+' se actualizó y el cambio quedó en la auditoría.',confirm:'Aceptar'});
+    }
+    go('#/atenciones');
+  });
+}
+
+/* ---------- Enrutador ---------- */
+function route(){
+  clearTimers();
+  var h=(location.hash||'#/login').replace(/^#\//,'').split('/').map(function(x){try{return decodeURIComponent(x)}catch(e){return x}});
+  var view=h[0],act=h[1],id=h[2];
+  if(!S.role){
+    if(view==='recuperar')return renderRecover();
+    if(view!=='login'&&view)history.replaceState(null,'','#/login');
+    return renderLogin();
+  }
+  if(view==='login'||view==='recuperar'||!view){history.replaceState(null,'','#/inicio');return renderHome()}
+  if(view==='inicio')return renderHome();
+  if(!MOD[view])return renderNotFound();
+  if(!canSee(view))return renderDenied(view);
+  if(!act)return renderList(view);
+  if(act==='nuevo'){if(!can(view,'crear'))return renderDenied(view,'crear');return renderForm(view,'nuevo')}
+  if(act==='ver'||act==='editar'){
+    if(act==='editar'&&!can(view,'editar'))return renderDenied(view,'editar');
+    var M=MOD[view],all=DATA[view].filter(function(x){return String(x[M.idk])===id})[0];
+    if(!all)return renderNotFound();
+    if(view!=='delegaciones'&&view!=='roles'&&scoped(view).indexOf(all)<0)return renderDenied(view,'alcance');
+    return renderForm(view,act,all);
+  }
+  renderNotFound();
+}
+window.addEventListener('hashchange',route);
+
+/* ---------- Panel de demostración ---------- */
+$('#demoToggle').addEventListener('click',function(){var p=$('#demoPanel');p.hidden=!p.hidden;this.setAttribute('aria-expanded',!p.hidden)});
+$('#demoRole').addEventListener('change',function(){S.role=this.value;S.deleg=defaultDeleg(this.value);S.list={};S.forceErr=false;toast('Ahora ves el sistema como '+roleName(actor().rol),'info');go('#/inicio')});
+$('#demoUrl').addEventListener('click',function(){go('#/delegaciones')});
+$('#demoErr').addEventListener('click',function(){if(!/^#\/(delegaciones|roles|usuarios|items|tipos|subtipos|atenciones)$/.test(location.hash)){toast('Abre un listado para ver el error de carga','info');return}S.forceErr=true;route()});
+
+$('#demoSrv').addEventListener('click',function(){S.forceSave=true;toast('El próximo guardado o eliminación fallará (demostración)','info')});
+
+route();
+})();
+</script>
+</body>
+</html>

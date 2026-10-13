@@ -1,0 +1,91 @@
+/* ============================================================
+   CRUD (Parte 4) — componentes de mantenedor
+   Base visual copiada de docs/diseno/sgr_interfaz_referencia (2).html
+   ============================================================ */
+
+/* ---- Tarjeta ---- */
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:24px}
+
+/* ---- Barra de búsqueda y filtros: UN SOLO flex en la tarjeta ---- */
+/* La tarjeta .toolbar es el único contenedor flex (reglas de la referencia):
+   relleno 16px 18px, separación 14px, alineación inferior, margen 16px.
+   El form usa display:contents para no crear un segundo contenedor. */
+.toolbar{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:16px 18px;margin-bottom:16px}
+#toolbarForm{display:contents}
+.toolbar .grow{flex:1;min-width:240px;display:flex;flex-direction:column;min-width:0}
+.toolbar .statebox{display:flex;flex-direction:column}
+.toolbar label{display:block;color:var(--muted);margin-bottom:5px;font-size:13px;font-weight:600}
+.toolbar .in{height:42px;width:auto}
+.toolbar .btn{height:42px}
+@media (max-width:900px){
+  .grid{grid-template-columns:1fr}
+}
+
+/* ---- Tabla ---- */
+.tablewrap{background:#fff;border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.tablewrap table{width:100%;border-collapse:collapse;min-width:680px}
+.tablewrap th{background:#eceef1;text-align:left;font-weight:700;padding:11px 14px;white-space:nowrap}
+.tablewrap td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle}
+.tablewrap tbody tr:hover{background:#fdf5f5}
+.acts{display:flex;gap:8px}
+
+/* ---- Botones de ícono con tooltip (data-tip) ---- */
+.ib{position:relative;width:36px;height:36px;display:inline-grid;place-items:center;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer;padding:0;transition:background .15s,border-color .15s;text-decoration:none}
+.ib.v{color:var(--info)}.ib.e{color:var(--warn)}.ib.d{color:var(--bad)}
+.ib.v:hover{background:var(--info-bg);border-color:#b9d1ee}
+.ib.e:hover{background:var(--warn-bg);border-color:#f0d9a0}
+.ib.d:hover{background:var(--bad-bg);border-color:#f1bcbc}
+.ib[data-tip]:hover::after,.ib[data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);background:#1f2328;color:#fff;font-size:12.5px;font-weight:600;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:5}
+
+/* ---- Insignias de estado ---- */
+.badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-off{background:var(--off-bg);color:var(--off)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-info{background:var(--info-bg);color:var(--info)}
+
+/* ---- Chips de delegación (color de apoyo + código + nombre) ---- */
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:1px 8px;margin:0 4px 4px 0;background:#fff;font-weight:600;font-size:13px;white-space:nowrap}
+.chip .sq{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
+
+/* ---- Paginador ---- */
+.pager{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;color:var(--muted)}
+.pages{display:flex;gap:6px;flex-wrap:wrap}
+.pg{min-width:38px;height:38px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;padding:0 12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:var(--ink)}
+.pg:hover{background:var(--off-bg)}
+.pg[aria-current="page"]{background:var(--muni);border-color:var(--muni);color:#fff}
+.pg[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+
+/* ---- Estados vacíos y de error ---- */
+.state{background:#fff;border:1px dashed #c6ccd4;border-radius:10px;padding:40px 24px;text-align:center}
+.state .ic{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;margin:0 auto 12px;background:var(--off-bg);color:var(--off)}
+.state h2{font-size:18px;margin-bottom:6px}
+.state p{color:var(--muted);max-width:52ch;margin:0 auto 16px}
+
+/* ---- Formulario compartido ---- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 24px}
+.full{grid-column:1/-1}
+.fl{display:block;font-weight:600;margin-bottom:6px}
+.req{color:var(--muni)}
+.err{color:var(--bad);font-size:13px;margin-top:6px;display:flex;gap:6px;align-items:flex-start}
+.help{color:var(--muted);font-size:13px;margin-top:6px}
+.formfoot{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;flex-wrap:wrap}
+.fgrid .in[aria-invalid="true"]{border-color:var(--bad)}
+.in:disabled,.in:disabled:hover{background:#f4f5f7;color:var(--muted);cursor:not-allowed}
+
+/* ---- Selector de color con vista previa de la insignia ---- */
+.colorrow{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.colorrow .in{flex:1;min-width:150px}
+input[type="color"]{width:44px;height:44px;padding:2px;border:1px solid #c6ccd4;border-radius:8px;background:#fff;cursor:pointer;flex:none}
+.badge-preview{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:6px 12px 6px 8px;background:#fff;font-weight:600;font-size:13px;white-space:nowrap}
+.badge-preview .bp-ic{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:#fff}
+
+@media (max-width:900px){
+  .grid{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  .toolbar{padding:14px}
+  .pager{justify-content:center}
+}
+

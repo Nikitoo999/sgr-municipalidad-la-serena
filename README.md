@@ -3,10 +3,11 @@
 Backend del **Sistema de Gestión de Resultados (SGR)** para la Municipalidad de La Serena.
 Construido con **Django 5.2** sobre **Python 3.11+**.
 
-> **Estado:** proyecto en fase inicial. El backend expone hoy únicamente el panel de
-> administración de Django (`/admin/`) sobre los modelos de datos: todavía no hay
-> vistas, API ni pruebas propias. Los modelos y sus migraciones iniciales ya están
-> creados y aplicados.
+> **Estado:** en desarrollo activo. El backend expone el portal de acceso, recuperación
+> de contraseña, el panel de administración de Django (`/admin/`) con scoping por
+> delegación y los módulos del portal (hoy anclados como "en construcción", Partes 4 a 7).
+> Los CRUD de cada módulo aún no están implementados. La suite de pruebas cubre esquema,
+> autorización, autenticación y vistas del portal.
 
 ---
 
@@ -15,8 +16,8 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 | Componente   | Tecnología                     |
 |--------------|--------------------------------|
 | Lenguaje     | Python 3.11 o superior (el entorno de desarrollo actual usa Python 3.14.7) |
-| Framework    | Django 5.2.x (`requirements.txt`: `Django>=5.2,<5.3`; instalado: 5.2.17) |
-| Base de datos| MariaDB/MySQL en producción y SQLite por defecto en desarrollo, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/sgr_municipalidad_laserena_mysql.sql` (MySQL 8); el driver `mysqlclient` está en `requirements.txt` |
+| Framework    | Django 5.2.x (`requirements.txt`: `Django==5.2.17`) |
+| Base de datos| MariaDB/MySQL en producción y SQLite por defecto en desarrollo, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/legacy/sgr_municipalidad_laserena_mysql.sql` (MySQL 8, **solo histórico**, ya no refleja el sistema); el driver `mysqlclient` está en `requirements.txt` |
 | Variables de entorno | `python-dotenv` (archivo `.env`) |
 
 ## 📁 Estructura del proyecto
@@ -24,10 +25,13 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 ```
 .
 ├── config/          # Configuración global (settings, urls, wsgi/asgi)
-├── database/        # Script SQL de referencia (diseño relacional)
-├── mockup/          # Prototipo funcional interactivo (HTML/CSS/JS, sin backend)
-├── sgr_core/        # Gestión de resultados: períodos, metas, cumplimiento e ítems
-├── operaciones/     # Tareas, actividades, evidencias y funcionarios
+├── database/        # SQL de referencia (legacy histórico + schema MariaDB)
+│   └── legacy/      # Diseño SQL inicial (ya no refleja el sistema; ver LEEME.md)
+├── docs/            # Documentación generada (modelo entidad-relación, diseño)
+├── deploy/          # Plantilla systemd (sgr.service) para producción EC2
+├── sgr_core/        # Dominio: delegaciones, roles, permisos y catálogos
+├── operaciones/     # Funcionarios, atenciones, tareas y datos demo (seed_demo)
+├── portal/          # Portal web: login, recuperación, inicio, autorización
 ├── manage.py
 ├── requirements.txt # Dependencias del proyecto
 └── .env.example     # Plantilla de variables de entorno (copiar a .env)
@@ -71,28 +75,25 @@ por delegación:
 
 ---
 
-## 🎨 Prototipo / Mockup Funcional (Frontend)
+## 🌐 Portal web (`portal/`)
 
-Para la evaluación de Análisis y Diseño de Software, el repositorio incluye el prototipo funcional interactivo en `mockup/sgr_mockup.html`:
+El portal implementa el flujo de acceso real (ya no hay mockup en el repositorio):
 
-- **Contenido:** pantalla de acceso + 19 vistas de gestión (de `02_panel_general` a `20_busqueda`), 13 formularios modales (`form_01` a `form_13`) y 6 alertas de excepción (`alerta_01` a `alerta_06`).
-- **Ejecución:** no requiere servidor ni base de datos. Abre `mockup/sgr_mockup.html` en cualquier navegador web moderno (doble clic sobre el archivo).
-- **Alcance:** es sólo front-end, con datos de ejemplo escritos en el propio HTML; aún no está conectado a Django (no existen vistas ni URLs que lo sirvan).
+- **Autenticación** (`portal/backends.py`): usuario o correo, sin distinguir mayúsculas; bloqueo de 5 intentos fallidos por 10 minutos (`portal/views.py`).
+- **Recuperación de contraseña** en 3 pasos (`recuperar/`, `recuperar/verificar/`, `recuperar/nueva-clave/`) con código de un solo uso de 10 minutos, hasheado y con reenvío limitado a 45 s.
+- **Inicio** (`inicio/`): cifras, accesos por perfil y selector de delegación activa (validado en el servidor).
+- **Autorización centralizada** (`portal/access.py`): roles por alcance (todo / autorizadas / su delegación / registros propios), resueltos una sola vez por request.
+- **Módulos**: Delegaciones, Roles, Usuarios, Ítems, Tipos y Subtipos de atención y Atenciones. Hoy son *placeholders* "en construcción" (Partes 4 a 7); el CRUD de cada uno se agregará en próximas iteraciones.
+- **Páginas de error** propias (403/404/500) definidas en `config/urls.py`.
 
-## 🗄️ Script SQL de referencia
+## 🗄️ Scripts SQL de referencia
 
-`database/sgr_municipalidad_laserena_mysql.sql` documenta el diseño relacional para
-MySQL 8: crea la base `sgr_municipalidad_laserena` con 19 tablas (`role`, `permission`,
-`position`, `delegation`, `period`, `social_service`, `role_permission`, `employee`,
-`goal`, `achievement`, `metric`, `commitment`, `activity`, `evidence`, `communication`,
-`notification`, `recognition`, `report`, `audit_log`).
-
-Consideraciones:
-
-- **No se ejecuta con `manage.py`**: es un entregable de diseño; el esquema real se genera con las migraciones de Django sobre SQLite.
-- **No incluye datos de prueba**: sólo contiene la estructura.
-- **Nombres distintos**: el script nombra las tablas en inglés, mientras los `db_table` de los modelos están en español (`delegacion`, `periodo`, `meta`, `cumplimiento`, `item_medicion`, `tarea_agenda`, `actividad`, `evidencia`, `funcionario`). Conviene unificar el criterio en una próxima iteración.
-- Varias tablas del script todavía no tienen modelo Django: `role`, `permission`, `position`, `role_permission`, `social_service`, `commitment`, `communication`, `notification`, `recognition`, `report`, `audit_log`.
+- `database/legacy/sgr_municipalidad_laserena_mysql.sql` documenta el diseño relacional
+  original de MySQL 8 (19 tablas). **Ya no refleja el sistema**: es un entregable de
+  análisis histórico y no se ejecuta con `manage.py` (ver `database/legacy/LEEME.md`).
+- `database/sgr_laserena_mariadb_schema.sql` se obtiene con `mysqldump` sobre una base
+  MariaDB real (no se regenera desde este proyecto).
+- El esquema vigente lo definen los modelos Django y sus migraciones (`migrate`).
 
 ---
 
@@ -198,6 +199,25 @@ Panel de administración: <http://127.0.0.1:8000/admin/>
 | `python manage.py shell` | Consola interactiva de Django |
 | `python manage.py createsuperuser` | Crea usuario admin |
 | `python manage.py runserver` | Levanta el servidor de desarrollo |
+
+## Base de datos MariaDB (producción)
+
+Crear la base con conjunto de caracteres completo (tildes, eñes) y
+collation que no distingue mayúsculas (las unicidades de códigos y correos
+se validan en formularios y se apoyan en esta collation):
+
+```sql
+CREATE DATABASE sgr_laserena
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+En `.env` (`DB_ENGINE=django.db.backends.mysql`, `DB_NAME`, `DB_USER`,
+`DB_PASSWORD`, `DB_HOST`, `DB_PORT=3306`); `config/settings.py` agrega
+`OPTIONS: {'charset': 'utf8mb4'}` automáticamente para ese motor. El esquema
+vigente lo definen los modelos Django y sus migraciones (`migrate`); el SQL
+`database/sgr_laserena_mariadb_schema.sql` se obtiene con `mysqldump` sobre
+una base real (no se regenera desde este proyecto).
 
 ## Notas de seguridad
 

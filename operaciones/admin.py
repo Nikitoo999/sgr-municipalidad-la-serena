@@ -12,12 +12,16 @@ def _get_employee(request):
 
 def _is_jefatura(request):
     emp = _get_employee(request)
-    return emp is not None and emp.role == "jefatura"
+    if emp is None or emp.role_id is None:
+        return False
+    return emp.role.scope in ("authorized", "own_delegation")
 
 
 def _is_usuario(request):
     emp = _get_employee(request)
-    return emp is not None and emp.role == "usuario"
+    if emp is None or emp.role_id is None:
+        return False
+    return emp.role.scope == "own_records"
 
 
 #Admin Pro: Inlines ----------
