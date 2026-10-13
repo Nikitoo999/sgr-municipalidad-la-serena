@@ -1,0 +1,26 @@
+{% extends 'portal/base.html' %}
+{% load sgr_icons %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Inicio</nav>
+<div class="titlebar"><h1>Hola, {{ first_name }}</h1></div>
+<p>{{ context_text }} Tu perfil es <strong>{{ sgr_role.name }}</strong> ({{ scope_text }}).</p>
+<div class="stats">
+  <div class="stat"><strong>{{ stat_registered }}</strong><span>Atenciones registradas</span></div>
+  <div class="stat"><strong>{{ stat_in_progress }}</strong><span>Atenciones en gestión</span></div>
+  <div class="stat"><strong>{{ stat_third_value }}</strong><span>{{ stat_third_label }}</span></div>
+</div>
+<h2 class="sec">Accesos de tu perfil</h2>
+<div class="mgrid">
+  {% for item in cards %}
+  <a class="mcard" href="{% url item.url_name %}">
+    <span class="mi">{% sgr_icon item.icon 20 %}</span>
+    <span class="mt"><b>{{ item.label }}</b><span>{{ item.description }}</span><br><span>Puedes: {{ item.actions }}.</span></span>
+  </a>
+  {% endfor %}
+</div>
+{% if hidden_labels %}
+<h2 class="sec" style="margin-top:26px">Lo que tu perfil no incluye</h2>
+<p class="subtle" style="margin-top:6px;max-width:70ch">{{ hidden_labels }}. No aparecen en tu menú y el servidor también rechaza esas direcciones si se escriben a mano.</p>
+{% endif %}
+{% endblock %}

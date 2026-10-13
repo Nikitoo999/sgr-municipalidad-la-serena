@@ -1,12 +1,14 @@
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
-from sgr_core.models import BaseModel, InstitutionalGoal, Delegation
-
-ROLE_CHOICES = [
-    ("jefatura", "Jefatura"),
-    ("usuario", "Usuario"),
-]
+from sgr_core.models import (
+    AttentionSubtype,
+    AttentionType,
+    BaseModel,
+    InstitutionalGoal,
+    Delegation,
+    Role,
+)
 
 # ... aquí siguen tus clases Task, Activity, etc.
 
@@ -61,7 +63,8 @@ class Employee(BaseModel):
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Teléfono")
     address = models.CharField(max_length=255, blank=True, default="", verbose_name="Dirección")
     delegation = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name='employees', verbose_name="Delegación Asignada")
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="usuario", verbose_name="Rol")
+    role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name='employees', verbose_name="Rol")
+    authorized_delegations = models.ManyToManyField(Delegation, blank=True, related_name='authorized_employees', verbose_name="Delegaciones autorizadas")
 
     class Meta:
         verbose_name = "Funcionario"
@@ -72,6 +75,41 @@ class Employee(BaseModel):
         # Si el usuario no tiene nombre configurado, mostrará el username
         nombre = self.user.get_full_name() or self.user.username
         return f"{nombre} - {self.delegation.name}"
+
+    def allowed_delegations(self):
+        """Delegaciones que este funcionario puede gestionar según su rol.
+
+        - scope all: todas las delegaciones activas.
+        - scope authorized: las delegaciones autorizadas; si no tiene ninguna
+          declarada, solo su delegación base.
+        - own_delegation / own_records: solo su delegación base.
+        """
+        if self.role_id is None:
+            return []
+        scope = self.role.scope
+        if scope == "all":
+            return list(Delegation.objects.filter(status="Activa", deleted_at__isnull=True).order_by("name"))
+        if scope == "authorized":
+            authorized = list(self.authorized_delegations.filter(deleted_at__isnull=True))
+            return authorized if authorized else [self.delegation]
+        return [self.delegation]
+
+    def clean(self):
+        super().clean()
+        if self.role_id is None or self.delegation_id is None:
+            return
+        if self.role.scope in ("own_delegation", "own_records") and self.pk:
+            extras = [
+                delegation for delegation in self.authorized_delegations.all()
+                if delegation.pk != self.delegation_id
+            ]
+            if extras:
+                raise ValidationError({
+                    "authorized_delegations": (
+                        "Los roles con alcance 'Su delegación' o 'Solo registros propios' "
+                        "no admiten delegaciones autorizadas distintas de su delegación base."
+                    ),
+                })
 
 
 class TaskReassignment(BaseModel):
@@ -112,3 +150,87 @@ class Benefit(BaseModel):
 
     def __str__(self):
         return f"{self.employee} - {self.get_benefit_type_display()} ({self.delivery_area.name})"
+
+
+NEIGHBOR_STATUS_CHOICES = [("Activo", "Activo"), ("Inactivo", "Inactivo")]
+
+
+class Neighbor(BaseModel):
+    """Vecino o solicitante de una atención."""
+
+    identifier = models.CharField(max_length=20, unique=True, verbose_name="Identificador (RUT u otro)")
+    full_name = models.CharField(max_length=150, verbose_name="Nombre completo")
+    phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Teléfono")
+    email = models.EmailField(blank=True, default="", verbose_name="Correo electrónico")
+    status = models.CharField(max_length=10, choices=NEIGHBOR_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+
+    class Meta:
+        verbose_name = "Vecino"
+        verbose_name_plural = "Vecinos"
+        db_table = "vecino"
+
+    def __str__(self):
+        return f"{self.full_name} ({self.identifier})"
+
+
+class Attention(BaseModel):
+    """Atención ciudadana ingresada por un funcionario."""
+
+    class AttentionStatus(models.TextChoices):
+        RECEIVED = "received", "Ingresada"
+        IN_PROGRESS = "in_progress", "En gestión"
+        RESOLVED = "resolved", "Resuelta"
+
+    number = models.CharField(max_length=12, unique=True, null=True, blank=True, verbose_name="Número de atención")
+    neighbor = models.ForeignKey(
+        Neighbor, on_delete=models.RESTRICT,
+        related_name="attentions", verbose_name="Vecino o solicitante",
+    )
+    delegation = models.ForeignKey(
+        Delegation, on_delete=models.RESTRICT,
+        related_name="attentions", verbose_name="Delegación",
+    )
+    attention_type = models.ForeignKey(
+        AttentionType, on_delete=models.RESTRICT,
+        related_name="attentions", verbose_name="Tipo de atención",
+    )
+    attention_subtype = models.ForeignKey(
+        AttentionSubtype, on_delete=models.RESTRICT,
+        related_name="attentions", verbose_name="Sub atención",
+    )
+    description = models.TextField(verbose_name="Descripción")
+    responsible = models.ForeignKey(
+        User, on_delete=models.RESTRICT,
+        related_name="attentions", verbose_name="Funcionario responsable",
+    )
+    status = models.CharField(
+        max_length=20, choices=AttentionStatus.choices,
+        default=AttentionStatus.RECEIVED, verbose_name="Estado",
+    )
+
+    class Meta:
+        verbose_name = "Atención"
+        verbose_name_plural = "Atenciones"
+        db_table = "atencion"
+        indexes = [
+            models.Index(fields=["delegation", "created_at"], name="idx_atencion_deleg_fecha"),
+            models.Index(fields=["responsible"], name="idx_atencion_responsable"),
+            models.Index(fields=["status"], name="idx_atencion_estado"),
+            models.Index(fields=["attention_type", "attention_subtype"], name="idx_atencion_tipo_subtipo"),
+        ]
+
+    def __str__(self):
+        return f"{self.number or 's/n'} - {self.neighbor}"
+
+    def save(self, *args, **kwargs):
+        """Asigna number (formato ATN-0001) tras el primer insert.
+
+        El número se deriva del id dentro de una transacción; el segundo
+        guardado usa update_fields para no re-entrar en este método.
+        """
+        creating = self.pk is None
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if creating and not self.number:
+                self.number = f"ATN-{self.pk:04d}"
+                super().save(update_fields=["number"])

@@ -1,0 +1,50 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ config.list_title }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url config.module_key %}">{{ config.list_title }}</a> / {{ page_action }}</nav>
+<div class="titlebar"><h1>{{ config.list_title }}: {{ page_action|lower }}</h1></div>
+
+<form class="card fgrid" method="post" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}>
+  {% csrf_token %}
+  <div class="grid">
+    {% for field in form %}
+    <div class="{% if field.name == 'description' or field.name == 'address' %}full{% endif %}">
+      <label class="fl" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required and not is_view %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+      {% if field.name == 'color' %}
+      <div class="colorrow">
+        <input type="color" value="{{ field.value|default:'#920000' }}" data-color-picker aria-label="Selector de color"{% if is_view %} disabled{% endif %}>
+        {{ field }}
+        <span class="badge-preview" data-badge-preview>
+          <span class="bp-ic" data-badge-icon>{% sgr_icon 'building' 16 %}</span>
+          <span data-badge-text>— · {{ config.singular_label }}</span>
+        </span>
+      </div>
+      {% else %}
+      {{ field }}
+      {% endif %}
+      {% if field.help_text and not is_view %}
+      <p class="help" id="{{ field.id_for_label }}-help">{{ field.help_text|safe }}</p>
+      {% endif %}
+      <div id="{{ field.id_for_label }}-e" aria-live="polite">
+        {% for error in field.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="formfoot">
+    <a class="btn ghost" href="{{ cancel_url }}" id="cancelBtn">{% if is_view %}Volver{% else %}Cancelar{% endif %}</a>
+    {% if not is_view %}
+    <button class="btn primary" type="submit" id="saveBtn">Guardar cambios</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'portal/js/crud.js' %}"></script>
+{% endblock %}

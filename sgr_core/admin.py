@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib import admin
-from .models import Delegation, Period, InstitutionalGoal, Achievement, MeasurementItem
+from .models import Delegation, Period, InstitutionalGoal, Achievement, MeasurementItem, Role, RolePermission
 
 
 # ---------- Admin Pro: validación con clean() ----------
@@ -22,11 +22,28 @@ class PeriodForm(forms.ModelForm):
 
 @admin.register(Delegation)
 class DelegationAdmin(admin.ModelAdmin):
-    list_display = ('name', 'color', 'created_at', 'updated_at')
-    list_editable = ('color',)
-    search_fields = ('name',)
-    ordering = ('name',)
+    list_display = ('code', 'name', 'commune', 'status', 'color', 'created_at', 'updated_at')
+    list_editable = ('color', 'status')
+    list_filter = ('status', 'commune')
+    search_fields = ('name', 'code', 'commune')
+    ordering = ('code', 'name')
     readonly_fields = ('created_at', 'updated_at')
+
+
+class RolePermissionInline(admin.TabularInline):
+    model = RolePermission
+    extra = 0
+    fields = ('module', 'action')
+
+
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'scope', 'status', 'is_system')
+    list_filter = ('scope', 'status', 'is_system')
+    search_fields = ('name', 'code')
+    ordering = ('code',)
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [RolePermissionInline]
 
 
 @admin.register(Period)

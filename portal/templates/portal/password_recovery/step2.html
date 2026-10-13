@@ -1,0 +1,119 @@
+{% extends 'portal/base_auth.html' %}
+{% block title %}Verificar código{% endblock %}
+{% block content %}
+<p class="auth-sub">Gestión de Atención Ciudadana</p>
+<h1 class="auth-title">Verificar código</h1>
+<p class="stepline">Paso 2 de 3 | Verificación</p>
+<p class="auth-lead">
+  Si el correo está registrado, enviamos un código de 6 dígitos a
+  <strong>{{ masked_email }}</strong>. Revisa también la carpeta de spam.
+</p>
+
+<form method="post" novalidate id="verifyForm">
+  {% csrf_token %}
+  <fieldset class="code-fieldset">
+    <legend>Código de verificación</legend>
+    <div class="code-box" id="codeBox">
+      <input inputmode="numeric" maxlength="1" autocomplete="one-time-code" name="code_digit" aria-label="Dígito 1 de 6">
+      <input inputmode="numeric" maxlength="1" autocomplete="one-time-code" name="code_digit" aria-label="Dígito 2 de 6">
+      <input inputmode="numeric" maxlength="1" autocomplete="one-time-code" name="code_digit" aria-label="Dígito 3 de 6">
+      <input inputmode="numeric" maxlength="1" autocomplete="one-time-code" name="code_digit" aria-label="Dígito 4 de 6">
+      <input inputmode="numeric" maxlength="1" autocomplete="one-time-code" name="code_digit" aria-label="Dígito 5 de 6">
+      <input inputmode="numeric" maxlength="1" autocomplete="one-time-code" name="code_digit" aria-label="Dígito 6 de 6">
+    </div>
+  </fieldset>
+
+  <div id="code-error" class="err-slot" aria-live="polite"></div>
+
+  <p class="auth-subtle" id="expiry-info" aria-live="polite"></p>
+
+  <button class="btn primary block" type="submit" id="verifyBtn">Verificar código</button>
+</form>
+
+<form method="post" action="{% url 'password_reset_resend' %}" novalidate id="resendForm">
+  {% csrf_token %}
+  <button class="btn ghost block" type="submit" id="resendBtn" style="margin-top:10px" disabled>Reenviar código</button>
+</form>
+
+<p class="auth-links">
+  <a href="{% url 'password_reset_request' %}">Volver al inicio de sesión</a>
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var inputs = document.querySelectorAll('#codeBox input');
+    var i0 = inputs[0];
+    if (i0) i0.focus();
+
+    inputs.forEach(function (inp, i) {
+      inp.addEventListener('input', function () {
+        inp.value = inp.value.replace(/\D/g, '').slice(-1);
+        if (inp.value && inputs[i + 1]) inputs[i + 1].focus();
+      });
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' && !inp.value && inputs[i - 1]) inputs[i - 1].focus();
+        if (e.key === 'ArrowLeft' && inputs[i - 1]) { e.preventDefault(); inputs[i - 1].focus(); }
+        if (e.key === 'ArrowRight' && inputs[i + 1]) { e.preventDefault(); inputs[i + 1].focus(); }
+      });
+      inp.addEventListener('paste', function (e) {
+        e.preventDefault();
+        var cd = e.clipboardData || window.clipboardData;
+        if (!cd) return;
+        var text = cd.getData('text').replace(/\D/g, '').slice(0, 6);
+        inputs.forEach(function (x) { x.value = ''; });
+        for (var k = 0; k < text.length && k < 6; k++) inputs[k].value = text[k];
+        var last = Math.min(text.length, 5);
+        inputs[last].focus();
+      });
+    });
+
+    // Contadores de vigencia y reenvío (calculados con los datos del servidor)
+    var expiresIn = {{ expires_in|default:0 }};
+    var resendIn = {{ resend_in|default:0 }};
+    var expiryEl = document.getElementById('expiry-info');
+    var resendBtn = document.getElementById('resendBtn');
+
+    function fmt(s) {
+      var m = Math.floor(s / 60), sec = s % 60;
+      return m + ':' + (sec < 10 ? '0' : '') + sec;
+    }
+
+    var timer = setInterval(function () {
+      if (expiresIn > 0) {
+        expiryEl.textContent = 'El código expira en ' + fmt(expiresIn);
+        expiresIn--;
+      } else if (expiresIn <= 0 && expiryEl.textContent.indexOf('expirado') === -1) {
+        expiryEl.textContent = 'El código ha expirado. Solicita uno nuevo.';
+        clearInterval(timer);
+      }
+      if (resendIn > 0) {
+        resendBtn.disabled = true;
+        resendBtn.textContent = 'Reenviar en ' + resendIn + 's';
+        resendIn--;
+      } else {
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Reenviar código';
+      }
+    }, 1000);
+
+    // Reenvío: se envía por POST (form propio). Evita doble envío.
+    var resendForm = document.getElementById('resendForm');
+    if (resendForm) {
+      resendForm.addEventListener('submit', function () {
+        resendBtn.disabled = true;
+        resendBtn.textContent = 'Reenviando…';
+      });
+    }
+
+    // Deshabilitar botón al enviar
+    var form = document.getElementById('verifyForm');
+    var btn = document.getElementById('verifyBtn');
+    form.addEventListener('submit', function () {
+      btn.disabled = true;
+      btn.textContent = 'Verificando…';
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,15 +1,44 @@
 from django.db import models
 
+from .roles import ACTIONS, MODULES, SCOPES, SCOPE_RANKS
+
+DELEGATION_STATUS_CHOICES = [("Activa", "Activa"), ("Inactiva", "Inactiva")]
+ROLE_STATUS_CHOICES = [("Activo", "Activo"), ("Inactivo", "Inactivo")]
+CATALOG_STATUS_CHOICES = [("Activo", "Activo"), ("Inactivo", "Inactivo")]
+
+class AliveQuerySet(models.QuerySet):
+    """QuerySet que excluye registros con borrado lógico."""
+
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+
+class AliveManager(models.Manager):
+    """Manager adicional que excluye registros con deleted_at no nulo."""
+
+    def get_queryset(self):
+        return AliveQuerySet(self.model, using=self._db).filter(deleted_at__isnull=True)
+
+
 class BaseModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Última modificación")
     deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de eliminación")
+
+    # El manager por defecto no cambia (no altera el Admin ni el código
+    # existente); "alive" es un manager adicional con borrado lógico.
+    objects = models.Manager()
+    alive = AliveManager()
 
     class Meta:
         abstract = True
 
 class Delegation(BaseModel):
     name = models.CharField(max_length=50, verbose_name="Nombre de Delegación")
+    code = models.CharField(max_length=8, unique=True, verbose_name="Código")
+    commune = models.CharField(max_length=80, default="La Serena", verbose_name="Comuna")
+    address = models.CharField(max_length=200, blank=True, default="", verbose_name="Dirección")
+    status = models.CharField(max_length=10, choices=DELEGATION_STATUS_CHOICES, default="Activa", verbose_name="Estado")
     description = models.TextField(blank=True, null=True, verbose_name="Descripción")
     color = models.CharField(max_length=7, blank=True, default="", help_text="Código hex, ej: #E63946", verbose_name="Color distintivo")
 
@@ -20,6 +49,51 @@ class Delegation(BaseModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_active(self):
+        return self.status == "Activa"
+
+class Role(BaseModel):
+    code = models.CharField(max_length=8, unique=True, verbose_name="Código")
+    name = models.CharField(max_length=50, verbose_name="Nombre del Rol")
+    description = models.TextField(blank=True, default="", verbose_name="Descripción")
+    scope = models.CharField(max_length=20, choices=SCOPES, default="own_records", verbose_name="Alcance")
+    status = models.CharField(max_length=10, choices=ROLE_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+    is_system = models.BooleanField(default=False, verbose_name="Rol de sistema")
+
+    class Meta:
+        verbose_name = "Rol"
+        verbose_name_plural = "Roles"
+        db_table = "rol"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    @property
+    def rank(self):
+        """Rango derivado del alcance: all=3, authorized=2, own_delegation=1, own_records=0."""
+        return SCOPE_RANKS.get(self.scope, 0)
+
+    @property
+    def is_active(self):
+        return self.status == "Activo"
+
+class RolePermission(BaseModel):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permissions", verbose_name="Rol")
+    module = models.CharField(max_length=30, choices=MODULES, verbose_name="Módulo")
+    action = models.CharField(max_length=20, choices=ACTIONS, verbose_name="Acción")
+
+    class Meta:
+        verbose_name = "Permiso de rol"
+        verbose_name_plural = "Permisos de roles"
+        db_table = "rol_permiso"
+        constraints = [
+            models.UniqueConstraint(fields=["role", "module", "action"], name="uniq_role_module_action"),
+        ]
+
+    def __str__(self):
+        return f"{self.role.code}: {self.module}.{self.action}"
 
 class Period(BaseModel):
     name = models.CharField(max_length=30, verbose_name="Nombre del Período")
@@ -77,3 +151,60 @@ class MeasurementItem(BaseModel):
 
     def __str__(self):
         return f"{self.name} ({self.unit_of_measure})"
+
+
+class ProjectItem(BaseModel):
+    """Ítem de proyecto del catálogo (mantenedor Ítems y metas)."""
+
+    code = models.CharField(max_length=8, unique=True, verbose_name="Código")
+    name = models.CharField(max_length=100, verbose_name="Nombre del ítem")
+    description = models.TextField(blank=True, default="", verbose_name="Descripción")
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+
+    class Meta:
+        verbose_name = "Ítem de proyecto"
+        verbose_name_plural = "Ítems de proyecto"
+        db_table = "item_proyecto"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class AttentionType(BaseModel):
+    """Tipo de atención del catálogo (mantenedor Tipo de Atención)."""
+
+    code = models.CharField(max_length=8, unique=True, verbose_name="Código")
+    name = models.CharField(max_length=100, verbose_name="Nombre del tipo")
+    description = models.TextField(blank=True, default="", verbose_name="Descripción")
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+
+    class Meta:
+        verbose_name = "Tipo de atención"
+        verbose_name_plural = "Tipos de atención"
+        db_table = "tipo_atencion"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class AttentionSubtype(BaseModel):
+    """Sub atención del catálogo (mantenedor Sub Atención)."""
+
+    code = models.CharField(max_length=8, unique=True, verbose_name="Código")
+    name = models.CharField(max_length=100, verbose_name="Nombre de la sub atención")
+    attention_type = models.ForeignKey(
+        AttentionType, on_delete=models.RESTRICT,
+        related_name="subtypes", verbose_name="Tipo de atención",
+    )
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+
+    class Meta:
+        verbose_name = "Sub atención"
+        verbose_name_plural = "Sub atenciones"
+        db_table = "sub_atencion"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"

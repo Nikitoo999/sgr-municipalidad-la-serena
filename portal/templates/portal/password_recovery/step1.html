@@ -1,0 +1,29 @@
+{% extends 'portal/base_auth.html' %}
+{% block title %}Recuperar contraseña{% endblock %}
+{% block content %}
+<p class="auth-sub">Gestión de Atención Ciudadana</p>
+<h1 class="auth-title">Recuperar contraseña</h1>
+<p class="stepline">Paso 1 de 3 | Solicitar código</p>
+<p class="auth-lead">Ingresa el correo asociado a tu cuenta.</p>
+
+<form method="post" novalidate id="recoverForm">
+  {% csrf_token %}
+  <div class="field">
+    <label class="fl" for="id_email">Correo electrónico</label>
+    <input class="in" type="email" name="email" id="id_email"
+           autocomplete="email" placeholder="nombre@dominio.cl"
+           value="{{ email|default:'' }}" required
+           aria-describedby="email-error">
+    <div id="email-error" class="err-slot" aria-live="polite">
+      {% if errors.email %}<div class="err">{{ errors.email }}</div>{% endif %}
+    </div>
+  </div>
+
+  <button class="btn primary block" type="submit" id="sendBtn">Enviar código</button>
+</form>
+
+<p class="auth-subtle">Si la cuenta existe, recibirás instrucciones.</p>
+<p class="auth-links">
+  <a href="{% url 'login' %}">Volver al inicio de sesión</a>
+</p>
+{% endblock %}

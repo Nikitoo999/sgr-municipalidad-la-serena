@@ -1,0 +1,95 @@
+{% load static sgr_icons %}<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#920000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23920000'/%3E%3Cpath d='M9 25V8h10v17M19 13h4v12M12 12h4M12 16h4M12 20h4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<title>{% block title %}Inicio{% endblock %} – Sistema Municipal</title>
+<link rel="stylesheet" href="{% static 'portal/css/sgr.css' %}">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.1/dist/sweetalert2.all.min.js"></script>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+<header class="top">
+  <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="side">{% sgr_icon 'menu' 22 %}</button>
+  {# Bloque de logo: único lugar fácil de cambiar cuando llegue el logo oficial. #}
+  <div class="brand">SISTEMA MUNICIPAL</div>
+  <div class="ctx">
+    <span class="dpill" data-dc="{{ sgr_badge_dc }}" data-dm="{{ sgr_badge_dm }}">
+      <span class="dp-ic">{% sgr_icon 'building' 22 %}</span>
+      {% if sgr_can_switch_delegation %}
+      <form method="post" action="{% url 'switch_delegation' %}" id="ctxForm">
+        {% csrf_token %}
+        <label class="sr" for="ctxSel">Delegación activa</label>
+        <select id="ctxSel" name="delegation">
+          {% if sgr_role.scope == 'all' %}
+          <option value="ALL"{% if sgr_active_is_all %} selected{% endif %}>Todas las delegaciones</option>
+          {% endif %}
+          {% for delegation in sgr_allowed_delegations %}
+          <option value="{{ delegation.pk }}"{% if not sgr_active_is_all and sgr_active_delegation.pk == delegation.pk %} selected{% endif %}>{{ delegation.code }} | Delegación {{ delegation.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% else %}
+      <span class="dp-tx">{{ sgr_active_name }}</span>
+      <span class="dp-lock" title="Asignada por tu perfil">{% sgr_icon 'lock' 14 %}</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="who">
+    <span class="who-tx"><strong>{{ sgr_display_name }}</strong><span class="role-txt">{{ sgr_role.name }}</span></span>
+    <span class="avatar" aria-hidden="true">{{ sgr_initials }}</span>
+    <form method="post" action="{% url 'logout' %}" id="logoutForm">
+      {% csrf_token %}
+      <button class="out" type="submit" title="Cerrar sesión" aria-label="Cerrar sesión">{% sgr_icon 'out' 18 %}<span class="out-tx">Salir</span></button>
+    </form>
+  </div>
+</header>
+<div class="shell">
+  <aside class="side" id="side" aria-label="Menú principal">
+    <div class="side-who"><strong>{{ sgr_display_name }}</strong><br><span class="subtle">{{ sgr_role.name }}</span></div>
+    <nav class="nav" aria-label="Módulos">
+      <a href="{% url 'home' %}"{% if active_module == 'home' %} aria-current="page"{% endif %}>{% sgr_icon 'home' 18 %}<span>Inicio</span></a>
+      {% for item in sgr_menu %}
+      <a href="{% url item.url_name %}"{% if active_module == item.key %} aria-current="page"{% endif %}>{% sgr_icon item.icon 18 %}<span>{{ item.label }}</span></a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main id="main" tabindex="-1">
+    {% block content %}{% endblock %}
+    <footer class="foot"><span>Sistema de Gestión Municipal · La Serena</span><span>Acciones sujetas al perfil</span></footer>
+  </main>
+</div>
+<div id="toasts" role="status" aria-live="polite"></div>
+{{ sgr_messages|json_script:"sgr-messages-data" }}
+<script src="{% static 'portal/js/sgr.js' %}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var badge = document.querySelector('.dpill');
+    if (badge) {
+      badge.style.setProperty('--dc', badge.dataset.dc);
+      badge.style.setProperty('--dm', badge.dataset.dm);
+    }
+    var node = document.getElementById('sgr-messages-data');
+    var data = [];
+    try { data = JSON.parse(node.textContent || node.innerText || '[]'); } catch (e) { data = []; }
+    var titleMap = { error: 'Error', warning: 'Atención', success: 'Éxito', info: 'Información' };
+    var iconMap = { error: 'error', warning: 'warning', success: 'success', info: 'info' };
+    data.forEach(function (msg) {
+      if (!msg.text) return;
+      var tags = msg.tags || '';
+      var icon = iconMap[tags] || 'info';
+      Swal.fire({
+        icon: icon,
+        title: titleMap[tags] || 'Información',
+        text: msg.text,
+        confirmButtonColor: '#920000'
+      });
+    });
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

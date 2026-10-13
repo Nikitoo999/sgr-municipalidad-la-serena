@@ -1,0 +1,60 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#920000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23920000'/%3E%3Cpath d='M9 25V8h10v17M19 13h4v12M12 12h4M12 16h4M12 20h4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<title>Sistema Municipal – {% block title %}Acceso{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'portal/css/sgr.css' %}">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.1/dist/sweetalert2.all.min.js"></script>
+</head>
+<body class="auth-body">
+
+<header class="auth-header">
+  <div class="auth-brand">
+    <span class="brand-mark">
+      <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="white" opacity="0.15"/>
+        <path d="M9 25V8h10v17M19 13h4v12M12 12h4M12 16h4M12 20h4" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <div class="brand-txt">
+      <strong>SISTEMA MUNICIPAL</strong>
+      <small>Acceso y recuperación</small>
+    </div>
+  </div>
+</header>
+
+<main class="auth-main">
+  <div class="auth-card">
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+<script src="{% static 'portal/js/auth.js' %}"></script>
+{{ sgr_messages|json_script:"sgr-messages-data" }}
+<script>
+  // Convertir messages de Django en alertas SweetAlert2
+  document.addEventListener('DOMContentLoaded', function () {
+    var node = document.getElementById('sgr-messages-data');
+    var data = [];
+    try { data = JSON.parse(node.textContent || node.innerText || '[]'); } catch (e) { data = []; }
+    var titleMap = { error: 'Error', warning: 'Atención', success: 'Éxito', info: 'Información' };
+    var iconMap = { error: 'error', warning: 'warning', success: 'success', info: 'info' };
+    data.forEach(function (msg) {
+      if (!msg.text) return;
+      var tags = msg.tags || '';
+      Swal.fire({
+        icon: iconMap[tags] || 'info',
+        title: titleMap[tags] || 'Información',
+        text: msg.text,
+        confirmButtonColor: '#920000'
+      });
+    });
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

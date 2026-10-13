@@ -1,0 +1,12 @@
+{% extends 'portal/base.html' %}
+{% load sgr_icons %}
+{% block title %}Acceso restringido{% endblock %}
+{% block content %}
+<div class="state err" style="margin-top:24px">
+  <div class="ic">{% sgr_icon 'lock' 26 %}</div>
+  <h2>Acceso restringido</h2>
+  <p>Tu perfil no tiene acceso a esta sección.</p>
+  <p style="font-size:13px">El servidor valida cada solicitud: escribir la dirección a mano da la misma respuesta. El intento queda registrado en la auditoría.</p>
+  <a class="btn primary" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+{% endblock %}
