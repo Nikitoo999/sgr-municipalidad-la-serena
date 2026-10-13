@@ -3,6 +3,7 @@ import re
 from datetime import timedelta
 from unittest import mock
 
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
@@ -189,7 +190,10 @@ class PasswordRecoveryTests(TestCase):
         })
         codes = PasswordResetCode.objects.filter(user=self.user)
         self.assertEqual(codes.count(), 1)
-        self.assertTrue(codes.first().code_hash.startswith('pbkdf2_'))
+        # El código se guarda hasheado (verificable), nunca en claro.
+        match = re.search(r'\b\d{6}\b', mail.outbox[0].body)
+        self.assertIsNotNone(match)
+        self.assertTrue(check_password(match.group(), codes.first().code_hash))
 
     def test_recovery_correo_enviado_con_6_digitos(self):
         self.client.post(reverse('password_reset_request'), {

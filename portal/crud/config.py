@@ -59,12 +59,16 @@ class ModuleConfig:
     ordering: tuple = ()
     #: Filas por página del paginador.
     per_page: int = 5
-    #: Regla de eliminación: recibe el registro y devuelve un mensaje si hay
-    #: relaciones que lo bloquean (o cadena vacía si se puede borrar).
+    #: Regla de eliminación: recibe el registro (y el request) y devuelve un
+    #: mensaje si hay relaciones que lo bloquean (o cadena vacía si se puede
+    #: borrar).
     delete_guard: object = None
     #: Alcance del queryset por usuario/delegación activa. Recibe
     #: ``(request, queryset)`` y devuelve el queryset acotado.
     scope: object = None
+    #: Plantilla del formulario. Por defecto la del motor; un módulo puede
+    #: aportar la suya (que herede de ``portal/crud/form.html``).
+    form_template: str = "portal/crud/form.html"
 
     @property
     def export_columns(self):

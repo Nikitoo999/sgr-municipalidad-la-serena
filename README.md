@@ -3,11 +3,13 @@
 Backend del **Sistema de Gestión de Resultados (SGR)** para la Municipalidad de La Serena.
 Construido con **Django 5.2** sobre **Python 3.11+**.
 
-> **Estado:** en desarrollo activo. El backend expone el portal de acceso, recuperación
-> de contraseña, el panel de administración de Django (`/admin/`) con scoping por
-> delegación y los módulos del portal (hoy anclados como "en construcción", Partes 4 a 7).
-> Los CRUD de cada módulo aún no están implementados. La suite de pruebas cubre esquema,
-> autorización, autenticación y vistas del portal.
+> **Estado:** backend operativo. Incluye acceso y recuperación de contraseña, el panel
+> de administración de Django (`/admin/`) con scoping por delegación, el portal con
+> template común y los 6 mantenedores (Delegaciones, Roles, Usuarios, Ítems y metas,
+> Tipo de Atención y Sub Atención) más el módulo de **Atenciones** (ingreso, listado,
+> consulta, edición y exportación), con 4 roles y autorización validada en el servidor.
+> La suite de pruebas cubre esquema, autorización, autenticación, matriz de permisos,
+> alcance por delegación y las vistas del portal (ver `docs/pruebas/`).
 
 ---
 
@@ -83,7 +85,10 @@ El portal implementa el flujo de acceso real (ya no hay mockup en el repositorio
 - **Recuperación de contraseña** en 3 pasos (`recuperar/`, `recuperar/verificar/`, `recuperar/nueva-clave/`) con código de un solo uso de 10 minutos, hasheado y con reenvío limitado a 45 s.
 - **Inicio** (`inicio/`): cifras, accesos por perfil y selector de delegación activa (validado en el servidor).
 - **Autorización centralizada** (`portal/access.py`): roles por alcance (todo / autorizadas / su delegación / registros propios), resueltos una sola vez por request.
-- **Módulos**: Delegaciones, Roles, Usuarios, Ítems, Tipos y Subtipos de atención y Atenciones. Hoy son *placeholders* "en construcción" (Partes 4 a 7); el CRUD de cada uno se agregará en próximas iteraciones.
+- **Módulos** (Partes 4 a 7, operativos): Delegaciones, Roles, Usuarios, Ítems y metas,
+  Tipo de Atención, Sub Atención y Atenciones. Cada uno con listado, búsqueda, filtro,
+  paginación, crear/ver/editar/eliminar (según el rol) y exportación a Excel, con
+  autorización validada en el servidor (`portal/access.py` + `portal/crud/`).
 - **Páginas de error** propias (403/404/500) definidas en `config/urls.py`.
 
 ## 🗄️ Scripts SQL de referencia
@@ -170,13 +175,18 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 
 Si defines `DB_NAME` como ruta relativa (por ejemplo `db.sqlite3`), se resuelve dentro del proyecto.
 
-### 4. Migraciones y superusuario
+### 4. Migraciones, datos demo y superusuario
 
 ```bash
 python manage.py check             # verifica la configuración
 python manage.py migrate           # crea las tablas en la base de datos
-python manage.py createsuperuser   # usuario para el panel admin
+python manage.py seed_demo         # carga datos demo idempotentes (roles, delegaciones, usuarios, atenciones)
+python manage.py createsuperuser   # (opcional) usuario para el panel admin
 ```
+
+> `seed_demo` es **idempotente**: se puede volver a ejecutar sin duplicar datos.
+> Crea los 4 roles base, 6 delegaciones, vecinos, tipos/subtipos de atención,
+> 14 atenciones de ejemplo y los **usuarios demo de acceso** (ver tabla más abajo).
 
 ### 5. Ejecutar
 
@@ -184,7 +194,62 @@ python manage.py createsuperuser   # usuario para el panel admin
 python manage.py runserver
 ```
 
-Panel de administración: <http://127.0.0.1:8000/admin/>
+Portal: <http://127.0.0.1:8000/> · Panel de administración: <http://127.0.0.1:8000/admin/>
+
+### Usuarios demo por rol
+
+Clave de todos: **`Demo2026!`**
+
+| Rol | Usuario (correo) | Delegaciones | Notas |
+|---|---|---|---|
+| Superadministrador | `superadmin@example.test` | Todas | `is_superuser` sin `Employee` (rol virtual) |
+| Coordinador (zona 1) | `coordinador@example.test` | DEL01, DEL02, DEL03 | selector de delegación activa |
+| Coordinador (zona 2) | `coordinador2@example.test` | DEL04, DEL05, DEL06 | selector de delegación activa |
+| Delegado municipal | `delegado@example.test` | DEL01 | delegación fija |
+| Delegado municipal | `delegado.mar@example.test` | DEL02 | delegación fija |
+| Funcionario | `funcionario@example.test` | DEL01 | solo atenciones propias |
+| Funcionario | `funcionario.mar@example.test` | DEL02 | solo atenciones propias |
+| Funcionario (inactivo) | `ignacio.vera@example.test` | DEL03 | cuenta desactivada |
+
+También se crean `admin_demo`, `limitado_demo` y `jefatura_centro` (cuentas del Django Admin).
+
+### Mapa de URLs
+
+| URL | Nombre (reverse) | Acceso |
+|---|---|---|
+| `/` y `/login/` | `login` | público |
+| `/logout/` | `logout` | autenticado (POST) |
+| `/inicio/` | `home` | autenticado |
+| `/delegacion-activa/` | `switch_delegation` | autenticado (POST) |
+| `/recuperar/`, `/recuperar/verificar/`, `/recuperar/reenviar/`, `/recuperar/nueva-clave/` | `password_reset_*` | público |
+| `/delegaciones/` (+ `nuevo/`, `<pk>/`, `<pk>/editar/`, `<pk>/eliminar/`, `exportar/`) | `delegations` | superadmin |
+| `/roles/` (mismas subrutas) | `roles` | superadmin |
+| `/usuarios/` (mismas subrutas) | `users` | superadmin, coordinador, delegado |
+| `/items/` (mismas subrutas) | `items` | superadmin, coordinador (delegado solo ver/exportar) |
+| `/tipos-atencion/` (mismas subrutas) | `attention_types` | superadmin, coordinador |
+| `/sub-atenciones/` (mismas subrutas) | `attention_subtypes` | superadmin, coordinador |
+| `/atenciones/` (mismas subrutas + `solicitantes/`) | `attentions` | superadmin, coordinador, delegado, funcionario |
+| `/admin/` | — | staff |
+
+### Matriz de permisos por rol
+
+✓ = permitido · ✗ = denegado (403 en el servidor). "Ver/crear/editar/exportar" se abrevian V/C/E/X; "Eliminar" solo lo tiene el superadmin.
+
+| Módulo | Superadmin | Coordinador | Delegado | Funcionario |
+|---|---|---|---|---|
+| Delegaciones | V·C·E·X·Eliminar | ✗ | ✗ | ✗ |
+| Roles | V·C·E·X·Eliminar | ✗ | ✗ | ✗ |
+| Usuarios | V·C·E·X·Eliminar | V·C·E·X | V·C·E·X | ✗ |
+| Ítems y metas | V·C·E·X·Eliminar | V·C·E·X | V·X | ✗ |
+| Tipo de Atención | V·C·E·X·Eliminar | V·C·E·X | ✗ | ✗ |
+| Sub Atención | V·C·E·X·Eliminar | V·C·E·X | ✗ | ✗ |
+| Atenciones | V·C·E·X·Eliminar | V·C·E·X | V·C·E·X | V·C·X |
+
+Reglas de jerarquía (aplicadas en `portal/access.py`):
+
+- Nadie ve, edita ni elimina usuarios de rango igual o superior (superadmin=3, coordinador=2, delegado=1, funcionario=0).
+- Nadie asigna un rol de rango igual o superior al suyo.
+- Solo el superadmin elimina registros.
 
 ---
 
@@ -221,10 +286,53 @@ una base real (no se regenera desde este proyecto).
 
 ## Notas de seguridad
 
-- `SECRET_KEY` se lee desde `DJANGO_SECRET_KEY` (variable de entorno / `.env`).
+- `SECRET_KEY` se lee desde `DJANGO_SECRET_KEY` (variable de entorno / `.env`); `DEBUG` y `ALLOWED_HOSTS` también vienen del `.env`.
 - Las contraseñas de los funcionarios se gestionan con el sistema de autenticación de Django (`Employee.user`), por lo que se almacenan **hasheadas** (pbkdf2), nunca en texto plano.
 - `db.sqlite3` no se versiona (ver `.gitignore`).
+- Toda acción que modifica datos va por **POST con CSRF**; eliminar, cerrar sesión y cambiar delegación no tienen ruta por GET.
+- Los formularios usan autoescape (sin `|safe` sobre contenido no controlado); no hay SQL crudo ni consultas con cursor.
+- Cabeceras básicas: `X-Frame-Options` (middleware de clickjacking), `X-Content-Type-Options: nosniff` (`SECURE_CONTENT_TYPE_NOSNIFF=True`) y cookie de sesión `HttpOnly`.
+- Las exportaciones a Excel **nunca** incluyen contraseñas ni hashes.
 - Para producción: `DEBUG=False`, `ALLOWED_HOSTS` con el dominio real, sustituir la clave por defecto de `settings.py`, configurar `STATIC_ROOT` para `collectstatic` y usar MariaDB/MySQL como base de datos.
+
+## Configuración del correo
+
+El envío del código de recuperación de contraseña usa `django.core.mail` con el
+backend configurado en `.env`. Por defecto está **simulado** (imprime el código
+en la consola del servidor), pensado para desarrollo y pruebas.
+
+| Variable | Descripción |
+|---|---|
+| `EMAIL_BACKEND` | `django.core.mail.backends.console.EmailBackend` (simulado, por defecto) o `django.core.mail.backends.smtp.EmailBackend` (real) |
+| `EMAIL_HOST` / `EMAIL_PORT` | Servidor SMTP y puerto (p. ej. `smtp.gmail.com` / `587`) |
+| `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Credenciales SMTP |
+| `EMAIL_USE_TLS` | `True` para TLS |
+| `DEFAULT_FROM_EMAIL` | Remitente de los correos |
+
+En modo simulado, el código de 6 dígitos aparece en el log del servicio:
+
+```bash
+sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de recuperación"
+```
+
+## Estado por módulo (honesto)
+
+| Módulo | Estado |
+|---|---|
+| Autenticación (login, bloqueo de intentos) | Operativo |
+| Recuperación de contraseña (3 pasos) | Operativo (correo **simulado** por consola si no hay SMTP) |
+| Inicio (cifras, accesos, selector de delegación) | Operativo |
+| Delegaciones | Operativo |
+| Roles | Operativo |
+| Usuarios | Operativo |
+| Ítems y metas | Operativo |
+| Tipo de Atención | Operativo |
+| Sub Atención | Operativo |
+| Atenciones (ingreso, listado, consulta, edición, exportación) | Operativo |
+| Matriz de permisos y alcance por delegación | Operativo (validado en servidor) |
+| Envío de correo con SMTP real | Simulado (backend de consola hasta configurar SMTP) |
+| Pruebas de estrés (Locust) | Definidas, **sin ejecutar** (ver `docs/pruebas/pruebas_estres.md`) |
+| Logo y tipografía oficiales | Pendiente (variables CSS y bloque de logo en `portal/templates/portal/base.html`) |
 
 ---
 
@@ -246,11 +354,12 @@ una base real (no se regenera desde este proyecto).
 
    Define al menos: `DJANGO_SECRET_KEY` (genera una nueva), `DEBUG=False`, `ALLOWED_HOSTS=<IP_PUBLICA_REAL>` y las variables `DB_*` de MariaDB (`DB_ENGINE=django.db.backends.mysql`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT=3306`).
 
-3. **Recolectar estáticos y migrar**:
+3. **Recolectar estáticos, migrar y cargar datos demo**:
 
    ```bash
    python manage.py collectstatic --noinput
    python manage.py migrate
+   python manage.py seed_demo        # solo si se quieren datos de demostración
    ```
 
 4. **Levantar el servicio con systemd** (usa la plantilla `deploy/sgr.service`; reemplaza `<RUTA_PROYECTO>` y `<USUARIO>` con los valores reales de la instancia):

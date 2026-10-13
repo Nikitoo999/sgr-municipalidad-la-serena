@@ -76,6 +76,19 @@ class Role(BaseModel):
         return SCOPE_RANKS.get(self.scope, 0)
 
     @property
+    def scope_label(self):
+        """Alcance en texto para el usuario (es-cl), por ejemplo 'Todas las delegaciones'."""
+        return dict(SCOPES).get(self.scope, self.scope)
+
+    @property
+    def enabled_modules_count(self):
+        """Cantidad de módulos con al menos un permiso asignado.
+
+        Property de solo lectura: no es un campo, así que no genera migración.
+        """
+        return self.permissions.values_list("module", flat=True).distinct().count()
+
+    @property
     def is_active(self):
         return self.status == "Activo"
 

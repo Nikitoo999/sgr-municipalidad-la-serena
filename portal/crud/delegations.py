@@ -10,7 +10,7 @@ from .config import CELL_STATUS, ColumnSpec, ModuleConfig, register_module
 from .forms import DelegationForm
 
 
-def delegation_delete_guard(delegation):
+def delegation_delete_guard(delegation, request=None):
     """Bloquea el borrado si la delegación tiene registros relacionados.
 
     Devuelve el mensaje a mostrar o cadena vacía si se puede eliminar.

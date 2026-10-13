@@ -47,11 +47,27 @@
     var i0 = inputs[0];
     if (i0) i0.focus();
 
+    // Reparte digitos si el navegador autocompleta 'one-time-code' o el contenido
+    // llega sin disparar 'paste' (los 6 digitos caen en una sola casilla y el
+    // '.slice(-1)' anterior los recortaba a uno).
+    function distribuir(inp, idx) {
+      var raw = inp.value.replace(/\D/g, '');
+      if (!raw) { inp.value = ''; return; }
+      if (raw.length > 1) {
+        for (var k = idx; k < inputs.length; k++) {
+          inputs[k].value = raw[k - idx] || '';
+        }
+        var last = Math.min(idx + raw.length, inputs.length) - 1;
+        inputs[last].focus();
+      } else {
+        inp.value = raw;
+        if (inputs[idx + 1]) inputs[idx + 1].focus();
+      }
+    }
+
     inputs.forEach(function (inp, i) {
-      inp.addEventListener('input', function () {
-        inp.value = inp.value.replace(/\D/g, '').slice(-1);
-        if (inp.value && inputs[i + 1]) inputs[i + 1].focus();
-      });
+      inp.addEventListener('input', function () { distribuir(inp, i); });
+      inp.addEventListener('change', function () { distribuir(inp, i); });
       inp.addEventListener('keydown', function (e) {
         if (e.key === 'Backspace' && !inp.value && inputs[i - 1]) inputs[i - 1].focus();
         if (e.key === 'ArrowLeft' && inputs[i - 1]) { e.preventDefault(); inputs[i - 1].focus(); }
@@ -70,8 +86,8 @@
     });
 
     // Contadores de vigencia y reenvío (calculados con los datos del servidor)
-    var expiresIn = {{ expires_in|default:0 }};
-    var resendIn = {{ resend_in|default:0 }};
+    var expiresIn = parseInt('{{ expires_in|default:0 }}', 10) || 0;
+    var resendIn = parseInt('{{ resend_in|default:0 }}', 10) || 0;
     var expiryEl = document.getElementById('expiry-info');
     var resendBtn = document.getElementById('resendBtn');
 

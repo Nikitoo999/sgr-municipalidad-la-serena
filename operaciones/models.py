@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.contrib.auth.models import User
+from django.utils import timezone
 from sgr_core.models import (
     AttentionSubtype,
     AttentionType,
@@ -75,6 +76,57 @@ class Employee(BaseModel):
         # Si el usuario no tiene nombre configurado, mostrará el username
         nombre = self.user.get_full_name() or self.user.username
         return f"{nombre} - {self.delegation.name}"
+
+    def save(self, *args, **kwargs):
+        """Borrado lógico del funcionario: desactiva también la cuenta.
+
+        El motor de mantenedores marca ``deleted_at`` para borrar de forma
+        lógica. En Usuarios eso debe impedir el acceso, así que la cuenta
+        (``User``) queda ``is_active=False``. Nunca hay borrado físico.
+        """
+        marcando_borrado = (
+            self.pk is not None
+            and self.deleted_at is not None
+            and self.user_id is not None
+        )
+        if marcando_borrado:
+            User.objects.filter(pk=self.user_id).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    @property
+    def full_name(self):
+        """Nombre visible del funcionario (nombre + apellido, o el username)."""
+        return self.user.get_full_name() or self.user.username
+
+    @property
+    def email(self):
+        """Correo de la cuenta asociada."""
+        return self.user.email
+
+    @property
+    def status_label(self):
+        """Estado en texto (Activo/Inactivo) derivado de ``user.is_active``."""
+        return "Activo" if self.user.is_active else "Inactivo"
+
+    @property
+    def role_code(self):
+        """Código del rol asignado (columna del listado y exportación)."""
+        return self.role.code if self.role_id else ""
+
+    @property
+    def delegations(self):
+        """Delegaciones del funcionario para las insignias del listado.
+
+        Siempre un queryset: con alcance 'Delegaciones autorizadas' son las
+        autorizadas (que incluyen la base); en cualquier otro caso, solo la
+        delegación base.
+        """
+        authorized = self.authorized_delegations.filter(deleted_at__isnull=True)
+        if authorized.exists():
+            return authorized.order_by("code")
+        if self.delegation_id is None:
+            return Delegation.objects.none()
+        return Delegation.objects.filter(pk=self.delegation_id)
 
     def allowed_delegations(self):
         """Delegaciones que este funcionario puede gestionar según su rol.
@@ -221,6 +273,47 @@ class Attention(BaseModel):
 
     def __str__(self):
         return f"{self.number or 's/n'} - {self.neighbor}"
+
+    @property
+    def created_at_display(self):
+        """Fecha y hora legible de la atención (columna del listado)."""
+        if self.created_at is None:
+            return "—"
+        return timezone.localtime(self.created_at).strftime("%d-%m-%Y %H:%M")
+
+    @property
+    def solicitante_name(self):
+        """Nombre del vecino o solicitante (columna y exportación)."""
+        return self.neighbor.full_name if self.neighbor_id else "—"
+
+    @property
+    def type_name(self):
+        """Nombre del tipo de atención."""
+        return self.attention_type.name if self.attention_type_id else "—"
+
+    @property
+    def subtype_name(self):
+        """Nombre de la sub atención."""
+        return self.attention_subtype.name if self.attention_subtype_id else "—"
+
+    @property
+    def delegation_label(self):
+        """Código y nombre de la delegación (exportación)."""
+        if self.delegation_id is None:
+            return "—"
+        return f"{self.delegation.code} · {self.delegation.name}"
+
+    @property
+    def responsible_name(self):
+        """Nombre visible del funcionario responsable."""
+        if self.responsible_id is None:
+            return "—"
+        return self.responsible.get_full_name() or self.responsible.username
+
+    @property
+    def status_display(self):
+        """Estado en texto (Ingresada/En gestión/Resuelta)."""
+        return self.get_status_display()
 
     def save(self, *args, **kwargs):
         """Asigna number (formato ATN-0001) tras el primer insert.
