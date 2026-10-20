@@ -123,7 +123,7 @@ EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False') == 'True'
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@sgr.municipalidadla-serena.cl')
 
 # --- Autenticación --------------------------------------------------------
@@ -131,6 +131,11 @@ AUTHENTICATION_BACKENDS = [
     'portal.backends.EmailOrUsernameBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# Recuperación de contraseña: vigencia del código en SEGUNDOS y cantidad máxima
+# de intentos fallidos antes de invalidarlo. Configurables vía .env.
+PASSWORD_RESET_CODE_TTL = int(os.getenv('PASSWORD_RESET_CODE_TTL', '120'))
+PASSWORD_RESET_MAX_ATTEMPTS = int(os.getenv('PASSWORD_RESET_MAX_ATTEMPTS', '5'))
 
 # --- Seguridad (cabeceras y cookies) -------------------------------------
 # X-Frame-Options lo envía XFrameOptionsMiddleware (DENY por defecto).
