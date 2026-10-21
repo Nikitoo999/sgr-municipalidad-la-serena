@@ -212,6 +212,8 @@ class AttentionCreateView(_AttentionFormContext, CrudCreateView):
 class AttentionUpdateView(_AttentionFormContext, CrudUpdateView):
     """Edición: solo tipo, sub atención, descripción y estado."""
 
+    template_name = "portal/crud/attention_form.html"
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(self.attention_form_context(context["form"]))
