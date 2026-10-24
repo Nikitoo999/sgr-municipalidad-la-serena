@@ -1,9 +1,10 @@
 """Contexto común del portal (Parte 3: template común e Inicio).
 
 Expone en cada render: acceso resuelto una vez por request, delegaciones
-permitidas/activa, colores ``--dc``/``--dm`` de la insignia y menú filtrado
-por permiso ``view``. Réplica en Python ``readable``/``mixWhite`` de
-"docs/diseno/sgr_interfaz_referencia (2).html".
+permitidas/activa, colores ``--dc``/``--dm`` de la insignia, menú filtrado
+por permiso ``view`` y ``sgr_nav``: esos mismos módulos visibles repartidos
+en mantenedores agrupados y demás módulos. Réplica en Python
+``readable``/``mixWhite`` de "docs/diseno/sgr_interfaz_referencia (2).html".
 """
 from django.contrib.messages import get_messages
 
@@ -12,6 +13,14 @@ from .modules import MODULE_DESCRIPTIONS, MODULE_ICONS, MODULE_LABELS, MODULE_OR
 
 #: Color institucional (insignia "todas" y respaldo sin color de delegación).
 INSTITUTIONAL_COLOR = "#920000"
+
+#: Grupos de mantenedores de ``sgr_nav``: (etiqueta del grupo, módulos). Los
+#: mantenedores visibles que no pertenecen a ningún grupo no se agrupan, y un
+#: grupo sin ningún módulo visible para el usuario no se emite.
+NAV_GROUPS = (
+    ("Organización", ("delegations", "roles", "users")),
+    ("Catálogos", ("items", "attention_types", "attention_subtypes")),
+)
 
 
 def _hex_to_rgb(value):
@@ -56,6 +65,45 @@ def badge_colors(base_color):
         return readable(base), mix_white(base, 0.55)
     except (ValueError, TypeError):
         return INSTITUTIONAL_COLOR, mix_white(INSTITUTIONAL_COLOR, 0.55)
+
+
+def _nav_item(module):
+    """Ítem de navegación: misma estructura que cada entrada de ``sgr_menu``."""
+    return {
+        "key": module,
+        "label": MODULE_LABELS[module],
+        "description": MODULE_DESCRIPTIONS[module],
+        "icon": MODULE_ICONS[module],
+        "url_name": MODULE_URL_NAMES[module],
+    }
+
+
+def _sgr_nav(info):
+    """Módulos visibles repartidos en mantenedores agrupados y demás módulos.
+
+    Usa la misma comprobación de permisos que ``sgr_menu``
+    (``info.can(module, "view")``) y el mismo orden canónico ``MODULE_ORDER``,
+    así la unión de ``mantenedores`` y ``otros`` coincide con ``sgr_menu``.
+    """
+    visibles = [
+        _nav_item(module) for module in MODULE_ORDER if info.can(module, "view")
+    ]
+    por_clave = {item["key"]: item for item in visibles}
+
+    mantenedores = []
+    for label, keys in NAV_GROUPS:
+        items = [por_clave[key] for key in keys if key in por_clave]
+        if items:
+            mantenedores.append({"label": label, "items": items})
+
+    agrupados = {key for _, keys in NAV_GROUPS for key in keys}
+    return {
+        "mantenedores": mantenedores,
+        "otros": [item for item in visibles if item["key"] not in agrupados],
+        "tiene_mantenedores": any(
+            item["key"] in agrupados for item in visibles
+        ),
+    }
 
 
 def sgr_context(request):
@@ -120,6 +168,7 @@ def sgr_context(request):
         "sgr_badge_dm": dm,
         "sgr_can_switch_delegation": can_switch,
         "sgr_menu": menu,
+        "sgr_nav": _sgr_nav(info),
         "sgr_display_name": display_name,
         "sgr_initials": initials,
         "sgr_messages": flashed,
