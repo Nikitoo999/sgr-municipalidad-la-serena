@@ -3,6 +3,9 @@
   --ink:#1f2328;--muted:#5b6370;--line:#dde1e6;--bg:#f5f6f8;
   --ok:#17663b;--ok-bg:#e3f3ea;--warn:#7a4f00;--warn-bg:#fcf0d0;--bad:#9b1c1c;--bad-bg:#fbe4e4;
   --info:#1b4f8a;--info-bg:#e4eef9;--off:#4b5260;--off-bg:#eceef1;
+  --muni-panel:#a82020;--page:#f6f4f4;--radius:8px;--radius-lg:12px;
+  --rail-w:60px;--rail-w-open:220px;--panel-w:56px;--panel-w-open:190px;
+  --topbar-h:56px;--ease:.15s;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
