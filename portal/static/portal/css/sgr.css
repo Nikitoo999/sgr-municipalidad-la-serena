@@ -135,7 +135,7 @@ a{color:var(--muni)}
 .pw-reqs li.ok::before{content:'●'}
 
 /* ==================== Shell (cabecera + lateral + contenido) ==================== */
-:root{--header-h:60px;--side-w:236px}
+:root{--header-h:60px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .skip{position:absolute;left:-999px;top:8px;background:#fff;color:var(--ink);padding:8px 12px;border-radius:6px;z-index:200}
 .skip:focus{left:8px}
@@ -161,12 +161,29 @@ a{color:var(--muni)}
 .out{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;font-weight:600;cursor:pointer;transition:background .15s}
 .out:hover{background:rgba(255,255,255,.26)}
 .menu-btn{display:none;background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:8px;width:40px;height:40px;align-items:center;justify-content:center;cursor:pointer}
-.shell{display:grid;grid-template-columns:var(--side-w) 1fr;min-height:calc(100vh - var(--header-h))}
-.side{background:#fff;border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:var(--header-h);align-self:start;height:calc(100vh - var(--header-h));overflow:auto}
-.side-who{display:none;padding:4px 14px 14px;margin-bottom:10px;border-bottom:1px solid var(--line)}
-.nav a{display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:4px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:500;border-left:4px solid transparent}
-.nav a:hover{background:#f1f2f4;color:var(--ink)}
-.nav a[aria-current=page]{background:var(--muni-tint);color:var(--muni);font-weight:700;border-left-color:var(--muni)}
+.shell{display:grid;grid-template-columns:var(--rail-w) 1fr;min-height:calc(100vh - var(--header-h));transition:grid-template-columns var(--ease)}
+/* El riel se expande al pasar el mouse, al enfocarlo con el teclado o al fijarlo
+   con el botón «Fijar menú»: crece la columna del grid para que main se corra
+   junto con él y nunca quede tapado por las etiquetas. */
+.shell.rail-pinned,.shell:has(.side:hover),.shell:has(.side:focus-within){grid-template-columns:var(--rail-w-open) 1fr}
+.side{background:var(--muni);border-right:1px solid var(--muni-dark);padding:10px 8px;position:sticky;top:var(--header-h);align-self:start;height:calc(100vh - var(--header-h));overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-width:0;color:#fff}
+.side-who{display:none;padding:4px 10px 10px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.28);color:#fff}
+.side-who .subtle{color:rgba(255,255,255,.78)}
+.nav{display:flex;flex-direction:column;gap:4px;min-width:0}
+.nav a{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:var(--radius);color:rgba(255,255,255,.85);text-decoration:none;font-weight:500;white-space:nowrap;min-width:0;transition:background-color var(--ease),color var(--ease)}
+.nav a svg{flex:none;width:22px;height:22px;color:#fff}
+.nav a:hover{background:rgba(255,255,255,.15);color:#fff}
+.nav a[aria-current=page]{background:rgba(255,255,255,.22);color:#fff;font-weight:700}
+/* Las etiquetas quedan siempre en el HTML: se ocultan solo con opacidad */
+.nav a span,.rail-pin span{opacity:0;transition:opacity var(--ease)}
+.side:hover .nav a span,.side:hover .rail-pin span,
+.side:focus-within .nav a span,.side:focus-within .rail-pin span,
+.shell.rail-pinned .nav a span,.shell.rail-pinned .rail-pin span{opacity:1}
+/* Botón «Fijar menú»: al final del riel, lo deja expandido de forma permanente */
+.rail-pin{margin-top:auto;display:flex;align-items:center;gap:12px;min-height:44px;width:100%;padding:0 12px;border:0;border-radius:var(--radius);background:none;color:rgba(255,255,255,.85);font:inherit;font-weight:600;text-align:left;white-space:nowrap;min-width:0;cursor:pointer;transition:background-color var(--ease),color var(--ease)}
+.rail-pin svg{flex:none;width:22px;height:22px;color:#fff}
+.rail-pin:hover{background:rgba(255,255,255,.15);color:#fff}
+.rail-pin[aria-pressed=true]{background:rgba(255,255,255,.22);color:#fff}
 main{padding:24px 32px 40px;min-width:0;outline:none}
 .crumbs{color:var(--muted);margin-bottom:6px}
 .titlebar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
@@ -196,11 +213,13 @@ h2.sec{font-size:18px;margin-top:8px}
 #toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:320;display:grid;gap:8px;justify-items:center;pointer-events:none;width:max-content;max-width:92vw}
 
 @media (max-width:900px){
-  .shell{grid-template-columns:1fr}
-  .side{position:fixed;left:0;top:var(--header-h);bottom:0;height:auto;width:var(--side-w);transform:translateX(-100%);transition:transform .2s;z-index:25;overflow:auto;box-shadow:6px 0 24px rgba(0,0,0,.12)}
+  .shell,.shell.rail-pinned,.shell:has(.side:hover),.shell:has(.side:focus-within){grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:var(--header-h);bottom:0;height:auto;width:var(--rail-w-open);max-width:85vw;transform:translateX(-100%);transition:transform .2s;z-index:25;overflow:auto;box-shadow:6px 0 24px rgba(0,0,0,.12)}
   body.nav-open .side{transform:none}
   .menu-btn{display:inline-flex}
   .side-who{display:block}
+  /* En pantalla angosta el riel viaja expandido: las etiquetas quedan visibles */
+  .nav a span,.rail-pin span{opacity:1}
   main{padding:18px 16px 40px}
   .top{gap:10px;padding:0 12px}
   .brand{font-size:15px}

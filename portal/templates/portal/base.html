@@ -54,11 +54,21 @@
   <aside class="side" id="side" aria-label="Menú principal">
     <div class="side-who"><strong>{{ sgr_display_name }}</strong><br><span class="subtle">{{ sgr_role.name }}</span></div>
     <nav class="nav" aria-label="Módulos">
-      <a href="{% url 'home' %}"{% if active_module == 'home' %} aria-current="page"{% endif %}>{% sgr_icon 'home' 18 %}<span>Inicio</span></a>
-      {% for item in sgr_menu %}
-      <a href="{% url item.url_name %}"{% if active_module == item.key %} aria-current="page"{% endif %}>{% sgr_icon item.icon 18 %}<span>{{ item.label }}</span></a>
+      <a href="{% url 'home' %}"{% if active_module == 'home' %} aria-current="page"{% endif %} title="Inicio">{% sgr_icon 'home' 22 %}<span>Inicio</span></a>
+      {% if sgr_nav.tiene_mantenedores %}
+      {# Un único acceso al grupo de mantenedores: mientras no exista el panel desplegable lleva al primer mantenedor habilitado y se marca como actual cuando la página abierta es cualquiera de ellos. #}
+      {% with mantenedor=sgr_nav.mantenedores.0.items.0 %}
+      <a href="{% url mantenedor.url_name %}" title="Mantenedores"{% for grupo in sgr_nav.mantenedores %}{% for item in grupo.items %}{% if item.key == active_module %} aria-current="page"{% endif %}{% endfor %}{% endfor %}>{% sgr_icon mantenedor.icon 22 %}<span>Mantenedores</span></a>
+      {% endwith %}
+      {% endif %}
+      {% for item in sgr_nav.otros %}
+      <a href="{% url item.url_name %}"{% if active_module == item.key %} aria-current="page"{% endif %} title="{{ item.label }}">{% sgr_icon item.icon 22 %}<span>{{ item.label }}</span></a>
       {% endfor %}
     </nav>
+    <button type="button" class="rail-pin" id="railPin" aria-pressed="false" title="Fijar menú">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M8 3h8l-1 7 3 3H6l3-3z"/></svg>
+      <span>Fijar menú</span>
+    </button>
   </aside>
   <main id="main" tabindex="-1">
     {% block content %}{% endblock %}
