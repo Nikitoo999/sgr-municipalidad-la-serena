@@ -8,11 +8,56 @@ eliminar al único superusuario y el modelo desactiva la cuenta.
 
 from ..access import get_role
 from ..access import allowed_delegations
+from sgr_core.models import Role
 from sgr_core.roles import SCOPE_RANKS
 from operaciones.models import Employee
 
-from .config import CELL_STATUS, CELL_DELEGATION, ColumnSpec, ModuleConfig, register_module
+from .config import (
+    CELL_STATUS, CELL_DELEGATION, ColumnSpec, FilterSpec, ModuleConfig,
+    register_module,
+)
 from .forms import UserForm
+
+
+def role_filter_options(request):
+    """Roles que el operador puede elegir en el filtro del listado.
+
+    Mismo criterio que el alcance del módulo: los roles de rango inferior al
+    propio (el superadministrador ve todos los roles activos).
+    """
+    queryset = Role.alive.filter(status="Activo")
+    role = get_role(request.user)
+    if not getattr(request.user, "is_superuser", False):
+        if role is None:
+            return ()
+        lower_scopes = [
+            scope for scope, rank in SCOPE_RANKS.items() if rank < role.rank
+        ]
+        queryset = queryset.filter(scope__in=lower_scopes)
+    return [
+        (str(item.pk), f"{item.code} \u00b7 {item.name}")
+        for item in queryset.order_by("code")
+    ]
+
+
+def delegation_filter_options(request):
+    """Delegaciones que el operador puede elegir: las de su alcance."""
+    return [
+        (str(delegation.pk), f"{delegation.code} \u00b7 {delegation.name}")
+        for delegation in allowed_delegations(request.user)
+    ]
+
+
+#: Filtros del listado (grilla de filtros): Rol y Delegación. Sus claves no son
+#: reservadas (``q``, ``estado``, ``page``, ``per_page``) y las opciones ya
+#: vienen acotadas al alcance del operador, igual que el listado.
+USERS_FILTERS = (
+    FilterSpec("rol", "Rol", "role", role_filter_options),
+    FilterSpec(
+        "delegacion", "Delegación", "delegation",
+        delegation_filter_options, empty_label="Todas",
+    ),
+)
 
 
 def users_scope(request, queryset):
@@ -72,6 +117,7 @@ USERS_MODULE = ModuleConfig(
     form_class=UserForm,
     list_title="Usuarios",
     singular_label="Usuario",
+    new_label="Nuevo usuario",
     columns=(
         ColumnSpec("rut", "RUT"),
         ColumnSpec("full_name", "Nombre"),
@@ -87,6 +133,7 @@ USERS_MODULE = ModuleConfig(
     ),
     status_field=None,
     status_options=(),
+    filters=USERS_FILTERS,
     ordering=("user__first_name", "user__last_name", "rut"),
     scope=users_scope,
     delete_guard=user_delete_guard,

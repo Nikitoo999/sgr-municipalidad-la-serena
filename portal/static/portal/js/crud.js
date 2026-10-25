@@ -1,9 +1,13 @@
 /**
  * crud.js — JavaScript ligero de los mantenedores (Parte 4).
  * - Búsqueda/filtro: el campo de búsqueda se envía solo (sin botón, debounce
- *   de 350 ms) y el filtro de estado al cambiar; la X nativa y Enter envían
- *   de inmediato cancelando el temporizador; tras recargar vuelve el foco
- *   al campo con el cursor al final (marca en sessionStorage).
+ *   de 350 ms); la X nativa y Enter envían de inmediato cancelando el
+ *   temporizador; tras recargar vuelve el foco al campo con el cursor al final
+ *   (marca en sessionStorage). En el listado compartido el estado se filtra con
+ *   píldoras (enlaces GET, sin JavaScript), el selector de filas por página y
+ *   los selects de la grilla de filtros del módulo envían su formulario al
+ *   cambiar; en Atenciones el estado sigue siendo un select que envía el
+ *   formulario al cambiar.
  * - Exportar: indicador mientras se descarga.
  * - Eliminar: confirmación SweetAlert y POST con CSRF.
  * - Formulario: cambios sin guardar (data-dirty), foco al primer error y
@@ -237,5 +241,39 @@
       if (codeInput) codeInput.addEventListener('input', refreshPreview);
       refreshPreview();
     }
+  }
+
+  // ---- Listado: filas por página y "Limpiar filtros" ----
+  // El selector del pie envía su propio formulario al cambiar (el botón
+  // sr-only del formulario sigue funcionando sin JavaScript).
+  var perPageSel = document.getElementById('per_page');
+  if (perPageSel) {
+    perPageSel.addEventListener('change', function () {
+      var rowsForm = document.getElementById('rowsForm');
+      if (rowsForm) rowsForm.submit();
+    });
+  }
+
+  // Grilla de filtros del módulo: cada select envía el formulario al cambiar
+  // (el botón sr-only del formulario sigue funcionando sin JavaScript).
+  var filtersForm = document.getElementById('filtersForm');
+  if (filtersForm) {
+    Array.prototype.forEach.call(
+      filtersForm.querySelectorAll('select'),
+      function (select) {
+        select.addEventListener('change', function () {
+          filtersForm.submit();
+        });
+      }
+    );
+  }
+
+  // "Limpiar filtros" se ve deshabilitado cuando no hay filtros activos:
+  // aria-disabled evita la navegación sin ocultar el control.
+  var clearBtn = document.getElementById('clearBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function (event) {
+      if (clearBtn.getAttribute('aria-disabled') === 'true') event.preventDefault();
+    });
   }
 })();

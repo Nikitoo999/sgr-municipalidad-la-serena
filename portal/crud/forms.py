@@ -240,15 +240,15 @@ class RoleForm(CrudModelForm):
         widgets = {
             "code": forms.TextInput(
                 attrs={"class": "in", "maxlength": 8, "placeholder": "ROL05",
-                       "aria-describedby": "id_code-help id_code-e"},
+                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
                 attrs={"class": "in", "maxlength": 50, "placeholder": "Coordinador",
-                       "aria-describedby": "id_name-help id_name-e"},
+                        "aria-describedby": "id_name-help id_name-e"},
             ),
             "description": forms.Textarea(
                 attrs={"class": "in", "rows": 3, "maxlength": 200,
-                       "aria-describedby": "id_description-help id_description-e"},
+                        "aria-describedby": "id_description-help id_description-e"},
             ),
             "scope": forms.Select(
                 attrs={"class": "in", "aria-describedby": "id_scope-help id_scope-e"},

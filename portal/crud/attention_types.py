@@ -37,6 +37,7 @@ ATTENTION_TYPES_MODULE = ModuleConfig(
     form_class=AttentionTypeForm,
     list_title="Tipos de atención",
     singular_label="Tipo de atención",
+    new_label="Nuevo tipo de atención",
     columns=(
         ColumnSpec("code", "Código"),
         ColumnSpec("name", "Nombre"),

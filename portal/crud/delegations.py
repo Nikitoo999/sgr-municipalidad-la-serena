@@ -46,6 +46,7 @@ DELEGATIONS_MODULE = ModuleConfig(
     form_class=DelegationForm,
     list_title="Delegaciones",
     singular_label="Delegación",
+    new_label="Nueva delegación",
     columns=(
         ColumnSpec("code", "Código"),
         ColumnSpec("name", "Nombre"),

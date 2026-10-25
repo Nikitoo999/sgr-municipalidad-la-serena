@@ -18,6 +18,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db.models import Count
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -136,14 +137,159 @@ def scoped_queryset(request, config):
     return queryset
 
 
+def module_filters(request, config):
+    """Selects de la grilla de filtros del módulo y sus valores vigentes.
+
+    Devuelve ``(specs, values)``:
+
+    - ``specs``: uno por filtro declarado (``FilterSpec``), con las opciones
+      que puede elegir el usuario (el callable del módulo ya entrega las del
+      alcance de su rol), el valor vigente y su etiqueta para la píldora.
+    - ``values``: ``{clave: valor}`` con los valores aceptados. Un valor GET
+      que no esté entre las opciones del filtro se ignora (no se filtra por
+      él), igual que ocurre con un ``estado`` desconocido.
+    """
+    specs = []
+    values = {}
+    for spec in config.filters:
+        options = [
+            (str(value), str(label))
+            for value, label in (spec.options(request) if spec.options else ())
+        ]
+        labels = dict(options)
+        raw = (request.GET.get(spec.key) or "").strip()
+        value = raw if raw in labels else ""
+        values[spec.key] = value
+        specs.append(
+            {
+                "key": spec.key,
+                "label": spec.label,
+                "empty_label": spec.empty_label,
+                "value": value,
+                "text": labels.get(value, value),
+                "options": [
+                    {
+                        "value": option_value,
+                        "label": label,
+                        "selected": option_value == value,
+                    }
+                    for option_value, label in options
+                ],
+            }
+        )
+    return specs, values
+
+
+def _filter_matches(obj, spec, value):
+    """Compara un registro con el valor del filtro (modo lista de SQLite).
+
+    En claves foráneas compara el ``pk`` del relacionado (que es el valor de
+    la opción); en campos planos compara el valor como texto.
+    """
+    resolved = obj
+    for part in spec.field_name.split("__"):
+        if resolved is None:
+            return False
+        resolved = getattr(resolved, part, None)
+    if resolved is None:
+        return False
+    pk = getattr(resolved, "pk", None)
+    return str(pk if pk is not None else resolved) == str(value)
+
+
+def apply_module_filters(rows, config, values):
+    """Aplica los filtros declarados por el módulo al resultado del listado.
+
+    ``rows`` puede ser un queryset (MariaDB, o SQLite sin búsqueda) o la lista
+    que devuelve ``apply_search`` en SQLite: en ambos casos el resultado es el
+    mismo y se conserva el orden del listado.
+    """
+    active = [
+        (spec, values[spec.key]) for spec in config.filters
+        if values.get(spec.key)
+    ]
+    if not active:
+        return rows
+    if hasattr(rows, "filter"):
+        for spec, value in active:
+            rows = rows.filter(**{spec.lookup_path: value})
+        return rows
+    return [
+        obj for obj in rows
+        if all(_filter_matches(obj, spec, value) for spec, value in active)
+    ]
+
+
 def filtered_queryset(request, config):
-    """Queryset vivo + alcance + filtro de estado (sin búsqueda ni página)."""
+    """Queryset vivo + alcance + filtros del módulo y de estado (sin búsqueda)."""
     queryset = scoped_queryset(request, config)
+    _, values = module_filters(request, config)
+    queryset = apply_module_filters(queryset, config, values)
     estado = request.GET.get("estado", "")
     valid = [option[0] for option in config.status_options]
     if config.status_field and estado in valid:
         queryset = queryset.filter(**{config.status_field: estado})
     return queryset
+
+
+#: Filas por página que acepta el selector del pie del listado. Cualquier otro
+#: valor pedido por GET se ignora y se usa el ``per_page`` del módulo.
+PER_PAGE_CHOICES = (5, 10, 20)
+
+
+def per_page_value(request, config):
+    """Filas por página efectivas del listado (solo 5, 10 o 20)."""
+    try:
+        value = int((request.GET.get("per_page") or "").strip())
+    except ValueError:
+        return config.per_page
+    return value if value in PER_PAGE_CHOICES else config.per_page
+
+
+def apply_status_filter(rows, config, estado):
+    """Aplica el filtro de estado al resultado de la búsqueda.
+
+    ``rows`` puede ser un queryset (MariaDB, o SQLite sin búsqueda) o la lista
+    que devuelve ``apply_search`` en SQLite: en ambos casos se conserva el
+    orden y el resultado es el mismo.
+    """
+    valid = [option[0] for option in config.status_options]
+    if not config.status_field or estado not in valid:
+        return rows
+    if hasattr(rows, "filter"):
+        return rows.filter(**{config.status_field: estado})
+    return [
+        obj for obj in rows
+        if getattr(obj, config.status_field, None) == estado
+    ]
+
+
+def status_counts(config, rows):
+    """Contadores por estado para las píldoras del listado.
+
+    Recibe el resultado con alcance y búsqueda (sin el filtro de estado) y
+    devuelve el total y el conteo de cada opción de ``status_options``. Con
+    queryset se resuelve en una sola consulta agregada; con la lista ya
+    materializada de SQLite se cuenta en memoria, sin consultas extra.
+    """
+    field, options = config.status_field, config.status_options
+    if not field or not options:
+        return {"all": 0, "options": []}
+    if hasattr(rows, "values"):
+        grouped = rows.order_by().values(field).annotate(total=Count("pk"))
+        by_value = {row[field]: row["total"] for row in grouped}
+    else:
+        by_value = {}
+        for obj in rows:
+            value = getattr(obj, field, None)
+            by_value[value] = by_value.get(value, 0) + 1
+    return {
+        "all": sum(by_value.values()),
+        "options": [
+            {"value": value, "label": label, "count": by_value.get(value, 0)}
+            for value, label in options
+        ],
+    }
 
 
 def querystring(query, estado, extra=None):
@@ -197,7 +343,14 @@ class CrudBaseMixin:
 
 
 class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, TemplateView):
-    """Listado con búsqueda, filtro de estado y paginación de 5 filas."""
+    """Listado con búsqueda, píldoras de estado, filtros del módulo y paginación.
+
+    Además de ``q`` y ``estado`` acepta ``per_page`` (5, 10 o 20; cualquier
+    otro valor usa el ``per_page`` del módulo) y las claves de los filtros que
+    el módulo declare en ``config.filters`` (nunca las reservadas). Expone
+    ``status_counts`` con los contadores por estado para las píldoras y
+    ``filters`` con los selects de la grilla de filtros.
+    """
 
     template_name = "portal/crud/list.html"
     action = "view"
@@ -208,10 +361,24 @@ class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, Tem
         request = self.request
         query = (request.GET.get("q") or "").strip()
         estado = request.GET.get("estado") or ""
+        per_page = per_page_value(request, config)
+        filter_specs, filter_values = module_filters(request, config)
+        filter_params = {
+            key: value for key, value in filter_values.items() if value
+        }
 
-        queryset = filtered_queryset(request, config)
-        rows_all = apply_search(queryset, config.search_fields, query)
-        paginator = Paginator(rows_all, config.per_page)
+        # Alcance + filtros del módulo + búsqueda (sin estado): esta base
+        # alimenta las píldoras de estado y el filtro de estado se aplica
+        # encima, así el buscador y los contadores siempre se refieren al
+        # mismo conjunto.
+        base_rows = apply_module_filters(
+            apply_search(
+                scoped_queryset(request, config), config.search_fields, query,
+            ),
+            config, filter_values,
+        )
+        rows_all = apply_status_filter(base_rows, config, estado)
+        paginator = Paginator(rows_all, per_page)
         page_obj = paginator.get_page(request.GET.get("page"))
 
         rows = [
@@ -222,10 +389,58 @@ class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, Tem
             for obj in page_obj.object_list
         ]
 
+        # Píldoras de estado: conservan q, filtros del módulo y per_page.
+        counts = status_counts(config, base_rows)
+        counts["all_url"] = querystring(
+            query, "", {**filter_params, "per_page": per_page},
+        )
+        for pill in counts["options"]:
+            pill["url"] = querystring(
+                query, pill["value"], {**filter_params, "per_page": per_page},
+            )
+            pill["active"] = pill["value"] == estado
+
+        # Etiquetas de filtros activos: cada una quita solo su propio filtro.
+        status_labels = dict(config.status_options)
+        active_filters = []
+        if query:
+            active_filters.append({
+                "kind": "q",
+                "text": f"Búsqueda: «{query}»",
+                "url": querystring(
+                    "", estado, {**filter_params, "per_page": per_page},
+                ),
+            })
+        if estado:
+            active_filters.append({
+                "kind": "estado",
+                "text": f"Estado: {status_labels.get(estado, estado)}",
+                "url": querystring(
+                    query, "", {**filter_params, "per_page": per_page},
+                ),
+            })
+        for spec in filter_specs:
+            if not spec["value"]:
+                continue
+            others = {
+                key: value for key, value in filter_params.items()
+                if key != spec["key"]
+            }
+            active_filters.append({
+                "kind": spec["key"],
+                "text": f"{spec['label']}: {spec['text']}",
+                "url": querystring(
+                    query, estado, {**others, "per_page": per_page},
+                ),
+            })
+
         page_links = [
             {
                 "number": number,
-                "url": querystring(query, estado, {"page": number}),
+                "url": querystring(
+                    query, estado,
+                    {**filter_params, "per_page": per_page, "page": number},
+                ),
                 "current": number == page_obj.number,
             }
             for number in range(1, paginator.num_pages + 1)
@@ -239,17 +454,26 @@ class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, Tem
                 "columns": config.columns,
                 "page_obj": page_obj,
                 "page_links": page_links,
-                "prev_url": querystring(query, estado, {"page": page_obj.previous_page_number() if page_obj.has_previous() else None}),
-                "next_url": querystring(query, estado, {"page": page_obj.next_page_number() if page_obj.has_next() else None}),
+                "prev_url": querystring(query, estado, {**filter_params, "per_page": per_page, "page": page_obj.previous_page_number() if page_obj.has_previous() else None}),
+                "next_url": querystring(query, estado, {**filter_params, "per_page": per_page, "page": page_obj.next_page_number() if page_obj.has_next() else None}),
                 "showing_from": page_obj.start_index(),
                 "showing_to": page_obj.end_index(),
                 "total": paginator.count,
                 "query": query,
                 "estado": estado,
                 "status_options": config.status_options,
-                "empty_kind": "results" if (query or estado) else "records",
+                "status_counts": counts,
+                "active_filters": active_filters,
+                "filters": filter_specs,
+                "filter_params": [
+                    {"name": key, "value": value}
+                    for key, value in filter_params.items()
+                ],
+                "per_page": per_page,
+                "per_page_options": PER_PAGE_CHOICES,
+                "empty_kind": "results" if (query or estado or filter_params) else "records",
                 "search_url": reverse(config.module_key),
-                "export_url": f"{reverse(f'{config.module_key}_export')}{querystring(query, estado)}",
+                "export_url": f"{reverse(f'{config.module_key}_export')}{querystring(query, estado, filter_params)}",
                 "new_url": reverse(f"{config.module_key}_new"),
                 "detail_url_name": f"{config.module_key}_detail",
                 "edit_url_name": f"{config.module_key}_edit",

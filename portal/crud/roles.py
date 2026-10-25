@@ -37,6 +37,7 @@ ROLES_MODULE = ModuleConfig(
     form_class=RoleForm,
     list_title="Roles",
     singular_label="Rol",
+    new_label="Nuevo rol",
     columns=(
         ColumnSpec("code", "Código"),
         ColumnSpec("name", "Rol"),

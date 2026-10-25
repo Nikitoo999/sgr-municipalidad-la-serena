@@ -15,6 +15,45 @@ CELL_DELEGATION = "delegation_chip"   # chips con color de apoyo de delegación
 #: Opciones por defecto del filtro de estado.
 DEFAULT_STATUS_OPTIONS = (("Activa", "Activa"), ("Inactiva", "Inactiva"))
 
+#: Parámetros GET que el motor siempre administra (búsqueda, estado, página y
+#: filas por página): un filtro propio del módulo no puede usar estos nombres,
+#: porque sus enlaces se construyen con ellos.
+RESERVED_FILTER_KEYS = ("q", "estado", "page", "per_page")
+
+
+@dataclass(frozen=True)
+class FilterSpec:
+    """Un filtro de la grilla de filtros del listado (mockup ``.fg``).
+
+    El módulo solo lo declara; el motor (``portal.crud.views``) pinta el
+    select, aplica el valor al queryset, lo muestra como etiqueta de filtro
+    activo y lo conserva en la paginación, las filas por página y la
+    exportación.
+
+    - ``key``: parámetro GET del filtro. Nunca uno de ``RESERVED_FILTER_KEYS``
+      (``register_module`` lo rechaza), porque esos los administra el motor.
+    - ``label``: etiqueta del selector ("Rol", "Delegación", ...).
+    - ``field_name``: campo del modelo por el que se filtra (admite rutas con
+      ``__``). En claves foráneas el valor es el ``pk`` del relacionado.
+    - ``options``: callable ``(request) -> [(valor, etiqueta)]`` con las
+      opciones que puede elegir el usuario, ya con el alcance del rol
+      aplicado. Un valor GET que no esté en las opciones se ignora.
+    - ``empty_label``: texto de la opción que no filtra ("Todos"/"Todas").
+    - ``lookup``: sufijo de lookup opcional (``"icontains"``, ``"gte"``, ...).
+    """
+
+    key: str
+    label: str
+    field_name: str
+    options: object = None
+    empty_label: str = "Todos"
+    lookup: str = ""
+
+    @property
+    def lookup_path(self):
+        """Camino de filtrado para ``QuerySet.filter(**{...})``."""
+        return f"{self.field_name}__{self.lookup}" if self.lookup else self.field_name
+
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -57,6 +96,10 @@ class ModuleConfig:
     status_options: tuple = DEFAULT_STATUS_OPTIONS
     #: Orden por defecto del queryset.
     ordering: tuple = ()
+    #: Filtros declarados de la grilla de filtros (``FilterSpec``, opcional).
+    filters: tuple = ()
+    #: Etiqueta del botón de creación (por defecto ``Nuevo registro``).
+    new_label: str = "Nuevo registro"
     #: Filas por página del paginador.
     per_page: int = 5
     #: Regla de eliminación: recibe el registro (y el request) y devuelve un
@@ -79,9 +122,26 @@ _REGISTRY: dict[str, ModuleConfig] = {}
 
 
 def register_module(config: ModuleConfig) -> None:
-    """Registra (o reemplaza) la configuración de un módulo."""
+    """Registra (o reemplaza) la configuración de un módulo.
+
+    Rechaza una clave de filtro reservada o duplicada al registrar: así el
+    error sale al arrancar la aplicación y no como un filtro que no funciona.
+    """
     if not config.module_key or not config.slug:
         raise ValueError("El módulo necesita module_key y slug.")
+    declared = [spec.key for spec in config.filters]
+    for key in declared:
+        if key in RESERVED_FILTER_KEYS:
+            raise ValueError(
+                f"La clave de filtro «{key}» del módulo {config.module_key} "
+                f"está reservada ({', '.join(RESERVED_FILTER_KEYS)})."
+            )
+    duplicates = {key for key in declared if declared.count(key) > 1}
+    if duplicates:
+        raise ValueError(
+            f"Claves de filtro duplicadas en {config.module_key}: "
+            f"{', '.join(sorted(duplicates))}."
+        )
     _REGISTRY[config.module_key] = config
 
 

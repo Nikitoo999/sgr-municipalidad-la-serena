@@ -8,33 +8,78 @@
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ config.list_title }}</nav>
 <div class="titlebar"><h1>{{ config.list_title }}</h1>
   {% if can_create %}
-  <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Nuevo registro</span></a>
+  <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>+ {{ config.new_label }}</span></a>
   {% endif %}
 </div>
 
-{# Búsqueda, filtro de estado y exportación: un solo formulario GET #}
-<section class="card toolbar" aria-label="Búsqueda y filtros">
-  <form method="get" action="{{ search_url }}" id="toolbarForm" role="search">
-    <div class="grow">
-      <label for="q">Búsqueda inteligente</label>
+{# Búsqueda, filtros y exportación: la búsqueda va en un formulario GET y el #}
+{# estado en píldoras con contadores (mockup .fc). Sin botón "Buscar". #}
+<section class="card fc" aria-label="Búsqueda y filtros">
+  <form method="get" action="{{ search_url }}" id="toolbarForm" class="fr1" role="search">
+    {# Buscar conserva el estado, los filtros y las filas por página #}
+    {% if estado %}<input type="hidden" name="estado" value="{{ estado }}">{% endif %}
+    {% for param in filter_params %}<input type="hidden" name="{{ param.name }}" value="{{ param.value }}">{% endfor %}
+    <input type="hidden" name="per_page" value="{{ per_page }}">
+    <label class="sw" for="q">
+      {% sgr_icon 'search' 18 %}
       <input class="in" id="q" name="q" type="search"
-              placeholder="Buscar por nombre, código u otro campo..."
-              value="{{ query }}" autocomplete="off">
-    </div>
-    <div class="statebox">
-      <label for="estado">Filtrar estado</label>
-      <select class="in" id="estado" name="estado">
-        <option value=""{% if not estado %} selected{% endif %}>Todos</option>
-        {% for option in status_options %}
-        <option value="{{ option.0 }}"{% if estado == option.0 %} selected{% endif %}>{{ option.1 }}</option>
-        {% endfor %}
-      </select>
-    </div>
-      <a class="btn-outline" href="{{ search_url }}" id="clearBtn">Limpiar filtros</a>
+             placeholder="Buscar por nombre, código u otro campo..."
+             value="{{ query }}" autocomplete="off"
+             aria-label="Búsqueda inteligente">
+    </label>
+    <a class="ico" href="{{ search_url }}" id="clearBtn"
+       {% if not active_filters %}aria-disabled="true"{% endif %}>
+      {% sgr_icon 'filter-x' 18 %}<span>Limpiar filtros</span>
+    </a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
     {% endif %}
   </form>
+
+  {% if filters %}
+  {# Grilla de filtros del módulo (mockup .fg): selects con GET puro (botón #}
+  {# sr-only) y envío automático al cambiar (crud.js). Conserva la búsqueda, el #}
+  {# estado y las filas por página; no envía page, así se vuelve a la página 1. #}
+  <form method="get" action="{{ search_url }}" id="filtersForm" class="fg"
+        aria-label="Filtros del listado">
+    {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+    {% if estado %}<input type="hidden" name="estado" value="{{ estado }}">{% endif %}
+    <input type="hidden" name="per_page" value="{{ per_page }}">
+    {% for item in filters %}
+    <label class="fgf" for="filtro_{{ item.key }}">{{ item.label }}
+      <select class="in" id="filtro_{{ item.key }}" name="{{ item.key }}">
+        <option value="">{{ item.empty_label }}</option>
+        {% for option in item.options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endfor %}
+    <button type="submit" class="btn primary sr">Aplicar filtros</button>
+  </form>
+  {% endif %}
+
+  {% if status_counts.options %}
+  {# Píldoras de estado con contadores; conservan q y per_page en el enlace #}
+  <div class="sgr2" role="group" aria-label="Filtrar estado">
+    <a class="sgb{% if not estado %} on{% endif %}" href="{{ status_counts.all_url }}"
+       {% if not estado %}aria-current="true"{% endif %}>Todos<small>{{ status_counts.all }}</small></a>
+    {% for pill in status_counts.options %}
+    <a class="sgb{% if pill.active %} on{% endif %}" href="{{ pill.url }}"
+       {% if pill.active %}aria-current="true"{% endif %}>{{ pill.label }}<small>{{ pill.count }}</small></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if active_filters %}
+  {# Filtros activos: cada etiqueta quita solo su propio filtro #}
+  <div class="ac">
+    <span class="aclabel">{{ active_filters|length }} filtro{{ active_filters|length|pluralize }} activo{{ active_filters|length|pluralize }}:</span>
+    {% for chip in active_filters %}
+    <span class="fchip">{{ chip.text }}<a class="fx" href="{{ chip.url }}" aria-label="Quitar {{ chip.text }}">×</a></span>
+    {% endfor %}
+  </div>
+  {% endif %}
 </section>
 
 {% if rows %}
@@ -46,7 +91,7 @@
         {% for column in columns %}
         <th scope="col">{{ column.header }}</th>
         {% endfor %}
-        <th scope="col">Acciones</th>
+        <th scope="col" class="col-acts">Acciones</th>
       </tr>
     </thead>
     <tbody>
@@ -61,11 +106,12 @@
             <span class="chip"><svg class="sq" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" fill="{{ chip.color }}"/></svg>{{ chip.code }} · {{ chip.name }}</span>
             {% endfor %}
           {% else %}
-          {{ cell.text }}
+          {# Texto truncado a 2 líneas; el title muestra el valor completo #}
+          <span class="cl" title="{{ cell.text }}">{{ cell.text }}</span>
           {% endif %}
         </td>
         {% endfor %}
-        <td>
+        <td class="col-acts">
           <div class="acts">
             <a class="ib v" href="{% url detail_url_name row.pk %}" data-tip="Ver detalle" aria-label="Ver detalle del registro {{ row.pk }}">{% sgr_icon 'eye' 18 %}</a>
             {% if can_edit %}
@@ -83,7 +129,23 @@
 </div>
 <div class="pager">
   <span>Mostrando {{ showing_from }} a {{ showing_to }} de {{ total }} registros</span>
-  <nav class="pages" aria-label="Paginación">
+  <div class="pgn-side">
+    {# Filas por página: GET puro (botón sr-only) y envío automático con crud.js. #}
+    {# Conserva q, estado y filtros; no envía page: se vuelve a la página 1. #}
+    <form class="rowsform" method="get" action="{{ search_url }}" id="rowsForm">
+      {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+      {% if estado %}<input type="hidden" name="estado" value="{{ estado }}">{% endif %}
+      {% for param in filter_params %}<input type="hidden" name="{{ param.name }}" value="{{ param.value }}">{% endfor %}
+      <label class="rp" for="per_page">Filas por página
+        <select class="in" id="per_page" name="per_page">
+          {% for option in per_page_options %}
+          <option value="{{ option }}"{% if option == per_page %} selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn primary sr">Aplicar filas por página</button>
+    </form>
+    <nav class="pages" aria-label="Paginación">
     {% if page_obj.has_previous %}
     <a class="pg" href="{{ prev_url }}" aria-label="Página anterior">Anterior</a>
     {% else %}
@@ -97,7 +159,8 @@
     {% else %}
     <span class="pg" aria-disabled="true">Siguiente</span>
     {% endif %}
-  </nav>
+    </nav>
+  </div>
 </div>
 {% else %}
 <div class="state">
@@ -105,7 +168,7 @@
   {% if empty_kind == 'records' %}
   <h2>Aún no hay registros</h2>
   <p>Cuando se cree el primer registro aparecerá en esta lista.</p>
-  {% if can_create %}<a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Nuevo registro</span></a>{% endif %}
+  {% if can_create %}<a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>+ {{ config.new_label }}</span></a>{% endif %}
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>

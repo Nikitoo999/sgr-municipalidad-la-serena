@@ -6,9 +6,11 @@ Inactiva desde Editar.
 """
 
 from operaciones.models import Attention
-from sgr_core.models import AttentionSubtype
+from sgr_core.models import AttentionSubtype, AttentionType
 
-from .config import CELL_STATUS, ColumnSpec, ModuleConfig, register_module
+from .config import (
+    CELL_STATUS, ColumnSpec, FilterSpec, ModuleConfig, register_module,
+)
 from .forms import AttentionSubtypeForm
 
 
@@ -24,6 +26,27 @@ def attention_subtype_delete_guard(attention_subtype, request=None):
     return ""
 
 
+def attention_type_filter_options(request):
+    """Tipos de atención del catálogo (activos e inactivos, sin borrados).
+
+    El módulo no tiene alcance por delegación: cualquier operador con permiso
+    de ver el listado recibe las mismas opciones.
+    """
+    return [
+        (str(item.pk), f"{item.code} \u00b7 {item.name}")
+        for item in AttentionType.alive.order_by("code")
+    ]
+
+
+#: Filtro del listado: tipo de atención asociado (``tipo`` no es reservada).
+ATTENTION_SUBTYPE_FILTERS = (
+    FilterSpec(
+        "tipo", "Tipo asociado", "attention_type",
+        attention_type_filter_options,
+    ),
+)
+
+
 ATTENTION_SUBTYPES_MODULE = ModuleConfig(
     module_key="attention_subtypes",
     slug="sub-atenciones",
@@ -31,6 +54,7 @@ ATTENTION_SUBTYPES_MODULE = ModuleConfig(
     form_class=AttentionSubtypeForm,
     list_title="Sub atenciones",
     singular_label="Sub atención",
+    new_label="Nueva sub atención",
     columns=(
         ColumnSpec("code", "Código"),
         ColumnSpec("name", "Nombre"),
@@ -40,6 +64,7 @@ ATTENTION_SUBTYPES_MODULE = ModuleConfig(
     search_fields=("code", "name", "attention_type__name", "attention_type__code"),
     status_field="status",
     status_options=(("Activo", "Activo"), ("Inactivo", "Inactivo")),
+    filters=ATTENTION_SUBTYPE_FILTERS,
     ordering=("code",),
     delete_guard=attention_subtype_delete_guard,
 )

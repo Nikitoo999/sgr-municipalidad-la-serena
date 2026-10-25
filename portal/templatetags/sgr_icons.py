@@ -24,6 +24,8 @@ ICONS = {
     "menu": '<path d="M4 7h16M4 12h16M4 17h16"/>',
     "check": '<path d="M5 12.5l4.5 4.5L19 7"/>',
     "x": '<path d="M6 6l12 12M18 6L6 18"/>',
+    "filter-x": '<path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2z"/><path d="M9 3l6 6M15 3l-6 6M9 21l6-6M15 21l-6-6"/>',
+    "bell": '<path d="M10 2v4c0 2.2 1.8 4 4 4s4-1.8 4-4V2M10 14v4a2 2 0 002 2h3a2 2 0 002-2v-4"/>',
     "alert": '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.1"/>',
     "info": '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.1"/>',
     "eye": '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',

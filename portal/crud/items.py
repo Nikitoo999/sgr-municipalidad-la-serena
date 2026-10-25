@@ -18,6 +18,7 @@ ITEMS_MODULE = ModuleConfig(
     form_class=ProjectItemForm,
     list_title="Ítems y metas",
     singular_label="Ítem",
+    new_label="Nuevo ítem",
     columns=(
         ColumnSpec("code", "Código"),
         ColumnSpec("name", "Nombre"),
