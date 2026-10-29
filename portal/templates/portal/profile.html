@@ -1,0 +1,155 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Mi perfil{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Mi perfil</nav>
+<div class="titlebar"><h1>Mi perfil</h1></div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2 class="sec">Datos institucionales</h2>
+  <div class="grid">
+    <div><label class="fl">Nombre completo</label><span>{{ profile.full_name }}</span></div>
+    <div><label class="fl">Usuario</label><span>{{ profile.username }}</span></div>
+    <div><label class="fl">Correo electrónico</label><span>{{ profile.email|default:'—' }}</span></div>
+    <div><label class="fl">RUT</label><span>{{ profile.rut }}</span></div>
+    <div><label class="fl">Rol</label><span>{{ profile.role }}</span></div>
+    <div><label class="fl">Alcance</label><span>{{ profile.scope }}</span></div>
+    <div><label class="fl">Delegación base</label><span>{% if profile.base_delegation %}{{ profile.base_delegation.code }} | Delegación {{ profile.base_delegation.name }}{% else %}—{% endif %}</span></div>
+    <div>
+      <label class="fl">Delegaciones autorizadas</label>
+      {% for d in profile.authorized_delegations %}
+      <span class="chip"><span class="sq" data-color="{{ d.color|default:'#920000' }}"></span>{{ d.code }} | Delegación {{ d.name }}</span>
+      {% empty %}
+      <span>{{ profile.authorized_text }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2 class="sec">Datos de contacto</h2>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="action" value="update_contact">
+    <div class="grid">
+      <div>
+        <label class="fl" for="id_first_name">Nombre</label>
+        <input class="in" type="text" name="first_name" id="id_first_name" value="{{ profile.first_name }}" maxlength="150">
+      </div>
+      <div>
+        <label class="fl" for="id_last_name">Apellido</label>
+        <input class="in" type="text" name="last_name" id="id_last_name" value="{{ profile.last_name }}" maxlength="150">
+      </div>
+      <div>
+        <label class="fl" for="id_phone">Teléfono</label>
+        <input class="in" type="text" name="phone" id="id_phone" value="{{ profile.phone }}" maxlength="20">
+      </div>
+      <div>
+        <label class="fl" for="id_address">Dirección</label>
+        <input class="in" type="text" name="address" id="id_address" value="{{ profile.address }}" maxlength="255">
+      </div>
+    </div>
+    <div class="formfoot">
+      <button class="btn primary" type="submit">Guardar cambios</button>
+    </div>
+  </form>
+</div>
+<div class="card">
+  <h2 class="sec">Cambiar contraseña</h2>
+  <form method="post" novalidate id="pwdForm">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="change_password">
+    <div class="grid">
+      <div class="full">
+        <label class="fl" for="id_current_password">Contraseña actual</label>
+        <div class="pwrow">
+          <input class="in" type="password" name="current_password" id="id_current_password" autocomplete="current-password" required aria-describedby="current-password-error">
+          <button type="button" id="toggleCurrentPw" aria-pressed="false">Mostrar</button>
+        </div>
+        <div id="current-password-error" aria-live="polite">
+          {% if errors.current_password %}<div class="err">{{ errors.current_password }}</div>{% endif %}
+        </div>
+      </div>
+      <div>
+        <label class="fl" for="id_new_password">Nueva contraseña</label>
+        <div class="pwrow">
+          <input class="in" type="password" name="new_password" id="id_new_password" autocomplete="new-password" required aria-describedby="new-password-error pw-reqs">
+          <button type="button" id="toggleNewPw" aria-pressed="false">Mostrar</button>
+        </div>
+        <div id="new-password-error" aria-live="polite">
+          {% if errors.new_password %}<div class="err">{{ errors.new_password }}</div>{% endif %}
+        </div>
+      </div>
+      <div>
+        <label class="fl" for="id_confirm_password">Confirmar contraseña</label>
+        <div class="pwrow">
+          <input class="in" type="password" name="confirm_password" id="id_confirm_password" autocomplete="new-password" required aria-describedby="confirm-password-error">
+          <button type="button" id="toggleConfirmPw" aria-pressed="false">Mostrar</button>
+        </div>
+        <div id="confirm-password-error" aria-live="polite">
+          {% if errors.confirm_password %}<div class="err">{{ errors.confirm_password }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+    <ul class="pw-reqs" id="pw-reqs" aria-live="polite">
+      <li id="req-len" data-ok="false">Mínimo 8 caracteres</li>
+      <li id="req-upper" data-ok="false">Al menos una mayúscula</li>
+      <li id="req-lower" data-ok="false">Al menos una minúscula</li>
+      <li id="req-digit" data-ok="false">Al menos un número</li>
+    </ul>
+    <div class="formfoot">
+      <button class="btn primary" type="submit" id="savePwdBtn">Actualizar contraseña</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    function toggle(btnId, inputId) {
+      var btn = document.getElementById(btnId);
+      var inp = document.getElementById(inputId);
+      if (!btn || !inp) return;
+      btn.addEventListener('click', function () {
+        var hidden = inp.type === 'password';
+        inp.type = hidden ? 'text' : 'password';
+        this.textContent = hidden ? 'Ocultar' : 'Mostrar';
+        this.setAttribute('aria-pressed', hidden);
+      });
+    }
+    toggle('toggleCurrentPw', 'id_current_password');
+    toggle('toggleNewPw', 'id_new_password');
+    toggle('toggleConfirmPw', 'id_confirm_password');
+
+    var pw = document.getElementById('id_new_password');
+    function set(id, ok) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.dataset.ok = ok ? 'true' : 'false';
+      el.classList.toggle('ok', ok);
+    }
+    function check() {
+      var v = pw.value;
+      set('req-len', v.length >= 8);
+      set('req-upper', /[A-Z]/.test(v));
+      set('req-lower', /[a-z]/.test(v));
+      set('req-digit', /[0-9]/.test(v));
+    }
+    if (pw) pw.addEventListener('input', check);
+
+    var form = document.getElementById('pwdForm');
+    var btn = document.getElementById('savePwdBtn');
+    if (form && btn) {
+      form.addEventListener('submit', function () {
+        btn.disabled = true;
+        btn.textContent = 'Guardando…';
+      });
+    }
+  })();
+</script>
+{% endblock %}
+

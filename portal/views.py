@@ -14,6 +14,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.contrib.sessions.models import Session
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
@@ -259,6 +260,140 @@ class FirstLoginPasswordChangeView(LoginRequiredMixin, TemplateView):
 
     def _must_change(self, user):
         return hasattr(user, 'employee') and user.employee.must_change_password
+
+
+# ============================================================
+# PERFIL DEL USUARIO
+# ============================================================
+
+class ProfileView(LoginRequiredMixin, TemplateView):
+    template_name = 'portal/profile.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_module'] = 'profile'
+        context['profile'] = self._profile_data(self.request.user)
+        return context
+
+    def post(self, request, *args, **kwargs):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        action = request.POST.get('action')
+        if action == 'update_contact':
+            return self._update_contact(request, is_ajax=is_ajax)
+        if action == 'change_password':
+            return self._change_password(request, is_ajax=is_ajax)
+        if is_ajax:
+            return JsonResponse({'ok': False, 'errors': {'action': 'Acción no válida.'}}, status=400)
+        return redirect('profile')
+
+    def _profile_data(self, user):
+        employee = getattr(user, 'employee', None)
+        data = {
+            'has_employee': employee is not None,
+            'first_name': user.first_name or '',
+            'last_name': user.last_name or '',
+            'full_name': user.get_full_name() or user.username,
+            'username': user.username,
+            'email': user.email or '',
+            'rut': '—',
+            'role': '—',
+            'scope': '—',
+            'phone': '',
+            'address': '',
+            'base_delegation': None,
+            'authorized_delegations': [],
+            'authorized_text': '—',
+        }
+        if employee is not None:
+            data['rut'] = employee.rut
+            data['phone'] = employee.phone or ''
+            data['address'] = employee.address or ''
+            data['base_delegation'] = employee.delegation
+            data['authorized_delegations'] = list(employee.authorized_delegations.all())
+            if employee.role is not None:
+                data['role'] = employee.role.name
+                data['scope'] = employee.role.scope_label
+        elif user.is_superuser:
+            data['role'] = 'Superadministrador'
+            data['scope'] = 'Todas las delegaciones'
+
+        if data['scope'] == 'Todas las delegaciones':
+            data['authorized_text'] = 'Todas las delegaciones'
+        return data
+
+    def _update_contact(self, request, is_ajax=False):
+        user = request.user
+        user.first_name = (request.POST.get('first_name') or '').strip()
+        user.last_name = (request.POST.get('last_name') or '').strip()
+        user.save(update_fields=['first_name', 'last_name'])
+
+        employee = getattr(user, 'employee', None)
+        if employee is not None:
+            employee.phone = (request.POST.get('phone') or '').strip()
+            employee.address = (request.POST.get('address') or '').strip()
+            employee.save(update_fields=['phone', 'address'])
+
+        message = 'Tus datos de perfil fueron actualizados.'
+        if is_ajax:
+            return JsonResponse({
+                'ok': True,
+                'message': message,
+                'display_name': user.get_full_name() or user.username,
+            })
+        messages.success(request, message)
+        return redirect('profile')
+
+    def _change_password(self, request, is_ajax=False):
+        user = request.user
+        current_password = request.POST.get('current_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        errors = {}
+        if not current_password:
+            errors['current_password'] = 'Ingresa tu contraseña actual.'
+        elif not user.check_password(current_password):
+            errors['current_password'] = 'La contraseña actual no es correcta.'
+
+        if not new_password:
+            errors['new_password'] = 'Ingresa una nueva contraseña.'
+        elif len(new_password) < 8:
+            errors['new_password'] = 'La contraseña debe tener al menos 8 caracteres.'
+        elif not any(c.isupper() for c in new_password):
+            errors['new_password'] = 'La contraseña debe tener al menos una mayúscula.'
+        elif not any(c.islower() for c in new_password):
+            errors['new_password'] = 'La contraseña debe tener al menos una minúscula.'
+        elif not any(c.isdigit() for c in new_password):
+            errors['new_password'] = 'La contraseña debe tener al menos un número.'
+
+        if new_password != confirm_password:
+            errors['confirm_password'] = 'Las contraseñas no coinciden.'
+
+        if not errors:
+            try:
+                validate_password(new_password, user)
+            except DjangoValidationError as exc:
+                errors['new_password'] = ' '.join(exc.messages)
+
+        if errors:
+            if is_ajax:
+                return JsonResponse({'ok': False, 'errors': errors}, status=400)
+            context = self.get_context_data()
+            context['errors'] = errors
+            return render(request, self.template_name, context)
+
+        user.set_password(new_password)
+        user.save()
+        update_session_auth_hash(request, user)
+        message = 'Tu contraseña se actualizó correctamente.'
+        if is_ajax:
+            return JsonResponse({
+                'ok': True,
+                'message': message,
+                'display_name': user.get_full_name() or user.username,
+            })
+        messages.success(request, message)
+        return redirect('profile')
 
 
 # ============================================================

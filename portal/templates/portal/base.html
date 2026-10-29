@@ -17,37 +17,42 @@
   {# Logo institucional oficial: portal/static/portal/img/logo_muni.png #}
   <div class="brand">
     <span class="brand-logo-box"><img src="{% static 'portal/img/logo_muni.png' %}" alt="Municipalidad de La Serena" class="brand-logo"></span>
-    <span class="brand-tx">SGR</span>
+    <span class="brand-tx">SGR <small>· Gestión Municipal</small></span>
   </div>
-  <div class="ctx">
-    <span class="dpill" data-dc="{{ sgr_badge_dc }}" data-dm="{{ sgr_badge_dm }}">
-      <span class="dp-ic">{% sgr_icon 'building' 22 %}</span>
+  <div class="who">
+    <div class="deleg-switch" title="Delegación activa">
+      <span class="ds-ic">{% sgr_icon 'building' 18 %}</span>
       {% if sgr_can_switch_delegation %}
       <form method="post" action="{% url 'switch_delegation' %}" id="ctxForm">
         {% csrf_token %}
         <label class="sr" for="ctxSel">Delegación activa</label>
         <select id="ctxSel" name="delegation">
           {% if sgr_role.scope == 'all' %}
-          <option value="ALL"{% if sgr_active_is_all %} selected{% endif %}>Todas las delegaciones</option>
+          <option value="ALL"{% if sgr_active_is_all %} selected{% endif %}>Todas</option>
           {% endif %}
           {% for delegation in sgr_allowed_delegations %}
-          <option value="{{ delegation.pk }}"{% if not sgr_active_is_all and sgr_active_delegation.pk == delegation.pk %} selected{% endif %}>{{ delegation.code }} | Delegación {{ delegation.name }}</option>
+          <option value="{{ delegation.pk }}"{% if not sgr_active_is_all and sgr_active_delegation.pk == delegation.pk %} selected{% endif %}>{{ delegation.code }}</option>
           {% endfor %}
         </select>
       </form>
+      <svg class="ds-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
       {% else %}
-      <span class="dp-tx">{{ sgr_active_name }}</span>
-      <span class="dp-lock" title="Asignada por tu perfil">{% sgr_icon 'lock' 14 %}</span>
+      <span class="ds-tx">{% if sgr_active_is_all %}Todas{% else %}{{ sgr_active_code|default:'—' }}{% endif %}</span>
+      <span class="ds-lock" title="Asignada por tu perfil">{% sgr_icon 'lock' 14 %}</span>
       {% endif %}
-    </span>
-  </div>
-  <div class="who">
-    <span class="who-tx"><strong>{{ sgr_display_name }}</strong><span class="role-txt">{{ sgr_role.name }}</span></span>
-    <span class="avatar" aria-hidden="true">{{ sgr_initials }}</span>
-    <form method="post" action="{% url 'logout' %}" id="logoutForm">
-      {% csrf_token %}
-      <button class="out" type="submit" title="Cerrar sesión" aria-label="Cerrar sesión">{% sgr_icon 'out' 18 %}<span class="out-tx">Salir</span></button>
-    </form>
+    </div>
+    <button type="button" class="user-trigger" id="userMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="userDropdown">
+      <span class="who-tx"><strong>{{ sgr_display_name }}</strong><span class="role-txt">{{ sgr_role.name }}</span></span>
+      <span class="avatar" aria-hidden="true">{{ sgr_initials }}</span>
+      <svg class="user-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="user-dropdown" id="userDropdown" hidden>
+      <button type="button" class="user-dropdown-item" id="openProfileModalBtn">{% sgr_icon 'pencil' 16 %}<span>Editar perfil</span></button>
+      <form method="post" action="{% url 'logout' %}" id="logoutForm">
+        {% csrf_token %}
+        <button type="submit" class="user-dropdown-item danger">{% sgr_icon 'out' 16 %}<span>Salir</span></button>
+      </form>
+    </div>
   </div>
 </header>
 <div class="shell">
@@ -67,14 +72,8 @@
 </div>
 <div id="toasts" role="status" aria-live="polite"></div>
 {{ sgr_messages|json_script:"sgr-messages-data" }}
-<script src="{% static 'portal/js/sgr.js' %}"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    var badge = document.querySelector('.dpill');
-    if (badge) {
-      badge.style.setProperty('--dc', badge.dataset.dc);
-      badge.style.setProperty('--dm', badge.dataset.dm);
-    }
     var node = document.getElementById('sgr-messages-data');
     var data = [];
     try { data = JSON.parse(node.textContent || node.innerText || '[]'); } catch (e) { data = []; }
@@ -93,6 +92,107 @@
     });
   });
 </script>
+<div class="pmodal-backdrop" id="profileModal" hidden>
+  <div class="pmodal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="pmodal-head">
+      <span class="pmodal-avatar" aria-hidden="true">{{ sgr_initials }}</span>
+      <div class="pmodal-id">
+        <h2 id="profileModalTitle">{{ sgr_profile.full_name }}</h2>
+        <p>{{ sgr_profile.email }}</p>
+        <span class="pmodal-badge">{{ sgr_profile.role_name }}</span>
+      </div>
+      <button type="button" class="pmodal-close" id="closeProfileModalBtn" aria-label="Cerrar">{% sgr_icon 'x' 20 %}</button>
+    </div>
+
+    <div class="pmodal-tabs" role="tablist">
+      <button type="button" class="pmodal-tab active" id="tabContactBtn" role="tab" aria-selected="true" aria-controls="panel-contact">Datos y contacto</button>
+      <button type="button" class="pmodal-tab" id="tabSecurityBtn" role="tab" aria-selected="false" aria-controls="panel-security">Seguridad (Contraseña)</button>
+    </div>
+
+    <div class="pmodal-body">
+      <section class="pmodal-panel" id="panel-contact" role="tabpanel" aria-labelledby="tabContactBtn">
+        <div class="pmodal-info-grid">
+          <div><span class="pi-label">RUT</span><span class="pi-value">{{ sgr_profile.rut }}</span></div>
+          <div><span class="pi-label">Rol</span><span class="pi-value">{{ sgr_profile.role_name }}</span></div>
+          <div><span class="pi-label">Alcance</span><span class="pi-value">{{ sgr_profile.scope_label }}</span></div>
+          <div><span class="pi-label">Delegación</span><span class="pi-value">{{ sgr_profile.base_delegation }}</span></div>
+        </div>
+        <form method="post" action="{% url 'profile' %}" class="pmodal-form" id="contactForm" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_contact">
+          <div class="pmodal-grid">
+            <div>
+              <label class="fl" for="pf_first_name">Nombre</label>
+              <input class="in" type="text" name="first_name" id="pf_first_name" value="{{ sgr_profile.first_name }}" maxlength="150">
+              <div class="pf-err" id="first_name-e" aria-live="polite"></div>
+            </div>
+            <div>
+              <label class="fl" for="pf_last_name">Apellido</label>
+              <input class="in" type="text" name="last_name" id="pf_last_name" value="{{ sgr_profile.last_name }}" maxlength="150">
+              <div class="pf-err" id="last_name-e" aria-live="polite"></div>
+            </div>
+            <div>
+              <label class="fl" for="pf_phone">Teléfono</label>
+              <input class="in" type="text" name="phone" id="pf_phone" value="{{ sgr_profile.phone }}" maxlength="20">
+              <div class="pf-err" id="phone-e" aria-live="polite"></div>
+            </div>
+            <div>
+              <label class="fl" for="pf_address">Dirección</label>
+              <input class="in" type="text" name="address" id="pf_address" value="{{ sgr_profile.address }}" maxlength="255">
+              <div class="pf-err" id="address-e" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="formfoot">
+            <button class="btn primary" type="submit" id="saveContactBtn">Guardar cambios</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="pmodal-panel" id="panel-security" role="tabpanel" aria-labelledby="tabSecurityBtn" hidden>
+        <form method="post" action="{% url 'profile' %}" class="pmodal-form" id="passwordForm" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="change_password">
+          <div class="pmodal-grid">
+            <div class="full">
+              <label class="fl" for="pf_current_password">Contraseña actual</label>
+              <div class="pwrow">
+                <input class="in" type="password" name="current_password" id="pf_current_password" autocomplete="current-password" required>
+                <button type="button" data-toggle="pf_current_password" aria-pressed="false">Mostrar</button>
+              </div>
+              <div class="pf-err" id="current_password-e" aria-live="polite"></div>
+            </div>
+            <div>
+              <label class="fl" for="pf_new_password">Nueva contraseña</label>
+              <div class="pwrow">
+                <input class="in" type="password" name="new_password" id="pf_new_password" autocomplete="new-password" required>
+                <button type="button" data-toggle="pf_new_password" aria-pressed="false">Mostrar</button>
+              </div>
+              <div class="pf-err" id="new_password-e" aria-live="polite"></div>
+            </div>
+            <div>
+              <label class="fl" for="pf_confirm_password">Confirmar contraseña</label>
+              <div class="pwrow">
+                <input class="in" type="password" name="confirm_password" id="pf_confirm_password" autocomplete="new-password" required>
+                <button type="button" data-toggle="pf_confirm_password" aria-pressed="false">Mostrar</button>
+              </div>
+              <div class="pf-err" id="confirm_password-e" aria-live="polite"></div>
+            </div>
+          </div>
+          <ul class="pmodal-reqs" id="pf-reqs" aria-live="polite">
+            <li id="pf-req-len" data-ok="false">Mínimo 8 caracteres</li>
+            <li id="pf-req-upper" data-ok="false">Al menos una mayúscula</li>
+            <li id="pf-req-lower" data-ok="false">Al menos una minúscula</li>
+            <li id="pf-req-digit" data-ok="false">Al menos un número</li>
+          </ul>
+          <div class="formfoot">
+            <button class="btn primary" type="submit" id="savePwdBtn">Actualizar contraseña</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+<script src="{% static 'portal/js/sgr.js' %}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

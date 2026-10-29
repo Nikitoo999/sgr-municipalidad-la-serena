@@ -77,3 +77,49 @@ class HomeTests(TestCase):
             resp = self.client.get("/no-existe-xyz/")
             self.assertEqual(resp.status_code, 404)
             self.assertContains(resp, "No encontramos esta página", status_code=404)
+
+    def test_perfil_anonimo_redirige_a_login(self):
+        resp = self.client.get(reverse("profile"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("login"), resp["Location"])
+
+    def test_perfil_ver_datos_y_actualizar_contacto(self):
+        self.client.login(username="funcionario", password="Demo2026!")
+        resp = self.client.get(reverse("profile"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "33.333.333-3")
+        self.assertContains(resp, "Funcionario")
+
+        resp = self.client.post(reverse("profile"), {
+            "action": "update_contact",
+            "first_name": "Juan",
+            "last_name": "Pérez",
+            "phone": "+56 9 1111 2222",
+            "address": "Calle Falsa 123",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("profile"), resp["Location"])
+
+        self.funcionario_user.refresh_from_db()
+        self.assertEqual(self.funcionario_user.first_name, "Juan")
+        self.assertEqual(self.funcionario_user.last_name, "Pérez")
+        employee = Employee.objects.get(user=self.funcionario_user)
+        self.assertEqual(employee.phone, "+56 9 1111 2222")
+        self.assertEqual(employee.address, "Calle Falsa 123")
+
+    def test_perfil_cambiar_contrasena(self):
+        self.client.login(username="funcionario", password="Demo2026!")
+        resp = self.client.post(reverse("profile"), {
+            "action": "change_password",
+            "current_password": "Demo2026!",
+            "new_password": "NuevaClave2026!",
+            "confirm_password": "NuevaClave2026!",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("profile"), resp["Location"])
+
+        self.funcionario_user.refresh_from_db()
+        self.assertTrue(self.funcionario_user.check_password("NuevaClave2026!"))
+
+        # La sesión se mantiene activa tras actualizar la clave.
+        self.assertEqual(self.client.get(reverse("profile")).status_code, 200)
