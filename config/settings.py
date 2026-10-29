@@ -30,7 +30,6 @@ INSTALLED_APPS = [
     'sgr_core.apps.SgrCoreConfig',
     'operaciones.apps.OperacionesConfig',
     'portal.apps.PortalConfig',
-    'anymail',
 ]
 
 MIDDLEWARE = [
@@ -124,20 +123,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- Email ---------------------------------------------------------------
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@sgr.municipalidadla-serena.cl')
-
-# Mailtrap Sending API (requiere django-anymail). El token se lee desde el .env
-# local; nunca se hardcodea ni se sube a GitHub. Si EMAIL_BACKEND es
-# anymail.backends.mailtrap.EmailBackend y no hay token, Anymail fallará al
-# intentar enviar (el error queda en el log del servidor).
-ANYMAIL = {
-    'MAILTRAP_API_TOKEN': os.getenv('MAILTRAP_API_TOKEN', ''),
-}
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@sgr.municipalidadla-serena.cl')
 
 # --- Autenticación --------------------------------------------------------
 AUTHENTICATION_BACKENDS = [
