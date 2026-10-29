@@ -5,8 +5,9 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login as auth_login, logout as auth_logout
+from django.contrib.auth import login as auth_login, logout as auth_logout, update_session_auth_hash
 from django.contrib.auth.hashers import check_password
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.password_validation import validate_password
@@ -144,6 +145,8 @@ class PortalLoginView(LoginView):
         cache_key = self._cache_key(self.request.POST.get('username', ''))
         cache.delete(cache_key)
         auth_login(self.request, user)
+        if hasattr(user, 'employee') and user.employee.must_change_password:
+            return redirect('first_login_password_change')
         return redirect(self.get_success_url())
 
     def form_invalid(self, form):
@@ -199,6 +202,63 @@ class PortalLogoutView(LogoutView):
     def post(self, request, *args, **kwargs):
         auth_logout(request)
         return redirect(self.next_page)
+
+
+# ============================================================
+# CAMBIO DE CONTRASEÑA OBLIGATORIO EN EL PRIMER INGRESO
+# ============================================================
+
+class FirstLoginPasswordChangeView(LoginRequiredMixin, TemplateView):
+    template_name = 'portal/first_login_password.html'
+
+    def get(self, request, *args, **kwargs):
+        if not self._must_change(request.user):
+            return redirect('dashboard')
+        return render(request, self.template_name, {})
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if not self._must_change(user):
+            return redirect('dashboard')
+
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        errors = {}
+        if not new_password:
+            errors['new_password'] = 'Ingresa una nueva contraseña.'
+        elif len(new_password) < 8:
+            errors['new_password'] = 'La contraseña debe tener al menos 8 caracteres.'
+        elif not any(c.isupper() for c in new_password):
+            errors['new_password'] = 'La contraseña debe tener al menos una mayúscula.'
+        elif not any(c.islower() for c in new_password):
+            errors['new_password'] = 'La contraseña debe tener al menos una minúscula.'
+        elif not any(c.isdigit() for c in new_password):
+            errors['new_password'] = 'La contraseña debe tener al menos un número.'
+        elif user.check_password(new_password):
+            errors['new_password'] = 'La nueva contraseña no puede ser igual a la provisoria.'
+        if new_password != confirm_password:
+            errors['confirm_password'] = 'Las contraseñas no coinciden.'
+        if not errors:
+            try:
+                validate_password(new_password, user)
+            except DjangoValidationError as e:
+                errors['new_password'] = ' '.join(e.messages)
+        if errors:
+            return render(request, self.template_name, {'errors': errors})
+
+        user.set_password(new_password)
+        user.save()
+        update_session_auth_hash(request, user)
+        employee = getattr(user, 'employee', None)
+        if employee is not None:
+            employee.must_change_password = False
+            employee.save(update_fields=['must_change_password'])
+        messages.success(request, 'Contraseña actualizada correctamente.')
+        return redirect('dashboard')
+
+    def _must_change(self, user):
+        return hasattr(user, 'employee') and user.employee.must_change_password
 
 
 # ============================================================

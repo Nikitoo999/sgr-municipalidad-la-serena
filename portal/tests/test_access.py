@@ -547,7 +547,7 @@ class LegacyRoleDataMigrationTests(TransactionTestCase):
     """Aplica la migración sobre datos de ejemplo con el esquema viejo."""
 
     migrate_from = [('operaciones', '0003_employee_role_task_assigned_to')]
-    migrate_to = [('operaciones', '0006_employee_role_final')]
+    migrate_to = [('operaciones', '0009_employee_must_change_password')]
 
     def tearDown(self):
         # Siempre dejar la base en el estado más reciente.

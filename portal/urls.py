@@ -7,6 +7,7 @@ from .modules import MODULE_ORDER
 from .views import (
     PortalLoginView,
     PortalLogoutView,
+    FirstLoginPasswordChangeView,
     PasswordResetRequestView,
     PasswordResetVerifyView,
     PasswordResetResendView,
@@ -35,6 +36,7 @@ urlpatterns = [
     path('inicio/', HomeView.as_view(), name='home'),
     path('delegacion-activa/', SwitchDelegationView.as_view(), name='switch_delegation'),
     path('dashboard/', RedirectView.as_view(pattern_name='home', permanent=False), name='dashboard'),
+    path('cambiar-clave-inicial/', FirstLoginPasswordChangeView.as_view(), name='first_login_password_change'),
     path('recuperar/', PasswordResetRequestView.as_view(), name='password_reset_request'),
     path('recuperar/verificar/', PasswordResetVerifyView.as_view(), name='password_reset_verify'),
     path('recuperar/reenviar/', PasswordResetResendView.as_view(), name='password_reset_resend'),

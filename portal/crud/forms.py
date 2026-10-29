@@ -1,9 +1,14 @@
 """Formularios del CRUD (Parte 4: Delegaciones; Parte 5: Roles y Usuarios)."""
 
+import logging
+import secrets
+
 from django import forms
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.mail import send_mail
 from django.core.validators import RegexValidator
 from django.db import transaction
 
@@ -28,6 +33,8 @@ from ..access import (
 from sgr_core.roles import SCOPE_RANKS
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 HEX_COLOR = RegexValidator(
     regex=r"^#[0-9A-Fa-f]{6}$",
@@ -399,6 +406,7 @@ class UserForm(CrudModelForm):
     # ---- Contraseña: solo al crear ----------------------------------
     password1 = forms.CharField(
         label="Contraseña inicial", required=False, strip=False,
+        help_text="Si la dejas en blanco, se generará automáticamente una contraseña provisoria segura y se enviará por correo al funcionario.",
         widget=forms.PasswordInput(
             attrs={"class": "in", "autocomplete": "new-password"}),
     )
@@ -649,7 +657,10 @@ class UserForm(CrudModelForm):
         # Contraseña inicial y confirmación solo al crear.
         password1 = cleaned.get("password1")
         password2 = cleaned.get("password2")
-        if not password1:
+        if not password1 and not password2:
+            # Sin clave escrita: se genera una provisoria segura y se envía por correo.
+            cleaned["generated_password"] = f"Sgr{secrets.token_urlsafe(6)}9!"
+        elif not password1:
             self.add_error("password1", "Ingresa la contraseña inicial.")
         elif password1 != password2:
             self.add_error("password2", "Las contraseñas no coinciden.")
@@ -688,6 +699,8 @@ class UserForm(CrudModelForm):
             else:
                 base = self._delegation_by_pk(chosen[0])
                 employee.delegation = base
+            if not self.editing:
+                employee.must_change_password = True
             employee.save()
 
             if role.scope == "authorized":
@@ -703,6 +716,10 @@ class UserForm(CrudModelForm):
 
             user.is_active = self.cleaned_data.get("status") == "Activo"
             user.save(update_fields=["is_active"])
+
+        if not self.editing:
+            self._send_provisional_credentials(user)
+
         return employee
 
     def _save_user(self):
@@ -720,13 +737,29 @@ class UserForm(CrudModelForm):
             user.save(update_fields=["email", "first_name", "last_name"])
             return user
 
+        password = self.cleaned_data.get("password1") or self.cleaned_data.get("generated_password")
         user = User.objects.create_user(
             username=email.lower(), email=email,
             first_name=first_name, last_name=last_name,
         )
-        user.set_password(self.cleaned_data.get("password1"))
+        user.set_password(password)
         user.save(update_fields=["password"])
         return user
+
+    def _send_provisional_credentials(self, user):
+        """Envía por correo la contraseña provisoria del usuario nuevo."""
+        password = self.cleaned_data.get("password1") or self.cleaned_data.get("generated_password")
+        subject = 'Credenciales de acceso - Sistema Municipal'
+        message = (
+            f'Se ha creado tu cuenta en el Sistema de Gestión de Reclamos (SGR).\n\n'
+            f'Usuario: {user.email}\n'
+            f'Contraseña provisoria: {password}\n\n'
+            f'Deberás cambiarla en tu primer ingreso.\n'
+        )
+        try:
+            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
+        except Exception as exc:
+            logger.error(f'Error enviando contraseña provisoria a {user.email}: {exc}')
 
     def _delegation_by_pk(self, pk):
         """Delegación administrable por pk (o la primera como respaldo)."""

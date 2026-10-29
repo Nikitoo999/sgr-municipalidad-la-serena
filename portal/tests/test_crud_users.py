@@ -8,6 +8,7 @@ propio operador, exportacion con columnas configuradas y 403/404 con AuditLog.
 
 import io
 
+from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -210,4 +211,49 @@ class CrudUsersTestCase(TestCase):
         self.assertEqual(sheet.max_row - 1, Employee.alive.count())
         texts = [str(cell.value or "") for row in sheet.iter_rows(min_row=2) for cell in row]
         self.assertTrue(any("DEL01" in text for text in texts))
+
+    def test_crear_sin_clave_genera_provisoria_y_envia_correo(self):
+        self._login("superadmin")
+        data = self._create_post()
+        data["password1"] = ""
+        data["password2"] = ""
+        resp = self.client.post(reverse("users_new"), data)
+        self.assertEqual(resp.status_code, 302)
+        created = Employee.alive.get(rut="12.345.678-5")
+        self.assertTrue(created.must_change_password)
+        self.assertTrue(created.user.has_usable_password())
+        self.assertGreaterEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[-1].to, ["nora.paredes@ejemplo.cl"])
+        self.assertIn("nora.paredes@ejemplo.cl", mail.outbox[-1].body)
+        self.assertIn("Contraseña provisoria", mail.outbox[-1].body)
+
+    def test_login_con_must_change_redirige_a_cambiar_clave(self):
+        candidato = make_employee(
+            "candidato", "22.222.222-2", self.d1, self.roles["ROL04"],
+        )
+        candidato.must_change_password = True
+        candidato.save(update_fields=["must_change_password"])
+        resp = self.client.post(
+            reverse("login"),
+            {"username": "candidato", "password": DEMO_PASSWORD},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("first_login_password_change"), resp["Location"])
+
+    def test_cambio_clave_inicial_limpia_flag_y_redirige(self):
+        candidato = make_employee(
+            "candidato", "33.333.333-3", self.d1, self.roles["ROL04"],
+        )
+        candidato.must_change_password = True
+        candidato.save(update_fields=["must_change_password"])
+        self._login("candidato")
+        resp = self.client.post(
+            reverse("first_login_password_change"),
+            {"new_password": "NuevaClave2026!", "confirm_password": "NuevaClave2026!"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("dashboard"), resp["Location"])
+        candidato.refresh_from_db()
+        self.assertFalse(candidato.must_change_password)
+        self.assertTrue(candidato.user.check_password("NuevaClave2026!"))
 

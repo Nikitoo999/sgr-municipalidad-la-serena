@@ -71,6 +71,7 @@ class Employee(BaseModel):
     delegation = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name='employees', verbose_name="Delegación Asignada")
     role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name='employees', verbose_name="Rol")
     authorized_delegations = models.ManyToManyField(Delegation, blank=True, related_name='authorized_employees', verbose_name="Delegaciones autorizadas")
+    must_change_password = models.BooleanField(default=False, verbose_name="Debe cambiar contraseña al ingresar")
 
     class Meta:
         verbose_name = "Funcionario"
