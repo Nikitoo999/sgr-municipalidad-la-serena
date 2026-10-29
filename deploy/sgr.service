@@ -1,5 +1,5 @@
 [Unit]
-Description=SGR Municipalidad de La Serena (gunicorn)
+Description=SGR Municipalidad de La Serena (daphne)
 After=network.target mariadb.service
 
 [Service]
