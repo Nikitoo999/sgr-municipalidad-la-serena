@@ -10,7 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.1/dist/sweetalert2.all.min.js"></script>
 {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body data-module="{{ active_module|default:'' }}" data-delegation="{{ sgr_active_code }}">
 <a class="skip" href="#main">Saltar al contenido</a>
 <header class="top">
   <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="side">{% sgr_icon 'menu' 22 %}</button>
@@ -190,6 +190,22 @@
         </form>
       </section>
     </div>
+  </div>
+</div>
+<div class="chat-widget" id="chatWidget">
+  <button type="button" class="chat-fab" id="chatFab" aria-expanded="false" aria-controls="chatPanel" title="Chat de la delegación">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  </button>
+  <div class="chat-panel" id="chatPanel" hidden>
+    <div class="chat-head">
+      <span class="chat-title">Chat · {{ sgr_active_name }}</span>
+      <button type="button" class="chat-close" id="chatCloseBtn" aria-label="Cerrar chat">{% sgr_icon 'x' 18 %}</button>
+    </div>
+    <div class="chat-body" id="chatMessages" aria-live="polite"></div>
+    <form class="chat-form" id="chatForm" autocomplete="off">
+      <input class="in" type="text" id="chatInput" placeholder="Escribe un mensaje…" maxlength="500" aria-label="Mensaje">
+      <button class="btn primary" type="submit">Enviar</button>
+    </form>
   </div>
 </div>
 <script src="{% static 'portal/js/sgr.js' %}"></script>

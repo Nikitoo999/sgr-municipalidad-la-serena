@@ -12,6 +12,8 @@ descripción con contador, estado editable solo al editar).
 from datetime import date, datetime, time, timedelta
 from urllib.parse import urlencode
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
@@ -582,6 +584,20 @@ class AttentionCreateView(_AttentionFormContext, CrudCreateView):
         obj = form.save(commit=False)
         obj.responsible = self.request.user
         obj.save()
+        # Tiempo real (Clase 11): avisa a los clientes conectados por WebSocket.
+        channel_layer = get_channel_layer()
+        if channel_layer is not None:
+            payload = {
+                "type": "attention_created",
+                "number": obj.number,
+                "solicitante": obj.solicitante_name,
+                "fecha": obj.created_at_display,
+                "delegation": obj.delegation.code,
+            }
+            async_to_sync(channel_layer.group_send)(
+                f"atenciones_{obj.delegation.code}", payload
+            )
+            async_to_sync(channel_layer.group_send)("atenciones_ALL", payload)
         audit(
             self.request, "create", module="attentions",
             object_repr=str(obj), detail=f"Creado por {self.request.user}",

@@ -227,4 +227,94 @@
     closeModal();
     Swal.fire({ icon: 'success', title: 'Contraseña actualizada', text: data.message || '', confirmButtonColor: '#920000' });
   });
+
+  // ---- Chat de la delegación (WebSocket) ----
+  var chatFab = document.getElementById('chatFab');
+  var chatPanel = document.getElementById('chatPanel');
+  var chatCloseBtn = document.getElementById('chatCloseBtn');
+  var chatForm = document.getElementById('chatForm');
+  var chatInput = document.getElementById('chatInput');
+  var chatMessages = document.getElementById('chatMessages');
+  var delegation = document.body.dataset.delegation || 'ALL';
+  var chatSocket = null;
+
+  function wsUrl(path) {
+    var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    return proto + '://' + location.host + path;
+  }
+
+  function ensureChatSocket() {
+    if (chatSocket && (chatSocket.readyState === WebSocket.CONNECTING || chatSocket.readyState === WebSocket.OPEN)) {
+      return;
+    }
+    chatSocket = new WebSocket(wsUrl('/ws/chat/' + encodeURIComponent(delegation) + '/'));
+    chatSocket.onmessage = function (e) {
+      var data;
+      try { data = JSON.parse(e.data); } catch (err) { return; }
+      appendChatMessage(data.user, data.message, data.timestamp);
+    };
+  }
+
+  function appendChatMessage(user, message, timestamp) {
+    if (!chatMessages) return;
+    var row = document.createElement('div');
+    row.className = 'chat-msg';
+    var meta = document.createElement('div');
+    meta.className = 'chat-meta';
+    meta.textContent = (user ? user + ' · ' : '') + (timestamp || '');
+    var body = document.createElement('div');
+    body.className = 'chat-text';
+    body.textContent = message;
+    row.appendChild(meta);
+    row.appendChild(body);
+    chatMessages.appendChild(row);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  if (chatFab && chatPanel && chatCloseBtn) {
+    chatFab.addEventListener('click', function () {
+      var opening = chatPanel.hidden;
+      chatPanel.hidden = !opening;
+      chatFab.setAttribute('aria-expanded', opening ? 'true' : 'false');
+      if (opening) ensureChatSocket();
+    });
+    chatCloseBtn.addEventListener('click', function () {
+      chatPanel.hidden = true;
+      chatFab.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  if (chatForm && chatInput) {
+    chatForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var msg = chatInput.value.trim();
+      if (!msg) return;
+      ensureChatSocket();
+      if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+        chatSocket.send(JSON.stringify({ message: msg }));
+        chatInput.value = '';
+      }
+    });
+  }
+
+  // ---- Aviso en vivo de nuevas atenciones (WebSocket) ----
+  if (document.body.dataset.module === 'attentions') {
+    var attSocket = new WebSocket(wsUrl('/ws/atenciones/' + encodeURIComponent(delegation) + '/'));
+    attSocket.onmessage = function (e) {
+      var data;
+      try { data = JSON.parse(e.data); } catch (err) { return; }
+      if (data.type === 'attention_created') {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: 'Nueva atención ' + (data.number || ''),
+          text: (data.solicitante || '') + (data.fecha ? ' · ' + data.fecha : ''),
+          showConfirmButton: false,
+          timer: 6000,
+          timerProgressBar: true
+        });
+      }
+    };
+  }
 })();
