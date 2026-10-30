@@ -64,5 +64,11 @@ class AttentionLiveConsumer(AsyncJsonWebsocketConsumer):
             'number': event.get('number', ''),
             'solicitante': event.get('solicitante', ''),
             'fecha': event.get('fecha', ''),
+            'tipo': event.get('tipo', ''),
+            'subtipo': event.get('subtipo', ''),
             'delegation': event.get('delegation', ''),
+            'delegation_color': event.get('delegation_color', ''),
+            'responsable': event.get('responsable', ''),
+            'estado': event.get('estado', ''),
+            'action': event.get('action', ''),
         })

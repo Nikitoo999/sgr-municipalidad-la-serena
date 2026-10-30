@@ -307,6 +307,20 @@
       .replace(/'/g, '&#39;');
   }
 
+  function statusBadge(estado) {
+    var cls = 'b-off';
+    if (estado === 'Ingresada') cls = 'b-info';
+    else if (estado === 'En gestión') cls = 'b-warn';
+    else if (estado === 'Resuelta') cls = 'b-ok';
+    return '<span class="badge ' + cls + '">' + escHtml(estado) + '</span>';
+  }
+
+  function delegationChip(code, color) {
+    return '<span class="chip" title="' + escHtml(code) + '">' +
+      '<svg class="sq" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" fill="' + escHtml(color || '#920000') + '"/></svg>' +
+      escHtml(code) + '</span>';
+  }
+
   function attentionRowHtml(data) {
     var eye = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
     var detailUrl = '/atenciones/' + escHtml(data.id || '') + '/';
@@ -314,11 +328,11 @@
       '<td>' + escHtml(data.number) + '</td>' +
       '<td>' + escHtml(data.fecha) + '</td>' +
       '<td>' + escHtml(data.solicitante) + '</td>' +
-      '<td>—</td>' +
-      '<td>—</td>' +
-      '<td><span class="chip">' + escHtml(data.delegation) + '</span></td>' +
-      '<td>—</td>' +
-      '<td><span class="badge b-info">Ingresada</span></td>' +
+      '<td>' + escHtml(data.tipo) + '</td>' +
+      '<td>' + escHtml(data.subtipo) + '</td>' +
+      '<td>' + delegationChip(data.delegation, data.delegation_color) + '</td>' +
+      '<td>' + escHtml(data.responsable) + '</td>' +
+      '<td>' + statusBadge(data.estado) + '</td>' +
       '<td><div class="acts"><a class="ib v" href="' + detailUrl + '" data-tip="Ver detalle" aria-label="Ver detalle de la atención">' + eye + '</a></div></td>';
     return '<tr>' + cells + '</tr>';
   }
@@ -327,24 +341,40 @@
     var tbody = document.querySelector('table tbody');
     if (tbody) {
       tbody.insertAdjacentHTML('afterbegin', attentionRowHtml(data));
-      return;
     }
-    // Lista vacía: ocultar "Aún no hay registros" y crear la tabla.
-    var state = document.querySelector('.state');
-    if (state) {
-      state.hidden = true;
+  }
+
+  function rowIsVisible(number) {
+    var tbody = document.querySelector('table tbody');
+    if (!tbody) return false;
+    var rows = tbody.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      var first = rows[i].querySelector('td');
+      if (first && first.textContent.trim() === String(number)) {
+        return true;
+      }
     }
-    var headers = ['N°', 'Fecha y hora', 'Solicitante', 'Tipo', 'Sub atención', 'Delegación', 'Responsable', 'Estado', 'Acciones'];
-    var thead = '<thead><tr>' + headers.map(function (h) { return '<th scope="col">' + h + '</th>'; }).join('') + '</tr></thead>';
-    var wrap = document.createElement('div');
-    wrap.className = 'tablewrap';
-    wrap.innerHTML = '<table>' + thead + '<tbody>' + attentionRowHtml(data) + '</tbody></table>';
-    if (state && state.parentNode) {
-      state.parentNode.insertBefore(wrap, state);
-    } else {
-      var main = document.querySelector('main');
-      if (main) main.appendChild(wrap);
-    }
+    return false;
+  }
+
+  function refreshLiveList(html) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    var main = document.querySelector('main');
+    if (!main) return;
+    var anchor = main.querySelector('#csrfHolder');
+    ['.tablewrap', '.pager', '.state'].forEach(function (sel) {
+      var current = main.querySelector(sel);
+      if (current) current.remove();
+    });
+    ['.tablewrap', '.pager', '.state'].forEach(function (sel) {
+      var fresh = doc.querySelector(sel);
+      if (!fresh) return;
+      if (anchor) {
+        main.insertBefore(fresh, anchor);
+      } else {
+        main.appendChild(fresh);
+      }
+    });
   }
 
   var isAttentionsList = (
@@ -373,20 +403,38 @@
     attSocket.onmessage = function (e) {
       var data;
       try { data = JSON.parse(e.data); } catch (err) { return; }
-      console.log('[SGR WS] Nueva atención recibida:', data);
+      console.log('[SGR WS] Evento recibido:', data);
       if (data.type !== 'attention_created') return;
+
+      var isCreated = data.action !== 'updated';
+      var toastTitle = isCreated
+        ? 'Nueva atención ingresada: ' + (data.number || '')
+        : 'Atención actualizada: ' + (data.number || '');
 
       Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'info',
-        title: 'Nueva atención ingresada: ' + (data.number || ''),
+        title: toastTitle,
         showConfirmButton: false,
         timer: 6000,
         timerProgressBar: true
       });
 
-      prependAttentionRow(data);
+      fetch(window.location.href, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+      })
+        .then(function (resp) { return resp.text(); })
+        .then(function (html) {
+          refreshLiveList(html);
+          if (isCreated && !rowIsVisible(data.number)) {
+            prependAttentionRow(data);
+          }
+        })
+        .catch(function (err) {
+          console.error('[SGR WS] Error al refrescar la lista:', err);
+        });
     };
   }
 })();
