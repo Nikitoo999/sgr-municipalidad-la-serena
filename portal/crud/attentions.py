@@ -572,6 +572,29 @@ class AttentionListView(CrudListView):
         return context
 
 
+def _broadcast_attention(obj, action="created"):
+    """Emite en vivo la creación/edición de una atención a su delegación y a ALL."""
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+    payload = {
+        "type": "attention_created",
+        "id": obj.pk,
+        "number": obj.number,
+        "solicitante": obj.solicitante_name,
+        "fecha": obj.created_at_display,
+        "tipo": obj.type_name,
+        "subtipo": obj.subtype_name,
+        "delegation": obj.delegation.code,
+        "delegation_color": obj.delegation.color or "#920000",
+        "responsable": obj.responsible_name,
+        "estado": obj.status_display,
+        "action": action,
+    }
+    async_to_sync(channel_layer.group_send)(f"atenciones_{obj.delegation.code}", payload)
+    async_to_sync(channel_layer.group_send)("atenciones_ALL", payload)
+
+
 class AttentionCreateView(_AttentionFormContext, CrudCreateView):
     """Ingreso de atención: responsable = usuario de sesión, N° automático."""
 
@@ -584,20 +607,7 @@ class AttentionCreateView(_AttentionFormContext, CrudCreateView):
         obj = form.save(commit=False)
         obj.responsible = self.request.user
         obj.save()
-        # Tiempo real (Clase 11): avisa a los clientes conectados por WebSocket.
-        channel_layer = get_channel_layer()
-        if channel_layer is not None:
-            payload = {
-                "type": "attention_created",
-                "number": obj.number,
-                "solicitante": obj.solicitante_name,
-                "fecha": obj.created_at_display,
-                "delegation": obj.delegation.code,
-            }
-            async_to_sync(channel_layer.group_send)(
-                f"atenciones_{obj.delegation.code}", payload
-            )
-            async_to_sync(channel_layer.group_send)("atenciones_ALL", payload)
+        _broadcast_attention(obj, "created")
         audit(
             self.request, "create", module="attentions",
             object_repr=str(obj), detail=f"Creado por {self.request.user}",
@@ -623,6 +633,7 @@ class AttentionUpdateView(_AttentionFormContext, CrudUpdateView):
 
     def form_valid(self, form):
         obj = form.save()
+        _broadcast_attention(obj, "updated")
         audit(
             self.request, "edit", module="attentions",
             object_repr=str(obj), detail=f"Editado por {self.request.user}",
