@@ -10,7 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.1/dist/sweetalert2.all.min.js"></script>
 {% block extra_head %}{% endblock %}
 </head>
-<body data-module="{{ active_module|default:'' }}" data-delegation="{{ sgr_active_code }}">
+<body data-module="{{ active_module|default:'home' }}" data-delegation="{{ sgr_active_code|default:'ALL' }}">
 <a class="skip" href="#main">Saltar al contenido</a>
 <header class="top">
   <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="side">{% sgr_icon 'menu' 22 %}</button>
@@ -208,7 +208,7 @@
     </form>
   </div>
 </div>
-<script src="{% static 'portal/js/sgr.js' %}"></script>
+<script src="{% static 'portal/js/sgr.js' %}?v=3"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

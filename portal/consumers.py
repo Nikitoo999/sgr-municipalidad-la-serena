@@ -60,6 +60,7 @@ class AttentionLiveConsumer(AsyncJsonWebsocketConsumer):
     async def attention_created(self, event):
         await self.send_json({
             'type': 'attention_created',
+            'id': event.get('id', ''),
             'number': event.get('number', ''),
             'solicitante': event.get('solicitante', ''),
             'fecha': event.get('fecha', ''),

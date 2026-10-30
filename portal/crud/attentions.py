@@ -589,6 +589,7 @@ class AttentionCreateView(_AttentionFormContext, CrudCreateView):
         if channel_layer is not None:
             payload = {
                 "type": "attention_created",
+                "id": obj.pk,
                 "number": obj.number,
                 "solicitante": obj.solicitante_name,
                 "fecha": obj.created_at_display,

@@ -298,23 +298,95 @@
   }
 
   // ---- Aviso en vivo de nuevas atenciones (WebSocket) ----
-  if (document.body.dataset.module === 'attentions') {
-    var attSocket = new WebSocket(wsUrl('/ws/atenciones/' + encodeURIComponent(delegation) + '/'));
+  function escHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function attentionRowHtml(data) {
+    var eye = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    var detailUrl = '/atenciones/' + escHtml(data.id || '') + '/';
+    var cells =
+      '<td>' + escHtml(data.number) + '</td>' +
+      '<td>' + escHtml(data.fecha) + '</td>' +
+      '<td>' + escHtml(data.solicitante) + '</td>' +
+      '<td>—</td>' +
+      '<td>—</td>' +
+      '<td><span class="chip">' + escHtml(data.delegation) + '</span></td>' +
+      '<td>—</td>' +
+      '<td><span class="badge b-info">Ingresada</span></td>' +
+      '<td><div class="acts"><a class="ib v" href="' + detailUrl + '" data-tip="Ver detalle" aria-label="Ver detalle de la atención">' + eye + '</a></div></td>';
+    return '<tr>' + cells + '</tr>';
+  }
+
+  function prependAttentionRow(data) {
+    var tbody = document.querySelector('table tbody');
+    if (tbody) {
+      tbody.insertAdjacentHTML('afterbegin', attentionRowHtml(data));
+      return;
+    }
+    // Lista vacía: ocultar "Aún no hay registros" y crear la tabla.
+    var state = document.querySelector('.state');
+    if (state) {
+      state.hidden = true;
+    }
+    var headers = ['N°', 'Fecha y hora', 'Solicitante', 'Tipo', 'Sub atención', 'Delegación', 'Responsable', 'Estado', 'Acciones'];
+    var thead = '<thead><tr>' + headers.map(function (h) { return '<th scope="col">' + h + '</th>'; }).join('') + '</tr></thead>';
+    var wrap = document.createElement('div');
+    wrap.className = 'tablewrap';
+    wrap.innerHTML = '<table>' + thead + '<tbody>' + attentionRowHtml(data) + '</tbody></table>';
+    if (state && state.parentNode) {
+      state.parentNode.insertBefore(wrap, state);
+    } else {
+      var main = document.querySelector('main');
+      if (main) main.appendChild(wrap);
+    }
+  }
+
+  var isAttentionsList = (
+    document.body.dataset.module === 'attenciones' ||
+    document.body.dataset.module === 'attentions' ||
+    window.location.pathname.indexOf('/atenciones') !== -1
+  );
+
+  if (isAttentionsList) {
+    console.log('[SGR WS] Inicializando WebSocket de atenciones...');
+    var wsScheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    var deleg = document.body.dataset.delegation || 'ALL';
+    var attWsUrl = wsScheme + window.location.host + '/ws/atenciones/' + deleg + '/';
+    console.log('[SGR WS] Conectando a:', attWsUrl);
+
+    var attSocket = new WebSocket(attWsUrl);
+
+    attSocket.onopen = function () {
+      console.log('[SGR WS] Conectado exitosamente.');
+    };
+
+    attSocket.onerror = function (err) {
+      console.error('[SGR WS] Error en WebSocket:', err);
+    };
+
     attSocket.onmessage = function (e) {
       var data;
       try { data = JSON.parse(e.data); } catch (err) { return; }
-      if (data.type === 'attention_created') {
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'info',
-          title: 'Nueva atención ' + (data.number || ''),
-          text: (data.solicitante || '') + (data.fecha ? ' · ' + data.fecha : ''),
-          showConfirmButton: false,
-          timer: 6000,
-          timerProgressBar: true
-        });
-      }
+      console.log('[SGR WS] Nueva atención recibida:', data);
+      if (data.type !== 'attention_created') return;
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Nueva atención ingresada: ' + (data.number || ''),
+        showConfirmButton: false,
+        timer: 6000,
+        timerProgressBar: true
+      });
+
+      prependAttentionRow(data);
     };
   }
 })();
