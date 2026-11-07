@@ -13,6 +13,7 @@ from .models import (
     ProjectItem,
     Role,
     RolePermission,
+    CommunityOrganization,
 )
 
 
@@ -143,4 +144,14 @@ class PositionItemGoalAdmin(admin.ModelAdmin):
     search_fields = ('position__name', 'item__name')
     list_select_related = ('position', 'item', 'period')
     ordering = ('position__code', 'item__code')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(CommunityOrganization)
+class CommunityOrganizationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'delegation', 'active_members', 'verified', 'status')
+    list_filter = ('category', 'delegation', 'verified', 'status')
+    search_fields = ('name', 'registry_number', 'legal_address')
+    list_select_related = ('delegation',)
+    ordering = ('name',)
     readonly_fields = ('created_at', 'updated_at')

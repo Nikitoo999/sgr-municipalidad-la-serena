@@ -275,3 +275,40 @@ class PositionItemGoal(BaseModel):
 
     def __str__(self):
         return f"{self.position.name} / {self.item.name} ({self.weight}%)"
+
+class CommunityOrganization(BaseModel):
+    """Organización comunitaria (juntas de vecinos y organizaciones funcionales)."""
+
+    class Category(models.TextChoices):
+        NEIGHBORHOOD = "neighborhood", "Junta de vecinos"
+        SENIOR = "senior", "Club de adulto mayor"
+        SPORTS = "sports", "Organización deportiva"
+        CULTURAL = "cultural", "Centro de madres / cultural / juvenil"
+        COMMITTEE = "committee", "Comité"
+        OTHER = "other", "Otra organización"
+
+    name = models.CharField(max_length=200, verbose_name="Nombre de la organización")
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER, verbose_name="Categoría")
+    legal_address = models.CharField(max_length=255, blank=True, default="", verbose_name="Domicilio legal")
+    territory = models.CharField(max_length=30, blank=True, default="", verbose_name="Territorio (según la base)")
+    delegation = models.ForeignKey(
+        Delegation, on_delete=models.RESTRICT, null=True, blank=True,
+        related_name="community_organizations", verbose_name="Delegación",
+    )
+    active_members = models.PositiveIntegerField(null=True, blank=True, verbose_name="Socios activos")
+    constitution_date = models.DateField(null=True, blank=True, verbose_name="Fecha de constitución")
+    registry_number = models.CharField(max_length=20, blank=True, default="", db_index=True, verbose_name="N° registro P.J.")
+    registry_date = models.DateField(null=True, blank=True, verbose_name="Fecha de inscripción en registro")
+    directive_number = models.CharField(max_length=20, blank=True, default="", verbose_name="N° registro de directiva")
+    verified = models.BooleanField(default=False, verbose_name="Verificada")
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+    notes = models.TextField(blank=True, default="", verbose_name="Observaciones de limpieza")
+
+    class Meta:
+        verbose_name = "Organización comunitaria"
+        verbose_name_plural = "Organizaciones comunitarias"
+        db_table = "organizacion_comunitaria"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
