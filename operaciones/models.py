@@ -8,6 +8,7 @@ from sgr_core.models import (
     AttentionType,
     BaseModel,
     InstitutionalGoal,
+    Position,
     Delegation,
     Role,
 )
@@ -70,6 +71,7 @@ class Employee(BaseModel):
     address = models.CharField(max_length=255, blank=True, default="", verbose_name="Dirección")
     delegation = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name='employees', verbose_name="Delegación Asignada")
     role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name='employees', verbose_name="Rol")
+    position = models.ForeignKey(Position, on_delete=models.PROTECT, null=True, blank=True,related_name="employees", verbose_name="Cargo",)
     authorized_delegations = models.ManyToManyField(Delegation, blank=True, related_name='authorized_employees', verbose_name="Delegaciones autorizadas")
     must_change_password = models.BooleanField(default=False, verbose_name="Debe cambiar contraseña al ingresar")
 

@@ -221,3 +221,23 @@ class AttentionSubtype(BaseModel):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class Position(BaseModel):
+    """Cargo de delegación según el descriptor de funciones 2026."""
+
+    code = models.CharField(max_length=8, unique=True, verbose_name="Código")
+    name = models.CharField(max_length=60, verbose_name="Nombre del cargo")
+    summary = models.TextField(blank=True, default="", verbose_name="Resumen del cargo")
+    functions = models.TextField(blank=True, default="", verbose_name="Descriptor de funciones")
+    is_evaluated = models.BooleanField(default=True, verbose_name="Se evalúa en la matriz")
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+
+    class Meta:
+        verbose_name = "Cargo"
+        verbose_name_plural = "Cargos"
+        db_table = "cargo"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"

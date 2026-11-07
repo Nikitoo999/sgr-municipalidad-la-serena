@@ -5,6 +5,7 @@ from .models import (
     AttentionType,
     Delegation,
     Period,
+    Position,
     InstitutionalGoal,
     Achievement,
     MeasurementItem,
@@ -121,5 +122,14 @@ class AttentionSubtypeAdmin(admin.ModelAdmin):
     list_filter = ('status', 'attention_type')
     search_fields = ('code', 'name')
     list_select_related = ('attention_type',)
+    ordering = ('code',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(Position)
+class PositionAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_evaluated', 'status')
+    list_filter = ('status', 'is_evaluated')
+    search_fields = ('code', 'name')
     ordering = ('code',)
     readonly_fields = ('created_at', 'updated_at')
