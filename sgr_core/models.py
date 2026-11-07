@@ -241,3 +241,37 @@ class Position(BaseModel):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class PositionItemGoal(BaseModel):
+    """Ponderador y meta de un ítem para un cargo en un trimestre."""
+
+    position = models.ForeignKey(
+        Position, on_delete=models.CASCADE,
+        related_name="item_goals", verbose_name="Cargo",
+    )
+    item = models.ForeignKey(
+        ProjectItem, on_delete=models.RESTRICT,
+        related_name="position_goals", verbose_name="Ítem",
+    )
+    period = models.ForeignKey(
+        Period, on_delete=models.RESTRICT,
+        related_name="position_goals", verbose_name="Período",
+    )
+    weight = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, verbose_name="Ponderador (%)")
+    target_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Meta del trimestre")
+
+    class Meta:
+        verbose_name = "Meta por cargo"
+        verbose_name_plural = "Metas por cargo"
+        db_table = "meta_cargo_item"
+        ordering = ["position__code", "item__code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["position", "item", "period"],
+                name="uniq_position_item_period",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.position.name} / {self.item.name} ({self.weight}%)"
