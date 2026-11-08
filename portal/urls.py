@@ -1,5 +1,6 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
+from .goals_views import GoalsView
 
 from .crud import registered_modules
 from .home_views import HomeView, ModulePlaceholderView, SwitchDelegationView
@@ -29,6 +30,8 @@ _placeholder_paths = {
 
 #: Módulos que ya tienen CRUD real (Parte 4+): los gestiona portal.crud.urls.
 _crud_modules = {module.module_key for module in registered_modules()}
+#: Módulos con vista propia (ni CRUD ni placeholder).
+_custom_modules = {"goals"}
 
 urlpatterns = [
     path('', PortalLoginView.as_view(), name='login'),
@@ -43,12 +46,13 @@ urlpatterns = [
     path('recuperar/verificar/', PasswordResetVerifyView.as_view(), name='password_reset_verify'),
     path('recuperar/reenviar/', PasswordResetResendView.as_view(), name='password_reset_resend'),
     path('recuperar/nueva-clave/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    path('metas-institucionales/', GoalsView.as_view(), name='goals'),
     # Motor de mantenedores (delegaciones por ahora; Partes 5 a 7 lo usan).
     path('', include('portal.crud.urls')),
 ]
 
 for _module in MODULE_ORDER:
-    if _module in _crud_modules or _module not in _placeholder_paths:
+    if _module in _crud_modules or _module in _custom_modules or _module not in _placeholder_paths:
         continue
     urlpatterns.append(
         path(

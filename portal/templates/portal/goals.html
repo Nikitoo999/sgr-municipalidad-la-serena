@@ -1,0 +1,79 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }}</nav>
+<div class="titlebar"><h1>{{ module_label }}</h1></div>
+
+<section class="card toolbar" aria-label="Filtro de trimestre">
+<form method="get" role="search">
+    <div class="statebox">
+    <label for="periodo">Trimestre</label>
+    <select class="in" id="periodo" name="periodo">
+        {% for p in periodos %}
+        <option value="{{ p.pk }}"{% if periodo and p.pk == periodo.pk %} selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+    </select>
+    </div>
+    <button class="btn primary" type="submit">Ver metas</button>
+</form>
+</section>
+
+{% if not periodo %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>Sin trimestres registrados</h2>
+<p>Primero hay que crear un período de medición para asignar metas.</p>
+</div>
+{% elif not filas %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>No hay funcionarios con cargo asignado</h2>
+<p>Asigna un cargo a los funcionarios de la delegación para ver sus metas del trimestre.</p>
+</div>
+{% else %}
+{% for fila in filas %}
+<section class="card" style="margin-bottom:16px">
+<h2>{{ fila.empleado.full_name }}</h2>
+<p class="meta">
+    {{ fila.empleado.position.name }} · {{ fila.empleado.delegation.name }}
+    · {{ fila.total_habiles }} días hábiles, {{ fila.libres }} libre{{ fila.libres|pluralize }}
+</p>
+{% if fila.items %}
+<div class="tablewrap">
+    <table>
+    <caption class="sr">Metas de {{ fila.empleado.full_name }} en {{ periodo.name }}</caption>
+    <thead>
+        <tr>
+        <th scope="col">Ítem</th>
+        <th scope="col">Ponderador (%)</th>
+        <th scope="col">Meta del trimestre</th>
+        <th scope="col">Meta ajustada</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in fila.items %}
+        <tr>
+        <td>{{ item.nombre }}</td>
+        <td>{{ item.peso }}</td>
+        <td>{{ item.meta }}</td>
+        <td>{{ item.ajustada }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    </table>
+</div>
+<p class="meta">
+    Ponderadores:
+    <span class="badge {% if fila.suma_ok %}b-ok{% else %}b-warn{% endif %}">suman {{ fila.suma }}%</span>
+</p>
+{% else %}
+<p class="meta">Este cargo no tiene metas cargadas para {{ periodo.name }}.</p>
+{% endif %}
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}
