@@ -6,7 +6,8 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views import View
 from django.views.generic import TemplateView
 from django.utils import timezone
-
+from operaciones.models import Activity, Evidence, Task
+from sgr_core.models import ProjectItem
 
 
 from operaciones.models import Activity, Evidence, Task
@@ -28,6 +29,15 @@ def tareas_del_alcance(request):
     if role.scope == "own_records":
         qs = qs.filter(assigned_to__user_id=request.user.pk)
     return qs
+
+def items_de_la_tarea(tarea):
+    """Ítems de la matriz del cargo del responsable (vacío si no tiene cargo)."""
+    empleado = tarea.assigned_to
+    if empleado is None or empleado.position_id is None:
+        return ProjectItem.objects.none()
+    return ProjectItem.objects.filter(
+        position_goals__position_id=empleado.position_id, deleted_at__isnull=True,
+    ).distinct().order_by("code")
 
 class AgendaView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
     template_name = "portal/agenda.html"
@@ -53,6 +63,7 @@ class AgendaView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         actividades = Prefetch(
             "activities",
             queryset=Activity.objects.filter(deleted_at__isnull=True)
+            .select_related("item")
             .order_by("execution_date", "pk")
             .prefetch_related(
                 Prefetch("evidences", queryset=Evidence.objects.filter(deleted_at__isnull=True))
@@ -70,6 +81,7 @@ class AgendaView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
 
         tareas = list(self._tareas())
         for tarea in tareas:
+            tarea.items_matriz = list(items_de_la_tarea(tarea))
             for actividad in tarea.activities.all():
                 evidencias = list(actividad.evidences.all())
                 actividad.lista_evidencias = evidencias
@@ -91,7 +103,7 @@ class AgendaView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
 class ActivityForm(forms.ModelForm):
     class Meta:
         model = Activity
-        fields = ["name", "execution_date"]
+        fields = ["name", "execution_date", "item"]
 
 
 class ActivityCreateView(LoginRequiredMixin, ModulePermissionMixin, View):
@@ -103,6 +115,7 @@ class ActivityCreateView(LoginRequiredMixin, ModulePermissionMixin, View):
     def post(self, request, task_id):
         tarea = get_object_or_404(tareas_del_alcance(request), pk=task_id)
         form = ActivityForm(request.POST)
+        form.fields["item"].queryset = items_de_la_tarea(tarea)
         if form.is_valid():
             actividad = form.save(commit=False)
             actividad.task = tarea

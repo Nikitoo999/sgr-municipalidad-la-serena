@@ -11,6 +11,7 @@ from sgr_core.models import (
     InstitutionalGoal,
     Position,
     Delegation,
+    ProjectItem,
     Role,
 )
 
@@ -44,6 +45,10 @@ class Activity(BaseModel):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="activities", verbose_name="Tarea de Agenda")
     name = models.CharField(max_length=100, verbose_name="Nombre de la Actividad")
     execution_date = models.DateField(verbose_name="Fecha de Ejecución")
+    item = models.ForeignKey(
+    ProjectItem, on_delete=models.SET_NULL, null=True, blank=True,
+    related_name="activities", verbose_name="Ítem de la matriz",
+    )
 
     class Status(models.TextChoices):
         PENDING = "Pendiente", "Pendiente"

@@ -60,7 +60,15 @@
     <tbody>
         {% for act in actividades %}
         <tr>
-        <td>{{ act.name }}</td>
+        <td>
+            {{ act.name }}
+            <br>
+            {% if act.item %}
+            <span class="meta">Ítem: {{ act.item.name }}</span>
+            {% else %}
+            <span class="meta">Sin ítem (otra gestión)</span>
+            {% endif %}
+        </td>
         <td>{{ act.execution_date|date:"d/m/Y" }}</td>
         <td><span class="badge {% if act.status == 'Realizada' %}b-ok{% else %}b-warn{% endif %}">{{ act.status }}</span></td>
         <td>
@@ -114,6 +122,15 @@
     <div>
     <label class="fl" for="fecha-{{ tarea.pk }}">Fecha de ejecución</label>
     <input class="in" id="fecha-{{ tarea.pk }}" name="execution_date" type="date" required>
+    </div>
+    <div>
+    <label class="fl" for="item-{{ tarea.pk }}">Ítem de la matriz</label>
+    <select class="in" id="item-{{ tarea.pk }}" name="item">
+        <option value="">Sin ítem (otra gestión)</option>
+        {% for it in tarea.items_matriz %}
+        <option value="{{ it.pk }}">{{ it.name }}</option>
+        {% endfor %}
+    </select>
     </div>
     <button class="btn primary" type="submit">Registrar actividad</button>
 </form>
