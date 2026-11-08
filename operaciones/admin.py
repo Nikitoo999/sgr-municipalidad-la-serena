@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
+from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, EmployeeDayOff
+
 
 
 def _get_employee(request):
@@ -77,8 +79,8 @@ def validate_evidences(modeladmin, request, queryset):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('user', 'rut', 'delegation', 'role')
-    list_filter = ('delegation', 'role')
+    list_display = ('user', 'rut', 'delegation', 'role', 'position')
+    list_filter = ('delegation', 'role', 'position')
     search_fields = ('rut', 'user__username', 'user__first_name', 'user__last_name', 'address')
     list_select_related = ('user', 'delegation')
     ordering = ('user__username',)
@@ -246,3 +248,13 @@ class BenefitAdmin(admin.ModelAdmin):
         if _is_usuario(request):
             return False
         return super().has_module_permission(request)
+
+
+@admin.register(EmployeeDayOff)
+class EmployeeDayOffAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'kind', 'start_date', 'end_date', 'business_days')
+    list_filter = ('kind',)
+    search_fields = ('employee__user__username', 'employee__user__first_name', 'employee__user__last_name')
+    list_select_related = ('employee__user',)
+    ordering = ('-start_date',)
+    readonly_fields = ('created_at', 'updated_at')

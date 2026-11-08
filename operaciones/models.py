@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from datetime import timedelta
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -8,6 +9,7 @@ from sgr_core.models import (
     AttentionType,
     BaseModel,
     InstitutionalGoal,
+    Position,
     Delegation,
     Role,
 )
@@ -70,6 +72,7 @@ class Employee(BaseModel):
     address = models.CharField(max_length=255, blank=True, default="", verbose_name="Dirección")
     delegation = models.ForeignKey(Delegation, on_delete=models.RESTRICT, related_name='employees', verbose_name="Delegación Asignada")
     role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name='employees', verbose_name="Rol")
+    position = models.ForeignKey(Position, on_delete=models.PROTECT, null=True, blank=True,related_name="employees", verbose_name="Cargo",)
     authorized_delegations = models.ManyToManyField(Delegation, blank=True, related_name='authorized_employees', verbose_name="Delegaciones autorizadas")
     must_change_password = models.BooleanField(default=False, verbose_name="Debe cambiar contraseña al ingresar")
 
@@ -341,3 +344,50 @@ class Attention(BaseModel):
             if creating and not self.number:
                 self.number = f"ATN-{self.pk:04d}"
                 super().save(update_fields=["number"])
+
+class EmployeeDayOff(BaseModel):
+    """Día(s) libre(s) de un funcionario; ajusta la meta del trimestre."""
+
+    class Kind(models.TextChoices):
+        VACATION = "vacation", "Vacaciones"
+        LICENSE = "license", "Licencia médica"
+        ADMINISTRATIVE = "administrative", "Día administrativo"
+        EMERGENCY = "emergency", "Emergencia"
+        COMPENSATORY = "compensatory", "Compensatorio"
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE,
+        related_name="days_off", verbose_name="Funcionario",
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices, verbose_name="Tipo")
+    start_date = models.DateField(verbose_name="Desde")
+    end_date = models.DateField(verbose_name="Hasta")
+    notes = models.CharField(max_length=200, blank=True, default="", verbose_name="Observaciones")
+    registered_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="registered_days_off", verbose_name="Registrado por",
+    )
+
+    class Meta:
+        verbose_name = "Día libre"
+        verbose_name_plural = "Días libres"
+        db_table = "dia_libre_funcionario"
+        ordering = ["-start_date"]
+
+    def __str__(self):
+        return f"{self.employee} - {self.get_kind_display()} ({self.start_date} a {self.end_date})"
+
+    def clean(self):
+        super().clean()
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError({"end_date": "La fecha final no puede ser anterior a la inicial."})
+
+    @property
+    def business_days(self):
+        """Días hábiles (lunes a viernes) que cubre este registro."""
+        total, day = 0, self.start_date
+        while day <= self.end_date:
+            if day.weekday() < 5:
+                total += 1
+            day += timedelta(days=1)
+        return total

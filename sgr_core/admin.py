@@ -5,12 +5,15 @@ from .models import (
     AttentionType,
     Delegation,
     Period,
+    Position,
+    PositionItemGoal,
     InstitutionalGoal,
     Achievement,
     MeasurementItem,
     ProjectItem,
     Role,
     RolePermission,
+    CommunityOrganization,
 )
 
 
@@ -122,4 +125,33 @@ class AttentionSubtypeAdmin(admin.ModelAdmin):
     search_fields = ('code', 'name')
     list_select_related = ('attention_type',)
     ordering = ('code',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(Position)
+class PositionAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_evaluated', 'status')
+    list_filter = ('status', 'is_evaluated')
+    search_fields = ('code', 'name')
+    ordering = ('code',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(PositionItemGoal)
+class PositionItemGoalAdmin(admin.ModelAdmin):
+    list_display = ('position', 'item', 'period', 'weight', 'target_value')
+    list_filter = ('position', 'period')
+    search_fields = ('position__name', 'item__name')
+    list_select_related = ('position', 'item', 'period')
+    ordering = ('position__code', 'item__code')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(CommunityOrganization)
+class CommunityOrganizationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'delegation', 'active_members', 'verified', 'status')
+    list_filter = ('category', 'delegation', 'verified', 'status')
+    search_fields = ('name', 'registry_number', 'legal_address')
+    list_select_related = ('delegation',)
+    ordering = ('name',)
     readonly_fields = ('created_at', 'updated_at')

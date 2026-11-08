@@ -221,3 +221,94 @@ class AttentionSubtype(BaseModel):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class Position(BaseModel):
+    """Cargo de delegación según el descriptor de funciones 2026."""
+
+    code = models.CharField(max_length=8, unique=True, verbose_name="Código")
+    name = models.CharField(max_length=60, verbose_name="Nombre del cargo")
+    summary = models.TextField(blank=True, default="", verbose_name="Resumen del cargo")
+    functions = models.TextField(blank=True, default="", verbose_name="Descriptor de funciones")
+    is_evaluated = models.BooleanField(default=True, verbose_name="Se evalúa en la matriz")
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+
+    class Meta:
+        verbose_name = "Cargo"
+        verbose_name_plural = "Cargos"
+        db_table = "cargo"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class PositionItemGoal(BaseModel):
+    """Ponderador y meta de un ítem para un cargo en un trimestre."""
+
+    position = models.ForeignKey(
+        Position, on_delete=models.CASCADE,
+        related_name="item_goals", verbose_name="Cargo",
+    )
+    item = models.ForeignKey(
+        ProjectItem, on_delete=models.RESTRICT,
+        related_name="position_goals", verbose_name="Ítem",
+    )
+    period = models.ForeignKey(
+        Period, on_delete=models.RESTRICT,
+        related_name="position_goals", verbose_name="Período",
+    )
+    weight = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, verbose_name="Ponderador (%)")
+    target_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Meta del trimestre")
+
+    class Meta:
+        verbose_name = "Meta por cargo"
+        verbose_name_plural = "Metas por cargo"
+        db_table = "meta_cargo_item"
+        ordering = ["position__code", "item__code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["position", "item", "period"],
+                name="uniq_position_item_period",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.position.name} / {self.item.name} ({self.weight}%)"
+
+class CommunityOrganization(BaseModel):
+    """Organización comunitaria (juntas de vecinos y organizaciones funcionales)."""
+
+    class Category(models.TextChoices):
+        NEIGHBORHOOD = "neighborhood", "Junta de vecinos"
+        SENIOR = "senior", "Club de adulto mayor"
+        SPORTS = "sports", "Organización deportiva"
+        CULTURAL = "cultural", "Centro de madres / cultural / juvenil"
+        COMMITTEE = "committee", "Comité"
+        OTHER = "other", "Otra organización"
+
+    name = models.CharField(max_length=200, verbose_name="Nombre de la organización")
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER, verbose_name="Categoría")
+    legal_address = models.CharField(max_length=255, blank=True, default="", verbose_name="Domicilio legal")
+    territory = models.CharField(max_length=30, blank=True, default="", verbose_name="Territorio (según la base)")
+    delegation = models.ForeignKey(
+        Delegation, on_delete=models.RESTRICT, null=True, blank=True,
+        related_name="community_organizations", verbose_name="Delegación",
+    )
+    active_members = models.PositiveIntegerField(null=True, blank=True, verbose_name="Socios activos")
+    constitution_date = models.DateField(null=True, blank=True, verbose_name="Fecha de constitución")
+    registry_number = models.CharField(max_length=20, blank=True, default="", db_index=True, verbose_name="N° registro P.J.")
+    registry_date = models.DateField(null=True, blank=True, verbose_name="Fecha de inscripción en registro")
+    directive_number = models.CharField(max_length=20, blank=True, default="", verbose_name="N° registro de directiva")
+    verified = models.BooleanField(default=False, verbose_name="Verificada")
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+    notes = models.TextField(blank=True, default="", verbose_name="Observaciones de limpieza")
+
+    class Meta:
+        verbose_name = "Organización comunitaria"
+        verbose_name_plural = "Organizaciones comunitarias"
+        db_table = "organizacion_comunitaria"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name

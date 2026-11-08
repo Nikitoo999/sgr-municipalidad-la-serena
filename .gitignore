@@ -14,3 +14,4 @@ _dump_hrefs.py
 staticfiles/
 *.log
 /media/
+data/
