@@ -1,0 +1,115 @@
+{% extends 'portal/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Reportes y Control de Gestión</h2>
+    <hr>
+
+    <!-- Selector de Periodo -->
+    <form method="get" class="row g-3 mb-4">
+        <div class="col-auto">
+            <label for="period" class="col-form-label"><strong>Periodo:</strong></label>
+        </div>
+        <div class="col-auto">
+            <select name="period" id="period" class="form-select" onchange="this.form.submit()">
+                {% for p in periods %}
+                    <option value="{{ p.id }}" {% if p.id == period.id %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    {% if period %}
+        <!-- Sección 1: Ingresos diarios y alertas por funcionario -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5>Ingresos Diarios y Días sin Registrar ({{ period.name }})</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-bordered align-middle">
+                        <thead>
+                            <tr>
+                                <th>Funcionario</th>
+                                <th>Cargo</th>
+                                <th>Días sin ingresar</th>
+                                <th>Días sobre el límite (>7)</th>
+                                <th>Cumplimiento General</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in reporte_funcionarios %}
+                            <tr>
+                                <td>{{ item.employee.user.get_full_name|default:item.employee.user.username }}</td>
+                                <td>{{ item.employee.position.name|default:"Sin cargo" }}</td>
+                                <td>
+                                    {% if item.dias_sin_ingresar %}
+                                        <span class="text-danger fw-bold">{{ item.dias_sin_ingresar|join:", " }}</span>
+                                    {% else %}
+                                        <span class="text-success">Al día</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.dias_sobre_limite %}
+                                        <span class="text-warning fw-bold">{{ item.dias_sobre_limite|length }} días</span>
+                                    {% else %}
+                                        <span>Ninguno</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ item.cumplimiento.porcentaje }}%</strong> 
+                                    <span class="badge bg-{% if item.cumplimiento.semaforo == 'verde' %}success{% elif item.cumplimiento.semaforo == 'amarillo' %}warning text-dark{% else %}danger{% endif %}">
+                                        {{ item.cumplimiento.semaforo|upper }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">No hay funcionarios en el alcance actual.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección 2: Ranking por Cargo (excluyendo al delegado) -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5>Ranking por Cargo (Excluyendo Delegado)</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Funcionario</th>
+                                <th>Cargo</th>
+                                <th>Puntaje Total</th>
+                                <th>Porcentaje de Logro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in ranking %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ r.employee.user.get_full_name|default:r.employee.user.username }}</td>
+                                <td>{{ r.employee.position.name }}</td>
+                                <td>{{ r.puntaje_total }} pts</td>
+                                <td><strong>{{ r.porcentaje }}%</strong></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">No hay registros para el ranking.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

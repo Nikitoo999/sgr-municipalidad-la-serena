@@ -1,5 +1,10 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
+from .goals_views import GoalsView
+from .agenda_views import ActivityCreateView, AgendaView, EvidenceCreateView, EvidenceValidateView
+from .compliance_views import ComplianceView, FeedbackCreateView
+from .tubes_views import TubeCloseView, TubeCreateView, TubeListView, TubeStatusView
+from .reports_views import ReportsView
 
 from .crud import registered_modules
 from .home_views import HomeView, ModulePlaceholderView, SwitchDelegationView
@@ -29,6 +34,8 @@ _placeholder_paths = {
 
 #: Módulos que ya tienen CRUD real (Parte 4+): los gestiona portal.crud.urls.
 _crud_modules = {module.module_key for module in registered_modules()}
+#: Módulos con vista propia (ni CRUD ni placeholder).
+_custom_modules = {"goals", "tasks", "achievements", "reports"}
 
 urlpatterns = [
     path('', PortalLoginView.as_view(), name='login'),
@@ -43,12 +50,23 @@ urlpatterns = [
     path('recuperar/verificar/', PasswordResetVerifyView.as_view(), name='password_reset_verify'),
     path('recuperar/reenviar/', PasswordResetResendView.as_view(), name='password_reset_resend'),
     path('recuperar/nueva-clave/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
-    # Motor de mantenedores (delegaciones por ahora; Partes 5 a 7 lo usan).
+    path('metas-institucionales/', GoalsView.as_view(), name='goals'),
+    path('agenda-tareas/', AgendaView.as_view(), name='tasks'),
+    path('agenda-tareas/actividades/<int:activity_id>/evidencia/', EvidenceCreateView.as_view(), name='evidence_create'),
+    path('agenda-tareas/evidencias/<int:evidence_id>/validar/', EvidenceValidateView.as_view(), name='evidence_validate'),
+    path('agenda-tareas/<int:task_id>/actividades/nueva/', ActivityCreateView.as_view(), name='activity_create'),
+    path('cumplimiento/', ComplianceView.as_view(), name='achievements'),
+    path('cumplimiento/<int:employee_id>/comentarios/nuevo/', FeedbackCreateView.as_view(), name='feedback_create'),
+    path('cumplimiento/tubos/', TubeListView.as_view(), name='tubes'),
+    path('cumplimiento/tubos/nuevo/', TubeCreateView.as_view(), name='tube_create'),
+    path('cumplimiento/tubos/<int:entry_id>/estado/', TubeStatusView.as_view(), name='tube_status'),
+    path('cumplimiento/tubos/<int:entry_id>/cerrar/', TubeCloseView.as_view(), name='tube_close'),
     path('', include('portal.crud.urls')),
+    path('reportes/', ReportsView.as_view(), name='reports'),
 ]
 
 for _module in MODULE_ORDER:
-    if _module in _crud_modules or _module not in _placeholder_paths:
+    if _module in _crud_modules or _module in _custom_modules or _module not in _placeholder_paths:
         continue
     urlpatterns.append(
         path(

@@ -100,7 +100,10 @@ BASE_ROLES = (
         'permissions': {
             'users': STD_ACTIONS,
             'items': ('view', 'export'),
-            'tasks': ('view',),
+            'goals': ('view',),
+            'tasks': ('view', 'create', 'edit'),
+            'achievements': ('view', 'create', 'edit'),
+            'reports': ('view',),
             'attentions': STD_ACTIONS,
         },
     },
@@ -112,7 +115,8 @@ BASE_ROLES = (
         'is_system': False,
         'permissions': {
             'attentions': ('view', 'create', 'export'),
-            'tasks': ('view',),
+            'tasks': ('view', 'create'),
+            'achievements': ('view',),
         },
     },
 )
