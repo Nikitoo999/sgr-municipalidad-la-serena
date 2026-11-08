@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
-from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, EmployeeDayOff
+from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, EmployeeDayOff, EmployeeFeedback
 
 
 
@@ -257,4 +257,14 @@ class EmployeeDayOffAdmin(admin.ModelAdmin):
     search_fields = ('employee__user__username', 'employee__user__first_name', 'employee__user__last_name')
     list_select_related = ('employee__user',)
     ordering = ('-start_date',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(EmployeeFeedback)
+class EmployeeFeedbackAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'kind', 'date', 'description', 'registered_by')
+    list_filter = ('kind',)
+    search_fields = ('employee__user__username', 'employee__user__first_name', 'employee__user__last_name', 'description')
+    list_select_related = ('employee__user', 'registered_by')
+    ordering = ('-date',)
     readonly_fields = ('created_at', 'updated_at')

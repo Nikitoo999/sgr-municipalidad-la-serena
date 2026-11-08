@@ -1,6 +1,10 @@
 from collections import defaultdict
 from decimal import Decimal
 
+"""Metas por funcionario: asignación según cargo y trimestre (3.4)."""
+from collections import defaultdict
+from decimal import Decimal
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
@@ -13,42 +17,44 @@ from .access import ModulePermissionMixin
 from .modules import MODULE_ICONS, MODULE_LABELS
 
 
+def elegir_periodo(request, periodos):
+    """Trimestre pedido por GET; si no, el 'En curso' más reciente o el último."""
+    pedido = request.GET.get("periodo", "")
+    if pedido.isdigit():
+        for periodo in periodos:
+            if periodo.pk == int(pedido):
+                return periodo
+    for periodo in periodos:
+        if periodo.status == "En curso":
+            return periodo
+    return periodos[0] if periodos else None
+
+
+def funcionarios_del_alcance(request):
+    """Funcionarios con cargo, dentro del alcance del usuario y la delegación activa."""
+    role = access.get_role(request.user)
+    active = access.get_active_delegation(request)
+    qs = Employee.objects.filter(
+        deleted_at__isnull=True, user__is_active=True, position__isnull=False,
+    ).select_related("user", "delegation", "position")
+    if role is None or active is None:
+        return qs.none()
+    if active != access.ALL_DELEGATIONS:
+        qs = qs.filter(delegation_id=active.pk)
+    if role.scope == "own_records":
+        qs = qs.filter(user_id=request.user.pk)
+    return qs.order_by("position__code", "user__first_name", "user__last_name")
+
+
 class GoalsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
     template_name = "portal/goals.html"
     module = "goals"
     action = "view"
 
-    def _periodo(self, periodos):
-        """Trimestre pedido por GET; si no, el 'En curso' más reciente o el último."""
-        pedido = self.request.GET.get("periodo", "")
-        if pedido.isdigit():
-            for periodo in periodos:
-                if periodo.pk == int(pedido):
-                    return periodo
-        for periodo in periodos:
-            if periodo.status == "En curso":
-                return periodo
-        return periodos[0] if periodos else None
-
-    def _funcionarios(self):
-        """Funcionarios con cargo, dentro del alcance del usuario y la delegación activa."""
-        role = access.get_role(self.request.user)
-        active = access.get_active_delegation(self.request)
-        qs = Employee.objects.filter(
-            deleted_at__isnull=True, user__is_active=True, position__isnull=False,
-        ).select_related("user", "delegation", "position")
-        if role is None or active is None:
-            return qs.none()
-        if active != access.ALL_DELEGATIONS:
-            qs = qs.filter(delegation_id=active.pk)
-        if role.scope == "own_records":
-            qs = qs.filter(user_id=self.request.user.pk)
-        return qs.order_by("position__code", "user__first_name", "user__last_name")
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         periodos = list(Period.objects.filter(deleted_at__isnull=True).order_by("-start_date"))
-        periodo = self._periodo(periodos)
+        periodo = elegir_periodo(self.request, periodos)
 
         metas = defaultdict(list)
         filas = []
@@ -60,7 +66,7 @@ class GoalsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                 metas[goal.position_id].append(goal)
 
             total_habiles = len(dias_habiles(periodo.start_date, periodo.end_date))
-            for emp in self._funcionarios():
+            for emp in funcionarios_del_alcance(self.request):
                 factor = factor_ajuste(emp, periodo)
                 items, suma = [], Decimal("0")
                 for goal in metas.get(emp.position_id, []):

@@ -419,3 +419,40 @@ class EmployeeDayOff(BaseModel):
                 total += 1
             day += timedelta(days=1)
         return total
+
+class EmployeeFeedback(BaseModel):
+    """Felicitación (suma) o reclamo (resta) asociado a un funcionario."""
+
+    class Kind(models.TextChoices):
+        PRAISE = "praise", "Felicitación"
+        COMPLAINT = "complaint", "Reclamo"
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE,
+        related_name="feedbacks", verbose_name="Funcionario",
+    )
+    kind = models.CharField(max_length=10, choices=Kind.choices, verbose_name="Tipo")
+    date = models.DateField(verbose_name="Fecha")
+    description = models.CharField(max_length=255, verbose_name="Descripción")
+    file = models.FileField(
+        upload_to="respaldos/%Y/%m/", max_length=255, blank=True, null=True,
+        validators=[validate_attachment_file], verbose_name="Respaldo formal (máx. 5 MB)",
+    )
+    registered_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="registered_feedbacks", verbose_name="Registrado por",
+    )
+
+    class Meta:
+        verbose_name = "Felicitación o reclamo"
+        verbose_name_plural = "Felicitaciones y reclamos"
+        db_table = "felicitacion_reclamo"
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} - {self.employee} ({self.date})"
+
+    def clean(self):
+        super().clean()
+        if self.kind == self.Kind.PRAISE and not self.file:
+            raise ValidationError({"file": "Una felicitación solo suma puntaje con respaldo formal."})

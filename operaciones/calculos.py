@@ -5,7 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 
-from operaciones.models import Activity
+from operaciones.models import Activity, EmployeeFeedback
 from sgr_core.models import PositionItemGoal
 
 CENTESIMOS = Decimal("0.01")
@@ -59,6 +59,10 @@ TOPE_CUMPLIMIENTO = Decimal(str(getattr(settings, "SGR_TOPE_CUMPLIMIENTO", "1.20
 MAX_ACTIVIDADES_POR_DIA = 7
 #: Semáforo: amarillo desde el 60 % de lo esperado a la fecha.
 UMBRAL_AMARILLO = Decimal("0.60")
+#: Felicitaciones y reclamos (configurables en settings.py).
+PUNTOS_FELICITACION = Decimal(str(getattr(settings, "SGR_PUNTOS_FELICITACION", "10")))
+MAX_FELICITACIONES = int(getattr(settings, "SGR_MAX_FELICITACIONES", 3))
+PUNTOS_RECLAMO = Decimal(str(getattr(settings, "SGR_PUNTOS_RECLAMO", "20")))
 
 
 def razon_logro(logrado, meta):
@@ -129,12 +133,37 @@ def avance_esperado(employee, period, hoy):
     return Decimal(dias_efectivos(employee, period, hoy)) / Decimal(total)
 
 
+def conteo_comentarios(employee, period):
+    """(felicitaciones con respaldo, reclamos) del funcionario dentro del trimestre."""
+    registros = EmployeeFeedback.objects.filter(
+        employee=employee, deleted_at__isnull=True,
+        date__range=(period.start_date, period.end_date),
+    ).values_list("kind", "file")
+    felicitaciones = sum(1 for kind, archivo in registros
+                        if kind == EmployeeFeedback.Kind.PRAISE and archivo)
+    reclamos = sum(1 for kind, _archivo in registros
+                if kind == EmployeeFeedback.Kind.COMPLAINT)
+    return felicitaciones, reclamos
+
+
+def puntos_felicitaciones(cantidad):
+    """Puntos que suman las felicitaciones (tope de MAX_FELICITACIONES)."""
+    return Decimal(min(cantidad, MAX_FELICITACIONES)) * PUNTOS_FELICITACION
+
+
+def puntos_reclamos(cantidad):
+    """Puntos que restan los reclamos."""
+    return Decimal(cantidad) * PUNTOS_RECLAMO
+
+
 def calcular_cumplimiento(employee, period, hoy=None):
     """Cumplimiento de un funcionario en un trimestre, ítem por ítem."""
     hoy = hoy or date.today()
     resultado = {
         "items": [], "puntaje_total": Decimal("0.00"), "suma_pesos": Decimal("0"),
         "porcentaje": Decimal("0.00"), "esperado": Decimal("0"), "semaforo": "verde",
+        "felicitaciones": 0, "reclamos": 0,
+        "bonus": Decimal("0"),  "descuento": Decimal("0"),
     }
     if employee.position_id is None:
         return resultado
@@ -161,6 +190,11 @@ def calcular_cumplimiento(employee, period, hoy=None):
             "razon": razon, "puntaje": puntaje, "semaforo": semaforo(razon, esperado),
         })
 
+        felicitaciones, reclamos = conteo_comentarios(employee, period)
+    bonus = puntos_felicitaciones(felicitaciones)
+    descuento = puntos_reclamos(reclamos)
+    total = max(total + bonus - descuento, Decimal("0"))
+
     razon_global = (total / suma_pesos) if suma_pesos else Decimal("0")
     resultado.update({
         "puntaje_total": total.quantize(CENTESIMOS),
@@ -168,5 +202,9 @@ def calcular_cumplimiento(employee, period, hoy=None):
         "porcentaje": (razon_global * 100).quantize(CENTESIMOS, rounding=ROUND_HALF_UP),
         "esperado": esperado,
         "semaforo": semaforo(razon_global, esperado),
+        "felicitaciones": felicitaciones,
+        "reclamos": reclamos,
+        "bonus": bonus,
+        "descuento": descuento,
     })
     return resultado
