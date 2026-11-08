@@ -171,6 +171,9 @@ def razon_tubo(employee, period):
     return Decimal(realizadas) / Decimal(len(estados))
 
 
+#: Código del ítem "Soluciones de ingresos al tubo": se mide en % de solicitudes realizadas.
+CODIGO_ITEM_TUBO = "MTX06"
+
 
 def calcular_cumplimiento(employee, period, hoy=None):
     """Cumplimiento de un funcionario en un trimestre, ítem por ítem."""
@@ -194,8 +197,7 @@ def calcular_cumplimiento(employee, period, hoy=None):
     esperado = avance_esperado(employee, period, hoy)
 
     total, suma_pesos = Decimal("0"), Decimal("0")
-    for goal in metas:
-            fraccion_tubo = None
+    fraccion_tubo = None
     tubo_calculado = False
     for goal in metas:
         es_tubo = goal.item.code == CODIGO_ITEM_TUBO
@@ -203,7 +205,7 @@ def calcular_cumplimiento(employee, period, hoy=None):
             if not tubo_calculado:
                 fraccion_tubo = razon_tubo(employee, period)
                 tubo_calculado = True
-            meta = goal.target_value                       # es un %, no se ajusta por días libres
+            meta = goal.target_value                              # es un %, no se ajusta por días libres
             hecho = fraccion_tubo
             razon = Decimal("1") if hecho is None else razon_logro(hecho, meta)
         else:
@@ -216,7 +218,7 @@ def calcular_cumplimiento(employee, period, hoy=None):
         resultado["items"].append({
             "item": goal.item, "peso": goal.weight, "meta": meta, "logrado": hecho,
             "razon": razon, "puntaje": puntaje, "semaforo": semaforo(razon, esperado),
-                    "es_tubo": es_tubo,
+            "es_tubo": es_tubo,
             "logrado_txt": (
                 ("Sin solicitudes" if hecho is None else f"{(hecho * 100).quantize(Decimal('0.1'))} % realizado")
                 if es_tubo else None
@@ -224,7 +226,7 @@ def calcular_cumplimiento(employee, period, hoy=None):
             "meta_txt": f"{(meta * 100).quantize(Decimal('1'))} %" if es_tubo else None,
         })
 
-        felicitaciones, reclamos = conteo_comentarios(employee, period)
+    felicitaciones, reclamos = conteo_comentarios(employee, period)
     bonus = puntos_felicitaciones(felicitaciones)
     descuento = puntos_reclamos(reclamos)
     total = max(total + bonus - descuento, Decimal("0"))
@@ -242,8 +244,7 @@ def calcular_cumplimiento(employee, period, hoy=None):
         "descuento": descuento,
     })
     return resultado
-#: Código del ítem "Soluciones de ingresos al tubo": se mide en % de solicitudes realizadas.
-CODIGO_ITEM_TUBO = "MTX06"
+
 
 # --- Ingresos diarios y días sin ingresar (3.7) ------------------------------
 
