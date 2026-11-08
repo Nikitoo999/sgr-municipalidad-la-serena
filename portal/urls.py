@@ -4,6 +4,7 @@ from .goals_views import GoalsView
 from .agenda_views import ActivityCreateView, AgendaView, EvidenceCreateView, EvidenceValidateView
 from .compliance_views import ComplianceView, FeedbackCreateView
 from .tubes_views import TubeCloseView, TubeCreateView, TubeListView, TubeStatusView
+from .reports_views import ReportsView
 
 from .crud import registered_modules
 from .home_views import HomeView, ModulePlaceholderView, SwitchDelegationView
@@ -34,7 +35,7 @@ _placeholder_paths = {
 #: Módulos que ya tienen CRUD real (Parte 4+): los gestiona portal.crud.urls.
 _crud_modules = {module.module_key for module in registered_modules()}
 #: Módulos con vista propia (ni CRUD ni placeholder).
-_custom_modules = {"goals","tasks","achievements"}
+_custom_modules = {"goals", "tasks", "achievements", "reports"}
 
 urlpatterns = [
     path('', PortalLoginView.as_view(), name='login'),
@@ -61,6 +62,7 @@ urlpatterns = [
     path('cumplimiento/tubos/<int:entry_id>/estado/', TubeStatusView.as_view(), name='tube_status'),
     path('cumplimiento/tubos/<int:entry_id>/cerrar/', TubeCloseView.as_view(), name='tube_close'),
     path('', include('portal.crud.urls')),
+    path('reportes/', ReportsView.as_view(), name='reports'),
 ]
 
 for _module in MODULE_ORDER:
