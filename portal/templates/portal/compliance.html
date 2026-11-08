@@ -22,6 +22,7 @@
     </select>
     </div>
     <button class="btn primary" type="submit">Ver cumplimiento</button>
+    <a class="btn-outline" href="{% url 'tubes' %}">Ver tubos de trabajo</a>
 </form>
 </section>
 
@@ -77,8 +78,8 @@
         <tr>
         <td>{{ it.item.name }}</td>
         <td>{{ it.peso }}</td>
-        <td>{{ it.meta }}</td>
-        <td>{{ it.logrado }}</td>
+        <td>{% if it.es_tubo %}{{ it.meta_txt }}{% else %}{{ it.meta }}{% endif %}</td>
+        <td>{% if it.es_tubo %}{{ it.logrado_txt }}{% else %}{{ it.logrado }}{% endif %}</td>
         <td>{{ it.logro_pct }}</td>
         <td>{{ it.puntaje }}</td>
         <td>
@@ -93,6 +94,53 @@
 </div>
 {% else %}
 <p class="meta">Este cargo no tiene metas cargadas para {{ periodo.name }}.</p>
+{% endif %}
+
+<h3 style="margin-top:18px">Felicitaciones y reclamos</h3>
+<p class="meta">
+    Felicitaciones con respaldo: {{ c.felicitaciones }} (cuentan hasta {{ max_felicitaciones }}, suman {{ c.bonus }} puntos)
+    · Reclamos: {{ c.reclamos }} (restan {{ c.descuento }} puntos)
+</p>
+{% if fila.comentarios %}
+<ul>
+    {% for r in fila.comentarios %}
+    <li>
+    <span class="badge {% if r.kind == 'praise' %}b-ok{% else %}b-rojo{% endif %}">{{ r.get_kind_display }}</span>
+    {{ r.date|date:"d/m/Y" }} · {{ r.description }}
+    {% if r.file %}· <a href="{{ r.file.url }}" target="_blank" rel="noopener">Respaldo</a>
+    {% elif r.kind == 'praise' %}· <em>sin respaldo (no suma)</em>{% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="meta">No hay felicitaciones ni reclamos en este trimestre.</p>
+{% endif %}
+
+{% if can_create %}
+<form method="post" action="{% url 'feedback_create' fila.empleado.pk %}" enctype="multipart/form-data"
+        style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+    {% csrf_token %}
+    <div>
+    <label class="fl" for="tipo-{{ fila.empleado.pk }}">Tipo</label>
+    <select class="in" id="tipo-{{ fila.empleado.pk }}" name="kind">
+        <option value="praise">Felicitación (+{{ puntos_felicitacion }})</option>
+        <option value="complaint">Reclamo (−{{ puntos_reclamo }})</option>
+    </select>
+    </div>
+    <div>
+    <label class="fl" for="fecha-{{ fila.empleado.pk }}">Fecha</label>
+    <input class="in" id="fecha-{{ fila.empleado.pk }}" name="date" type="date" required value="{% now 'Y-m-d' %}">
+    </div>
+    <div>
+    <label class="fl" for="desc-{{ fila.empleado.pk }}">Descripción</label>
+    <input class="in" id="desc-{{ fila.empleado.pk }}" name="description" maxlength="255" required placeholder="Motivo">
+    </div>
+    <div>
+    <label class="fl" for="file-{{ fila.empleado.pk }}">Respaldo formal (obligatorio en felicitaciones)</label>
+    <input class="in" id="file-{{ fila.empleado.pk }}" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp">
+    </div>
+    <button class="btn primary" type="submit">Registrar</button>
+</form>
 {% endif %}
 </section>
 {% endwith %}

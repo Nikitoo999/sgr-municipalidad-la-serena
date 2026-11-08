@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
-from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, EmployeeDayOff, EmployeeFeedback
+from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, EmployeeDayOff, EmployeeFeedback, TubeEntry
 
 
 
@@ -268,3 +268,13 @@ class EmployeeFeedbackAdmin(admin.ModelAdmin):
     list_select_related = ('employee__user', 'registered_by')
     ordering = ('-date',)
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(TubeEntry)
+class TubeEntryAdmin(admin.ModelAdmin):
+    list_display = ('code', 'title', 'channel', 'delegation', 'responsible', 'status', 'request_date')
+    list_filter = ('channel', 'status', 'delegation', 'origin')
+    search_fields = ('title', 'requester', 'letter_number', 'verification_code')
+    list_select_related = ('delegation', 'responsible__user')
+    ordering = ('-request_date',)
+    readonly_fields = ('verification_code', 'created_at', 'updated_at')

@@ -1,0 +1,203 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Tubos de trabajo{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }} / Tubos</nav>
+<div class="titlebar"><h1>Tubos de trabajo</h1></div>
+
+<section class="card toolbar" aria-label="Filtros del tubo">
+<form method="get" role="search" style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+    <div class="statebox">
+    <label for="canal">Canal</label>
+    <select class="in" id="canal" name="canal">
+        <option value=""{% if not canal %} selected{% endif %}>Todos (tubo general)</option>
+        {% for valor, etiqueta in canales %}
+        <option value="{{ valor }}"{% if canal == valor %} selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+    </select>
+    </div>
+    <div class="statebox">
+    <label for="estado">Estatus</label>
+    <select class="in" id="estado" name="estado">
+        <option value=""{% if not estado %} selected{% endif %}>Todos</option>
+        {% for valor, etiqueta in estados %}
+        <option value="{{ valor }}"{% if estado == valor %} selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+    </select>
+    </div>
+    <button class="btn primary" type="submit">Filtrar</button>
+    <a class="btn-outline" href="{% url 'tubes' %}">Limpiar filtros</a>
+    <a class="btn-outline" href="{% url 'achievements' %}">Volver a cumplimiento</a>
+</form>
+</section>
+
+<p class="meta">
+{% for etiqueta, n in resumen %}{{ etiqueta }}: <strong>{{ n }}</strong>{% if not forloop.last %} · {% endif %}{% endfor %}
+{% if porcentaje is not None %}· Realizado: <strong>{{ porcentaje }} %</strong>{% endif %}
+</p>
+
+{% if can_create %}
+<details class="card" style="margin-bottom:16px">
+<summary><strong>Registrar nueva solicitud</strong></summary>
+<form method="post" action="{% url 'tube_create' %}"
+        style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px">
+    {% csrf_token %}
+    <div>
+    <label class="fl" for="n-delegation">Delegación</label>
+    <select class="in" id="n-delegation" name="delegation" required>
+        {% for d in delegaciones %}
+        <option value="{{ d.pk }}"{% if d.pk == activa_pk %} selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+    </select>
+    </div>
+    <div>
+    <label class="fl" for="n-channel">Canal</label>
+    <select class="in" id="n-channel" name="channel">
+        {% for valor, etiqueta in canales %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}
+    </select>
+    </div>
+    <div>
+    <label class="fl" for="n-title">Actividad / solicitud / problema</label>
+    <input class="in" id="n-title" name="title" maxlength="255" required>
+    </div>
+    <div>
+    <label class="fl" for="n-origin">Interno o externo</label>
+    <select class="in" id="n-origin" name="origin">
+        <option value="EXT">Externo</option>
+        <option value="INT">Interno</option>
+    </select>
+    </div>
+    <div>
+    <label class="fl" for="n-requester">Solicitante</label>
+    <input class="in" id="n-requester" name="requester" maxlength="150" required>
+    </div>
+    <div>
+    <label class="fl" for="n-territory">Territorio</label>
+    <input class="in" id="n-territory" name="territory" maxlength="60">
+    </div>
+    <div>
+    <label class="fl" for="n-responsible">Responsable</label>
+    <select class="in" id="n-responsible" name="responsible">
+        <option value="">Sin asignar</option>
+        {% for r in responsables %}
+        <option value="{{ r.pk }}">{{ r.full_name }} ({{ r.delegation.name }})</option>
+        {% endfor %}
+    </select>
+    </div>
+    <div>
+    <label class="fl" for="n-request-date">Fecha de solicitud</label>
+    <input class="in" id="n-request-date" name="request_date" type="date" value="{{ hoy }}" required>
+    </div>
+    <div>
+    <label class="fl" for="n-due-date">Fecha de compromiso</label>
+    <input class="in" id="n-due-date" name="due_date" type="date">
+    </div>
+    <div>
+    <label class="fl" for="n-support">Área o persona de apoyo</label>
+    <input class="in" id="n-support" name="support_area" maxlength="100">
+    </div>
+    <div>
+    <label class="fl" for="n-letter">N° de carta (solo Cartas)</label>
+    <input class="in" id="n-letter" name="letter_number" maxlength="20">
+    </div>
+    <div>
+    <label class="fl" for="n-phone">Teléfono de contacto</label>
+    <input class="in" id="n-phone" name="contact_phone" maxlength="20">
+    </div>
+    <div style="grid-column:1/-1">
+    <label class="fl" for="n-notes">Avance y observaciones</label>
+    <input class="in" id="n-notes" name="notes">
+    </div>
+    <div style="grid-column:1/-1">
+    <button class="btn primary" type="submit">Ingresar solicitud</button>
+    </div>
+</form>
+</details>
+{% endif %}
+
+{% if not pagina.object_list %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>No hay solicitudes en el tubo</h2>
+<p>Cuando se ingresen solicitudes para esta delegación, aparecerán aquí.</p>
+</div>
+{% else %}
+<div class="tablewrap">
+<table>
+    <caption class="sr">Solicitudes del tubo</caption>
+    <thead>
+    <tr>
+        <th scope="col">Solicitud</th>
+        <th scope="col">Responsable</th>
+        <th scope="col">Fechas</th>
+        <th scope="col">Estatus</th>
+        <th scope="col">Verificación</th>
+        {% if can_edit %}<th scope="col">Acciones</th>{% endif %}
+    </tr>
+    </thead>
+    <tbody>
+    {% for e in pagina %}
+    <tr>
+        <td>
+        <strong>{{ e.code }}</strong> · {{ e.get_channel_display }} · {{ e.delegation.name }}<br>
+        {{ e.title }}<br>
+        <span class="meta">
+            {{ e.get_origin_display }} · {{ e.requester }}{% if e.territory %} · {{ e.territory }}{% endif %}
+            {% if e.letter_number %} · Carta N° {{ e.letter_number }}{% endif %}
+        </span>
+        </td>
+        <td>{% if e.responsible %}{{ e.responsible.full_name }}{% else %}Sin asignar{% endif %}</td>
+        <td>
+        Solicitud: {{ e.request_date|date:"d/m/Y" }}<br>
+        Compromiso: {% if e.due_date %}{{ e.due_date|date:"d/m/Y" }}{% else %}—{% endif %}
+        </td>
+        <td>
+        <span class="badge {% if e.status == 'done' %}b-ok{% elif e.status == 'pending' %}b-warn{% elif e.status == 'in_progress' or e.status == 'received' %}b-info{% endif %}">{{ e.get_status_display }}</span>
+        {% if e.completed_at %}<br><span class="meta">{{ e.completed_at|date:"d/m/Y H:i" }}</span>{% endif %}
+        </td>
+        <td>
+        Código: <strong>{{ e.verification_code }}</strong>
+        {% if e.proof_image %}<br><a href="{{ e.proof_image.url }}" target="_blank" rel="noopener">Ver foto</a>{% endif %}
+        </td>
+        {% if can_edit %}
+        <td>
+        {% if e.status != 'done' %}
+        <form method="post" action="{% url 'tube_status' e.pk %}" style="display:flex;gap:6px;margin-bottom:8px">
+            {% csrf_token %}
+            <select class="in" name="status" aria-label="Nuevo estatus de {{ e.code }}">
+            {% for valor, etiqueta in estados_editables %}
+            <option value="{{ valor }}"{% if e.status == valor %} selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+            </select>
+            <button class="btn soft" type="submit">Cambiar</button>
+        </form>
+        <form method="post" action="{% url 'tube_close' e.pk %}" enctype="multipart/form-data"
+                style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            {% csrf_token %}
+            <input class="in" type="file" name="proof_image" accept="image/*" required aria-label="Foto de respaldo de {{ e.code }}">
+            <input class="in" name="code" maxlength="8" required placeholder="Código en la foto" style="width:150px">
+            <button class="btn primary" type="submit">Cerrar</button>
+        </form>
+        {% else %}
+        Cerrada
+        {% endif %}
+        </td>
+        {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if pagina.has_other_pages %}
+<nav class="meta" aria-label="Paginación" style="margin-top:12px">
+{% if pagina.has_previous %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.previous_page_number }}">‹ Anterior</a>{% endif %}
+Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
+{% if pagina.has_next %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.next_page_number }}">Siguiente ›</a>{% endif %}
+</nav>
+{% endif %}
+{% endif %}
+{% endblock %}

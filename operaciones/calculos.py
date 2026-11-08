@@ -5,7 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 
-from operaciones.models import Activity, EmployeeFeedback
+from operaciones.models import Activity, EmployeeFeedback, TubeEntry
 from sgr_core.models import PositionItemGoal
 
 CENTESIMOS = Decimal("0.01")
@@ -156,6 +156,21 @@ def puntos_reclamos(cantidad):
     return Decimal(cantidad) * PUNTOS_RECLAMO
 
 
+def razon_tubo(employee, period):
+    """Fracción de solicitudes del tubo realizadas (None si no tuvo solicitudes en el trimestre)."""
+    estados = list(
+        TubeEntry.objects.filter(
+            responsible=employee, deleted_at__isnull=True,
+            request_date__range=(period.start_date, period.end_date),
+        ).exclude(status=TubeEntry.Status.NOT_APPLICABLE).values_list("status", flat=True)
+    )
+    if not estados:
+        return None
+    realizadas = sum(1 for estado in estados if estado == TubeEntry.Status.DONE)
+    return Decimal(realizadas) / Decimal(len(estados))
+
+
+
 def calcular_cumplimiento(employee, period, hoy=None):
     """Cumplimiento de un funcionario en un trimestre, ítem por ítem."""
     hoy = hoy or date.today()
@@ -179,15 +194,33 @@ def calcular_cumplimiento(employee, period, hoy=None):
 
     total, suma_pesos = Decimal("0"), Decimal("0")
     for goal in metas:
-        meta = meta_ajustada(goal.target_value, factor)
-        hecho = logrado.get(goal.item_id, 0)
-        razon = razon_logro(hecho, meta)
+            fraccion_tubo = None
+    tubo_calculado = False
+    for goal in metas:
+        es_tubo = goal.item.code == CODIGO_ITEM_TUBO
+        if es_tubo:
+            if not tubo_calculado:
+                fraccion_tubo = razon_tubo(employee, period)
+                tubo_calculado = True
+            meta = goal.target_value                       # es un %, no se ajusta por días libres
+            hecho = fraccion_tubo
+            razon = Decimal("1") if hecho is None else razon_logro(hecho, meta)
+        else:
+            meta = meta_ajustada(goal.target_value, factor)
+            hecho = logrado.get(goal.item_id, 0)
+            razon = razon_logro(hecho, meta)
         puntaje = puntaje_item(razon, goal.weight)
         total += puntaje
         suma_pesos += goal.weight
         resultado["items"].append({
             "item": goal.item, "peso": goal.weight, "meta": meta, "logrado": hecho,
             "razon": razon, "puntaje": puntaje, "semaforo": semaforo(razon, esperado),
+                    "es_tubo": es_tubo,
+            "logrado_txt": (
+                ("Sin solicitudes" if hecho is None else f"{(hecho * 100).quantize(Decimal('0.1'))} % realizado")
+                if es_tubo else None
+            ),
+            "meta_txt": f"{(meta * 100).quantize(Decimal('1'))} %" if es_tubo else None,
         })
 
         felicitaciones, reclamos = conteo_comentarios(employee, period)
@@ -208,3 +241,5 @@ def calcular_cumplimiento(employee, period, hoy=None):
         "descuento": descuento,
     })
     return resultado
+#: Código del ítem "Soluciones de ingresos al tubo": se mide en % de solicitudes realizadas.
+CODIGO_ITEM_TUBO = "MTX06"

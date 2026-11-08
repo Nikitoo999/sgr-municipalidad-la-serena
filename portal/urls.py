@@ -2,7 +2,8 @@ from django.urls import include, path
 from django.views.generic import RedirectView
 from .goals_views import GoalsView
 from .agenda_views import ActivityCreateView, AgendaView, EvidenceCreateView, EvidenceValidateView
-from .compliance_views import ComplianceView
+from .compliance_views import ComplianceView, FeedbackCreateView
+from .tubes_views import TubeCloseView, TubeCreateView, TubeListView, TubeStatusView
 
 from .crud import registered_modules
 from .home_views import HomeView, ModulePlaceholderView, SwitchDelegationView
@@ -54,6 +55,11 @@ urlpatterns = [
     path('agenda-tareas/evidencias/<int:evidence_id>/validar/', EvidenceValidateView.as_view(), name='evidence_validate'),
     path('agenda-tareas/<int:task_id>/actividades/nueva/', ActivityCreateView.as_view(), name='activity_create'),
     path('cumplimiento/', ComplianceView.as_view(), name='achievements'),
+    path('cumplimiento/<int:employee_id>/comentarios/nuevo/', FeedbackCreateView.as_view(), name='feedback_create'),
+    path('cumplimiento/tubos/', TubeListView.as_view(), name='tubes'),
+    path('cumplimiento/tubos/nuevo/', TubeCreateView.as_view(), name='tube_create'),
+    path('cumplimiento/tubos/<int:entry_id>/estado/', TubeStatusView.as_view(), name='tube_status'),
+    path('cumplimiento/tubos/<int:entry_id>/cerrar/', TubeCloseView.as_view(), name='tube_close'),
     path('', include('portal.crud.urls')),
 ]
 

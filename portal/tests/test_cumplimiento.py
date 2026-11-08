@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from operaciones.calculos import (
     calcular_cumplimiento, logrado_por_item, puntaje_item, razon_logro, semaforo,
 )
-from operaciones.models import Activity,EmployeeFeedback, Evidence, Task
+from operaciones.models import Activity,EmployeeFeedback, EmployeeDayOff, Evidence, Task, TubeEntry
 from portal.tests.helpers import ensure_roles, make_delegation, make_employee
 from sgr_core.models import InstitutionalGoal, Period, Position, PositionItemGoal, ProjectItem
 from django.core.exceptions import ValidationError
@@ -142,3 +142,61 @@ class CumplimientoTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             registro.clean()
+
+class TuboCumplimientoTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        roles = ensure_roles()
+        cls.delegacion = make_delegation("Centro", "DEL01", color="#C62828")
+        cls.periodo = Period.objects.create(
+            name="Trimestre Oct-Dic 2026",
+            start_date=date(2026, 10, 1), end_date=date(2026, 12, 31), quarter=4,
+        )
+        cargo = Position.objects.create(code="CAR02", name="Gestor Social")
+        item = ProjectItem.objects.create(code="MTX06", name="Soluciones de ingresos al tubo")
+        PositionItemGoal.objects.create(position=cargo, item=item, period=cls.periodo, weight=100, target_value="0.8")
+        cls.ana = make_employee("ana", "10.000.001-1", cls.delegacion, roles["ROL04"],
+                                first_name="Ana", last_name="Pérez")
+        cls.ana.position = cargo
+        cls.ana.save()
+
+    def solicitud(self, estado, dia=date(2026, 11, 2)):
+        return TubeEntry.objects.create(
+            delegation=self.delegacion, title="Solicitud", requester="JJVV", responsible=self.ana,
+            request_date=dia, status=estado,
+        )
+
+    def calcular(self):
+        return calcular_cumplimiento(self.ana, self.periodo, hoy=date(2026, 12, 31))
+
+    def test_porcentaje_de_solicitudes_realizadas(self):
+        for _ in range(3):
+            self.solicitud(TubeEntry.Status.DONE)
+        self.solicitud(TubeEntry.Status.PENDING)
+        fila = self.calcular()["items"][0]
+        self.assertEqual(fila["razon"], Decimal("0.9375"))      # 0,75 / 0,80
+        self.assertEqual(fila["puntaje"], Decimal("93.75"))
+
+    def test_no_aplica_no_cuenta(self):
+        self.solicitud(TubeEntry.Status.DONE)
+        self.solicitud(TubeEntry.Status.NOT_APPLICABLE)
+        fila = self.calcular()["items"][0]
+        self.assertEqual(fila["puntaje"], Decimal("100.00") * Decimal("1.00") * Decimal("1.2"))
+
+    def test_sin_solicitudes_no_penaliza(self):
+        fila = self.calcular()["items"][0]
+        self.assertEqual(fila["puntaje"], Decimal("100.00"))
+        self.assertEqual(fila["logrado_txt"], "Sin solicitudes")
+
+    def test_solicitudes_de_otro_trimestre_no_cuentan(self):
+        self.solicitud(TubeEntry.Status.PENDING, dia=date(2026, 9, 1))
+        fila = self.calcular()["items"][0]
+        self.assertEqual(fila["logrado_txt"], "Sin solicitudes")
+
+    def test_la_meta_del_tubo_no_se_ajusta_por_dias_libres(self):
+        EmployeeDayOff.objects.create(
+            employee=self.ana, kind="vacation",
+            start_date=date(2026, 10, 5), end_date=date(2026, 10, 9),
+        )
+        fila = self.calcular()["items"][0]
+        self.assertEqual(fila["meta"], Decimal("0.80"))
