@@ -76,7 +76,7 @@ class AgendaTests(TestCase):
         self.assertEqual(nueva.status, Activity.Status.PENDING)
 
     def test_registrar_actividad_sin_permiso_es_403(self):
-        self.login("ana")
+        self.login("coord")  # el coordinador solo tiene "ver" en tareas
         resp = self.client.post(
             reverse("activity_create", args=[self.t1.pk]),
             {"name": "No debería", "execution_date": "2026-11-10"},

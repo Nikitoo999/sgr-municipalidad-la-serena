@@ -77,9 +77,12 @@ class TubosTests(TestCase):
         self.assertContains(resp, "Poda en Las Compañías")
         self.assertNotContains(resp, "Reparación en Avenida del Mar")
 
-    def test_funcionario_sin_permiso_es_403(self):
+    def test_funcionario_puede_ver_pero_no_crear_tubos(self):
         self.login("ana")
-        self.assertEqual(self.client.get(reverse("tubes")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("tubes")).status_code, 200)
+        resp = self.client.post(reverse("tube_create"), {"title": "No debería"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(TubeEntry.objects.filter(title="No debería").exists())
 
     def test_filtro_por_canal(self):
         TubeEntry.objects.create(
