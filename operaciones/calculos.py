@@ -1,11 +1,12 @@
-"""Cálculos compartidos de la matriz SGR (días hábiles y metas ajustadas)."""
-from collections import defaultdict
-from datetime import date, timedelta
+from collections import Counter, defaultdict
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from itertools import chain
 
 from django.conf import settings
+from django.utils import timezone
 
-from operaciones.models import Activity, EmployeeFeedback, TubeEntry
+from operaciones.models import Activity, Attention, EmployeeFeedback, TubeEntry
 from sgr_core.models import PositionItemGoal
 
 CENTESIMOS = Decimal("0.01")
@@ -243,3 +244,46 @@ def calcular_cumplimiento(employee, period, hoy=None):
     return resultado
 #: Código del ítem "Soluciones de ingresos al tubo": se mide en % de solicitudes realizadas.
 CODIGO_ITEM_TUBO = "MTX06"
+
+# --- Ingresos diarios y días sin ingresar (3.7) ------------------------------
+
+def _rango_de_fechas(period, hasta=None):
+    """Inicio y fin (con zona horaria) del trimestre, o hasta una fecha."""
+    ultimo = min(hasta, period.end_date) if hasta else period.end_date
+    inicio = timezone.make_aware(datetime.combine(period.start_date, time.min))
+    fin = timezone.make_aware(datetime.combine(ultimo, time.max))
+    return inicio, fin
+
+
+def ingresos_por_dia(employee, period, hasta=None):
+    """Cuántas atenciones y actividades ingresó el funcionario cada día (por fecha de ingreso)."""
+    inicio, fin = _rango_de_fechas(period, hasta)
+    atenciones = Attention.objects.filter(
+        responsible_id=employee.user_id, deleted_at__isnull=True,
+        created_at__range=(inicio, fin),
+    ).values_list("created_at", flat=True)
+    actividades = Activity.objects.filter(
+        task__assigned_to=employee, deleted_at__isnull=True,
+        created_at__range=(inicio, fin),
+    ).values_list("created_at", flat=True)
+    return Counter(
+        timezone.localtime(momento).date() for momento in chain(atenciones, actividades)
+    )
+
+
+def dias_sin_ingresar(employee, period, hoy):
+    """Días hábiles sin ningún ingreso, hasta ayer y sin contar los días libres."""
+    hasta = min(hoy - timedelta(days=1), period.end_date)
+    if hasta < period.start_date:
+        return []
+    exigidos = set(dias_habiles(period.start_date, hasta)) - dias_libres(employee, period)
+    con_ingreso = set(ingresos_por_dia(employee, period, hasta))
+    return sorted(exigidos - con_ingreso)
+
+
+def dias_sobre_el_limite(employee, period):
+    """Días en que el funcionario ingresó más de MAX_ACTIVIDADES_POR_DIA."""
+    return sorted(
+        dia for dia, cantidad in ingresos_por_dia(employee, period).items()
+        if cantidad > MAX_ACTIVIDADES_POR_DIA
+    )
