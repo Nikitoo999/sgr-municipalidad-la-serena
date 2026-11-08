@@ -8,6 +8,7 @@ from operaciones.models import Employee
 from sgr_core.models import Delegation, Period
 
 from .access import ModulePermissionMixin, get_active_delegation, visible_users
+from .modules import MODULE_ICONS, MODULE_LABELS
 
 DELEGATE_POSITION_CODE = "CAR01"
 REPORTS_MODULE = "reports"  # clave real en sgr_core.roles.MODULES
@@ -34,7 +35,11 @@ def _empleados_en_alcance(request):
         return Employee.objects.none()
 
     qs = (
-        Employee.objects.filter(user__in=visible_users(request.user))
+        Employee.objects.filter(
+            deleted_at__isnull=True,
+            user__is_active=True,
+            user__in=visible_users(request.user),
+        )
         .select_related("position", "user")
         .order_by("user__last_name", "user__first_name", "pk")
     )
@@ -77,15 +82,21 @@ class ReportsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                     }
                 )
 
-        # Ranking: solo evaluados (excluye la posición CAR01), mayor % primero.
+        # Ranking: solo evaluados (con cargo y sin la posición CAR01), mayor % primero.
         ranking = sorted(
-            (fila for fila in reporte_funcionarios if not fila["es_delegado"]),
+            (
+                fila for fila in reporte_funcionarios
+                if fila["employee"].position_id is not None and not fila["es_delegado"]
+            ),
             key=lambda fila: fila["cumplimiento"]["porcentaje"],
             reverse=True,
         )
 
         context.update(
             {
+                "active_module": "reports",
+                "module_label": MODULE_LABELS["reports"],
+                "module_icon": MODULE_ICONS["reports"],
                 "periodo": periodo,
                 "periodos": Period.alive.order_by("-start_date"),
                 "reporte_funcionarios": reporte_funcionarios,
