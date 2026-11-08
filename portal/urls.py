@@ -1,6 +1,7 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 from .goals_views import GoalsView
+from .agenda_views import ActivityCreateView, AgendaView, EvidenceCreateView, EvidenceValidateView
 
 from .crud import registered_modules
 from .home_views import HomeView, ModulePlaceholderView, SwitchDelegationView
@@ -31,7 +32,7 @@ _placeholder_paths = {
 #: Módulos que ya tienen CRUD real (Parte 4+): los gestiona portal.crud.urls.
 _crud_modules = {module.module_key for module in registered_modules()}
 #: Módulos con vista propia (ni CRUD ni placeholder).
-_custom_modules = {"goals"}
+_custom_modules = {"goals","tasks"}
 
 urlpatterns = [
     path('', PortalLoginView.as_view(), name='login'),
@@ -47,7 +48,10 @@ urlpatterns = [
     path('recuperar/reenviar/', PasswordResetResendView.as_view(), name='password_reset_resend'),
     path('recuperar/nueva-clave/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('metas-institucionales/', GoalsView.as_view(), name='goals'),
-    # Motor de mantenedores (delegaciones por ahora; Partes 5 a 7 lo usan).
+    path('agenda-tareas/', AgendaView.as_view(), name='tasks'),
+    path('agenda-tareas/actividades/<int:activity_id>/evidencia/', EvidenceCreateView.as_view(), name='evidence_create'),
+    path('agenda-tareas/evidencias/<int:evidence_id>/validar/', EvidenceValidateView.as_view(), name='evidence_validate'),
+    path('agenda-tareas/<int:task_id>/actividades/nueva/', ActivityCreateView.as_view(), name='activity_create'),
     path('', include('portal.crud.urls')),
 ]
 

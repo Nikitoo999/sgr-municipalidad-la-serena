@@ -35,10 +35,23 @@ class Task(BaseModel):
     def __str__(self):
         return f"{self.title} - {self.status}"
 
+    @property
+    def code(self):
+        """Código de la tarea; identifica la carpeta de sus evidencias (TAR-00012)."""
+        return f"TAR-{self.pk:05d}" if self.pk else ""
+
 class Activity(BaseModel):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="activities", verbose_name="Tarea de Agenda")
     name = models.CharField(max_length=100, verbose_name="Nombre de la Actividad")
     execution_date = models.DateField(verbose_name="Fecha de Ejecución")
+
+    class Status(models.TextChoices):
+        PENDING = "Pendiente", "Pendiente"
+        DONE = "Realizada", "Realizada"
+
+    status = models.CharField(
+        max_length=15, choices=Status.choices, default=Status.PENDING, verbose_name="Estado",
+    )
 
     class Meta:
         verbose_name = "Actividad"
@@ -48,14 +61,24 @@ class Activity(BaseModel):
     def __str__(self):
         return self.name
 
+def evidence_upload_to(instance, filename):
+    """Guarda la evidencia bajo el código de su tarea: evidencias/TAR-00012/archivo."""
+    return f"evidencias/{instance.activity.task.code}/{filename}"
+
 class Evidence(BaseModel):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="evidences", verbose_name="Actividad Respaldada")
-    image_url = models.CharField(max_length=255, verbose_name="URL de Imagen/Archivo")
+    image_url = models.CharField(max_length=255, blank=True, default="", verbose_name="URL de Imagen/Archivo")
     file = models.FileField(
-        upload_to="evidencias/%Y/%m/", max_length=255, blank=True, null=True,
+        upload_to=evidence_upload_to, max_length=255, blank=True, null=True,
         validators=[validate_attachment_file], verbose_name="Archivo de evidencia (máx. 5 MB)",
     )
     is_validated = models.BooleanField(default=False, verbose_name="Validado por Jefatura")
+    validated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="validated_evidences", verbose_name="Validado por",
+    )
+    validated_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de validación")
+
 
     class Meta:
         verbose_name = "Evidencia"
@@ -142,7 +165,7 @@ class Employee(BaseModel):
 
         - scope all: todas las delegaciones activas.
         - scope authorized: las delegaciones autorizadas; si no tiene ninguna
-          declarada, solo su delegación base.
+        declarada, solo su delegación base.
         - own_delegation / own_records: solo su delegación base.
         """
         if self.role_id is None:

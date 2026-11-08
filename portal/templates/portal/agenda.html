@@ -1,0 +1,124 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }}</nav>
+<div class="titlebar"><h1>{{ module_label }}</h1></div>
+
+<section class="card toolbar" aria-label="Filtro de tareas">
+<form method="get" role="search" style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+    <div class="statebox">
+    <label for="estado">Estado de la tarea</label>
+    <select class="in" id="estado" name="estado">
+        <option value=""{% if not estado %} selected{% endif %}>Todos</option>
+        {% for valor, etiqueta in estados %}
+        <option value="{{ valor }}"{% if estado == valor %} selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+    </select>
+    </div>
+    <button class="btn primary" type="submit">Filtrar</button>
+    <a class="btn-outline" href="{% url 'tasks' %}">Limpiar filtros</a>
+</form>
+</section>
+
+{% if not tareas %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>No hay tareas para mostrar</h2>
+<p>Cuando se asignen tareas en esta delegación, aparecerán aquí con sus actividades.</p>
+</div>
+{% else %}
+{% for tarea in tareas %}
+<section class="card" style="margin-bottom:16px">
+<h2>
+    {{ tarea.code }} · {{ tarea.title }}
+    <span class="badge {% if tarea.status == 'Completada' %}b-ok{% elif tarea.status == 'En Progreso' %}b-info{% else %}b-warn{% endif %}">{{ tarea.status }}</span>
+</h2>
+<p class="meta">
+    Meta: {{ tarea.goal.name }} · Plazo: {{ tarea.due_date|date:"d/m/Y" }}
+    · Responsable: {% if tarea.assigned_to %}{{ tarea.assigned_to.full_name }}{% else %}Sin responsable{% endif %}
+</p>
+{% if tarea.description %}<p>{{ tarea.description }}</p>{% endif %}
+
+{% with actividades=tarea.activities.all %}
+{% if actividades %}
+<div class="tablewrap">
+    <table>
+    <caption class="sr">Actividades de {{ tarea.code }}</caption>
+    <thead>
+        <tr>
+        <th scope="col">Actividad</th>
+        <th scope="col">Fecha</th>
+        <th scope="col">Estado</th>
+        <th scope="col">Evidencias</th>
+        {% if can_create %}<th scope="col">Subir evidencia (máx. 5 MB)</th>{% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for act in actividades %}
+        <tr>
+        <td>{{ act.name }}</td>
+        <td>{{ act.execution_date|date:"d/m/Y" }}</td>
+        <td><span class="badge {% if act.status == 'Realizada' %}b-ok{% else %}b-warn{% endif %}">{{ act.status }}</span></td>
+        <td>
+            {% for ev in act.lista_evidencias %}
+            {% if ev.file %}
+            <a href="{{ ev.file.url }}" target="_blank" rel="noopener">Archivo {{ forloop.counter }}</a>
+            {% endif %}
+            <span class="badge {% if ev.is_validated %}b-ok{% else %}b-warn{% endif %}">{% if ev.is_validated %}Validada{% else %}Sin validar{% endif %}</span>
+            {% if ev.is_validated and ev.validated_by %}
+            <span class="meta">por {{ ev.validated_by.get_full_name|default:ev.validated_by.username }} el {{ ev.validated_at|date:"d/m/Y H:i" }}</span>
+            {% elif can_edit %}
+            <form method="post" action="{% url 'evidence_validate' ev.pk %}" style="display:inline">
+                {% csrf_token %}
+                <button class="btn soft" type="submit">Validar</button>
+            </form>
+            {% endif %}
+            <br>
+            {% empty %}
+            Sin evidencia
+            {% endfor %}
+        </td>
+        {% if can_create %}
+        <td>
+            <form method="post" action="{% url 'evidence_create' act.pk %}" enctype="multipart/form-data"
+                style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            {% csrf_token %}
+            <input class="in" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp" required>
+            <button class="btn soft" type="submit">Subir</button>
+            </form>
+        </td>
+        {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+    </table>
+</div>
+{% else %}
+<p class="meta">Esta tarea aún no tiene actividades registradas.</p>
+{% endif %}
+{% endwith %}
+
+{% if can_create %}
+<form method="post" action="{% url 'activity_create' tarea.pk %}"
+        style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+    {% csrf_token %}
+    <div>
+    <label class="fl" for="nombre-{{ tarea.pk }}">Nueva actividad</label>
+    <input class="in" id="nombre-{{ tarea.pk }}" name="name" maxlength="100" required
+            placeholder="Nombre de la actividad">
+    </div>
+    <div>
+    <label class="fl" for="fecha-{{ tarea.pk }}">Fecha de ejecución</label>
+    <input class="in" id="fecha-{{ tarea.pk }}" name="execution_date" type="date" required>
+    </div>
+    <button class="btn primary" type="submit">Registrar actividad</button>
+</form>
+{% endif %}
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}
