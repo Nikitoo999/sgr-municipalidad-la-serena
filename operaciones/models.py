@@ -1,9 +1,11 @@
+import os
 import secrets
 from django.core.exceptions import ValidationError
 from datetime import timedelta
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.utils.text import get_valid_filename
 from portal.validators import validate_attachment_file, validate_image_file
 from sgr_core.models import (
     AttentionSubtype,
@@ -16,7 +18,32 @@ from sgr_core.models import (
     Role,
 )
 
-# ... aquí siguen tus clases Task, Activity, etc.
+
+# --- Rutas de los archivos subidos (Bloque 2A) -------------------------------
+# El archivo se guarda con el código del registro como prefijo, así se
+# reconoce a qué atención o tarea pertenece aunque se descargue o se mueva:
+#   atenciones/imagenes/2026/11/ATN-0001_evidencia.jpg
+# Las funciones viven a nivel de módulo porque las migraciones las referencian.
+
+def _code_prefixed_path(folder, code, filename):
+    """``<carpeta>/<AAAA>/<MM>/<codigo>_<archivo>`` con un nombre seguro."""
+    original = os.path.basename(filename or "") or "archivo"
+    safe_name = get_valid_filename(original) or "archivo"
+    now = timezone.localtime()
+    return f"{folder}/{now:%Y}/{now:%m}/{code}_{safe_name}"
+
+
+def attention_image_path(instance, filename):
+    """Imagen de evidencia: ``atenciones/imagenes/AAAA/MM/ATN-0001_<archivo>``."""
+    return _code_prefixed_path("atenciones/imagenes", instance.number or "ATN-sn", filename)
+
+
+def attention_attachment_path(instance, filename):
+    """Documento de respaldo: ``atenciones/adjuntos/AAAA/MM/ATN-0001_<archivo>``."""
+    return _code_prefixed_path("atenciones/adjuntos", instance.number or "ATN-sn", filename)
+
+
+
 
 class Task(BaseModel):
     goal = models.ForeignKey(InstitutionalGoal, on_delete=models.CASCADE, related_name="tasks", verbose_name="Meta Institucional")
@@ -298,13 +325,16 @@ class Attention(BaseModel):
         default=AttentionStatus.RECEIVED, verbose_name="Estado",
     )
     evidence_image = models.ImageField(
-        upload_to="atenciones/imagenes/%Y/%m/", max_length=255, blank=True, null=True,
+        upload_to=attention_image_path, max_length=255, blank=True, null=True,
         validators=[validate_image_file], verbose_name="Imagen de evidencia (máx. 2 MB)",
     )
     attachment = models.FileField(
-        upload_to="atenciones/adjuntos/%Y/%m/", max_length=255, blank=True, null=True,
+        upload_to=attention_attachment_path, max_length=255, blank=True, null=True,
         validators=[validate_attachment_file], verbose_name="Documento de respaldo (máx. 5 MB)",
     )
+
+    #: Campos de archivo que llevan el número de la atención como prefijo.
+    FILE_FIELDS = ("evidence_image", "attachment")
 
     class Meta:
         verbose_name = "Atención"
@@ -366,13 +396,30 @@ class Attention(BaseModel):
 
         El número se deriva del id dentro de una transacción; el segundo
         guardado usa update_fields para no re-entrar en este método.
+
+        Al crear, los archivos nuevos se apartan durante el primer INSERT
+        (todavía no hay número) y se guardan en el segundo guardado, cuando
+        el número ya existe: así el archivo queda como ``ATN-0001_foto.jpg``.
         """
-        creating = self.pk is None
+        creating = self._state.adding
+        pending_files = {}
+        if creating:
+            for name in self.FILE_FIELDS:
+                value = getattr(self, name)
+                if value and not getattr(value, "_committed", True):
+                    pending_files[name] = value
+                    setattr(self, name, None)
         with transaction.atomic():
             super().save(*args, **kwargs)
+            update_fields = []
             if creating and not self.number:
                 self.number = f"ATN-{self.pk:04d}"
-                super().save(update_fields=["number"])
+                update_fields.append("number")
+            for name, value in pending_files.items():
+                setattr(self, name, value)
+                update_fields.append(name)
+            if update_fields:
+                super().save(update_fields=update_fields, using=kwargs.get("using"))
 
 class EmployeeDayOff(BaseModel):
     """Día(s) libre(s) de un funcionario; ajusta la meta del trimestre."""

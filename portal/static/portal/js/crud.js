@@ -1,11 +1,16 @@
 /**
- * crud.js — JavaScript ligero de los mantenedores (Parte 4).
+ * crud.js — JavaScript ligero de los mantenedores (Parte 4, Bloque 2A).
  * - Búsqueda/filtro: el campo de búsqueda se envía solo (sin botón, debounce
- *   de 350 ms) y el filtro de estado al cambiar; la X nativa y Enter envían
- *   de inmediato cancelando el temporizador; tras recargar vuelve el foco
- *   al campo con el cursor al final (marca en sessionStorage).
+ *   de 350 ms); la X nativa y Enter envían de inmediato cancelando el
+ *   temporizador; tras recargar vuelve el foco al campo con el cursor al
+ *   final (marca en sessionStorage).
+ * - Filtros propios, estado y filas por página: todo control con el atributo
+ *   ``data-autosubmit`` envía el formulario al cambiar (``data-clears="id"``
+ *   limpia antes otro control dependiente). El último estado lo recuerda el
+ *   servidor en la sesión; "Limpiar filtros" lo borra (?limpiar=1).
  * - Exportar: indicador mientras se descarga.
- * - Eliminar: confirmación SweetAlert y POST con CSRF.
+ * - Eliminar: confirmación SweetAlert con el nombre propio del registro
+ *   (data-delete-title / data-delete-text) y POST con CSRF.
  * - Formulario: cambios sin guardar (data-dirty), foco al primer error y
  *   aviso SweetAlert; selector de color con vista previa de la insignia.
  * Sin dependencias nuevas: SweetAlert2 lo carga base.html (v11.10.1).
@@ -91,12 +96,21 @@
     }
   }
 
-  // ---- Filtro de estado: envía el formulario al cambiar ----
-  var estadoSel = document.getElementById('estado');
-  if (estadoSel) {
-    estadoSel.addEventListener('change', function () {
-      var form = document.getElementById('toolbarForm');
-      if (form) form.submit();
+  // ---- Estado, filtros propios y filas por página: envío al cambiar ----
+  // Un solo listener en el formulario (delegación de eventos): corre después
+  // de los listeners propios de cada control, así un script de la página
+  // puede ajustar otros campos antes del envío.
+  var toolbarForm = document.getElementById('toolbarForm');
+  if (toolbarForm) {
+    toolbarForm.addEventListener('change', function (e) {
+      var control = e.target;
+      if (!control || !control.hasAttribute || !control.hasAttribute('data-autosubmit')) return;
+      var clears = control.getAttribute('data-clears');
+      if (clears) {
+        var dependent = document.getElementById(clears);
+        if (dependent) dependent.value = '';
+      }
+      toolbarForm.submit();
     });
   }
 
@@ -124,10 +138,16 @@
     btn.addEventListener('click', function () {
       var url = btn.getAttribute('data-delete-url');
       var label = btn.getAttribute('data-delete-label') || 'registro';
+      // Título y texto con el nombre propio del registro (los arma el
+      // servidor con el género correcto: "¿Eliminar la delegación «DEL01 ·
+      // Centro»?"); si faltan, se usa el texto genérico.
+      var title = btn.getAttribute('data-delete-title') || ('¿Eliminar ' + label.toLowerCase() + '?');
+      var text = btn.getAttribute('data-delete-text') ||
+        'Se marcará como eliminado y dejará de aparecer en las listas. Esta acción queda registrada en la auditoría.';
       Swal.fire({
         icon: 'warning',
-        title: '¿Eliminar ' + label.toLowerCase() + '?',
-        text: 'Se marcará como eliminada y dejará de aparecer en las listas. Esta acción queda registrada en la auditoría.',
+        title: title,
+        text: text,
         showCancelButton: true,
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar',

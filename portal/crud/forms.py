@@ -57,14 +57,35 @@ class CrudModelForm(forms.ModelForm):
 
     full_width_fields = ('description', 'address')
 
+    #: Campo con código correlativo automático (Bloque 2A). Al crear no se
+    #: muestra (lo asigna ``AutoCodeMixin.save()``); al editar o consultar
+    #: queda de solo lectura: un campo ``disabled`` ignora lo que llegue por
+    #: POST, así un formulario manipulado no puede cambiar el código.
+    auto_code_field = None
+
     def __init__(self, *args, request=None, **kwargs):
         self.request = request
         super().__init__(*args, **kwargs)
+        self._setup_auto_code()
+
+    def _setup_auto_code(self):
+        name = self.auto_code_field
+        if not name or name not in self.fields:
+            return
+        if self.instance.pk is None:
+            del self.fields[name]
+            return
+        field = self.fields[name]
+        field.disabled = True
+        field.required = False
+        field.help_text = "Código correlativo asignado por el sistema; no se puede modificar."
 
 
 class DelegationForm(CrudModelForm):
-    """Delegación: código (único, mayúsculas), nombre (único), comuna,
+    """Delegación: código automático (DEL01...), nombre (único), comuna,
     dirección, color hex y estado."""
+
+    auto_code_field = "code"
 
     class Meta:
         model = Delegation
@@ -78,7 +99,6 @@ class DelegationForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo DEL08. Se guarda en mayúsculas.",
             "name": "Nombre visible de la delegación. Debe ser único.",
             "commune": "Comuna de la delegación.",
             "address": "Dirección o referencia de la oficina (opcional).",
@@ -87,7 +107,7 @@ class DelegationForm(CrudModelForm):
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "DEL08",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -116,19 +136,6 @@ class DelegationForm(CrudModelForm):
                 attrs={"class": "in", "aria-describedby": "id_status-help id_status-e"},
             ),
         }
-
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código de la delegación.")
-        exists = Delegation.objects.filter(code=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError(
-                "Ya existe una delegación con este código."
-            )
-        return code
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()
@@ -207,8 +214,8 @@ class PermissionMatrixWidget(forms.CheckboxSelectMultiple):
 
 
 class RoleForm(CrudModelForm):
-    """Rol: código (único, mayúsculas), nombre, descripción, alcance, estado y
-    la matriz de permisos módulo × acción.
+    """Rol: código automático (ROL01...), nombre, descripción, alcance, estado
+    y la matriz de permisos módulo × acción.
 
     Reglas validadas en el servidor:
     - un módulo con cualquier acción create/edit/delete/export exige también "Ver";
@@ -218,6 +225,7 @@ class RoleForm(CrudModelForm):
     """
 
     full_width_fields = ('description', 'permissions')
+    auto_code_field = "code"
 
     #: Matriz como lista de valores "modulo.accion".
     permissions = forms.MultipleChoiceField(
@@ -238,7 +246,6 @@ class RoleForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo ROL05. Se guarda en mayúsculas.",
             "name": "Nombre visible del rol. Debe ser único.",
             "description": "Explica qué hace este perfil (opcional).",
             "scope": "Define qué delegaciones puede ver el rol.",
@@ -246,7 +253,7 @@ class RoleForm(CrudModelForm):
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "ROL05",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -279,17 +286,6 @@ class RoleForm(CrudModelForm):
     # ---------------------------------------------------------------
     # Validaciones del servidor
     # ---------------------------------------------------------------
-
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código del rol.")
-        exists = Role.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe un rol con este código.")
-        return code
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()
@@ -793,7 +789,9 @@ class UserForm(CrudModelForm):
 
 
 class ProjectItemForm(CrudModelForm):
-    """Ítem de proyecto: código (único, mayúsculas), nombre, descripción y estado."""
+    """Ítem de proyecto: código automático (ITM001...), nombre, descripción y estado."""
+
+    auto_code_field = "code"
 
     class Meta:
         model = ProjectItem
@@ -805,14 +803,13 @@ class ProjectItemForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo ITM08. Se guarda en mayúsculas.",
             "name": "Nombre visible del ítem.",
             "description": "Explica qué mide este ítem (opcional).",
             "status": "Un ítem inactivo no aparece en los formularios nuevos.",
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "ITM08",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -829,20 +826,11 @@ class ProjectItemForm(CrudModelForm):
             ),
         }
 
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código del ítem.")
-        exists = ProjectItem.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe un ítem con este código.")
-        return code
-
 
 class AttentionTypeForm(CrudModelForm):
-    """Tipo de atención: código (único, mayúsculas), nombre, descripción y estado."""
+    """Tipo de atención: código automático (TAT01...), nombre, descripción y estado."""
+
+    auto_code_field = "code"
 
     class Meta:
         model = AttentionType
@@ -854,14 +842,13 @@ class AttentionTypeForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo TAT06. Se guarda en mayúsculas.",
             "name": "Nombre visible del tipo de atención.",
             "description": "Explica qué agrupa este tipo (opcional).",
             "status": "Un tipo inactivo no aparece al crear sub atenciones nuevas.",
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "TAT06",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -877,24 +864,15 @@ class AttentionTypeForm(CrudModelForm):
             ),
         }
 
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código del tipo de atención.")
-        exists = AttentionType.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe un tipo de atención con este código.")
-        return code
-
 
 class AttentionSubtypeForm(CrudModelForm):
-    """Sub atención: código (único, mayúsculas), nombre, tipo asociado y estado.
+    """Sub atención: código automático (SAT001...), nombre, tipo asociado y estado.
 
     Solo se ofrecen tipos Activos; al editar se conserva el tipo actual aunque
     esté inactivo, para que la consulta/edición lo muestre seleccionado.
     """
+
+    auto_code_field = "code"
 
     class Meta:
         model = AttentionSubtype
@@ -906,14 +884,13 @@ class AttentionSubtypeForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo SAT09. Se guarda en mayúsculas.",
             "name": "Nombre visible de la sub atención.",
             "attention_type": "Solo se ofrecen tipos activos.",
             "status": "Una sub atención inactiva no aparece en los formularios nuevos.",
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "SAT09",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -940,17 +917,6 @@ class AttentionSubtypeForm(CrudModelForm):
                     pk__in=list(qs.values_list("pk", flat=True)) + [current.pk]
                 ).order_by("code")
         self.fields["attention_type"].queryset = qs
-
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código de la sub atención.")
-        exists = AttentionSubtype.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe una sub atención con este código.")
-        return code
 
 
 class AttentionForm(CrudModelForm):

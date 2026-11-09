@@ -137,15 +137,18 @@ BENEFITS = [
 
 
 # --- Catálogos de la Parte 2B (idempotentes) ---
+# Códigos con el formato del Bloque 2A (DEL01, ROL01, TAT01: 2 dígitos;
+# ITM001, SAT001: 3 dígitos). La migración sgr_core.0008 ya rellenó con ceros
+# los códigos antiguos (ITM01 -> ITM001), así una base existente no duplica.
 # (code, name, description, status)
 PROJECT_ITEMS = [
-    ("ITM01", "Operativos en terreno", "Operativos municipales realizados en las delegaciones.", "Activo"),
-    ("ITM02", "Solicitudes vecinales", "Solicitudes de vecinos atendidas por la delegación.", "Activo"),
-    ("ITM03", "Reportes de deterioro", "Reportes de deterioro del espacio público gestionados.", "Activo"),
-    ("ITM04", "Reuniones comunitarias", "Reuniones con comercio, residentes y organizaciones.", "Activo"),
-    ("ITM05", "Inspecciones preventivas", "Inspecciones de espacios públicos y seguridad.", "Activo"),
-    ("ITM06", "Actividades preventivas", "Actividades de prevención y seguridad realizadas.", "Activo"),
-    ("ITM07", "Certificados emitidos", "Certificados y documentos entregados a vecinos.", "Activo"),
+    ("ITM001", "Operativos en terreno", "Operativos municipales realizados en las delegaciones.", "Activo"),
+    ("ITM002", "Solicitudes vecinales", "Solicitudes de vecinos atendidas por la delegación.", "Activo"),
+    ("ITM003", "Reportes de deterioro", "Reportes de deterioro del espacio público gestionados.", "Activo"),
+    ("ITM004", "Reuniones comunitarias", "Reuniones con comercio, residentes y organizaciones.", "Activo"),
+    ("ITM005", "Inspecciones preventivas", "Inspecciones de espacios públicos y seguridad.", "Activo"),
+    ("ITM006", "Actividades preventivas", "Actividades de prevención y seguridad realizadas.", "Activo"),
+    ("ITM007", "Certificados emitidos", "Certificados y documentos entregados a vecinos.", "Activo"),
 ]
 
 # (code, name, description, status)
@@ -159,14 +162,14 @@ ATTENTION_TYPES = [
 
 # (code, name, type_code, status)
 ATTENTION_SUBTYPES = [
-    ("SAT01", "Ayuda social", "TAT01", "Activo"),
-    ("SAT02", "Subsidio y beneficios", "TAT01", "Activo"),
-    ("SAT03", "Visita a terreno", "TAT02", "Activo"),
-    ("SAT04", "Reparación de luminaria", "TAT02", "Activo"),
-    ("SAT05", "Certificado de residencia", "TAT03", "Activo"),
-    ("SAT06", "Patente comercial", "TAT03", "Activo"),
-    ("SAT07", "Orientación de trámites", "TAT04", "Activo"),
-    ("SAT08", "Consulta general", "TAT04", "Inactivo"),
+    ("SAT001", "Ayuda social", "TAT01", "Activo"),
+    ("SAT002", "Subsidio y beneficios", "TAT01", "Activo"),
+    ("SAT003", "Visita a terreno", "TAT02", "Activo"),
+    ("SAT004", "Reparación de luminaria", "TAT02", "Activo"),
+    ("SAT005", "Certificado de residencia", "TAT03", "Activo"),
+    ("SAT006", "Patente comercial", "TAT03", "Activo"),
+    ("SAT007", "Orientación de trámites", "TAT04", "Activo"),
+    ("SAT008", "Consulta general", "TAT04", "Inactivo"),
 ]
 
 # (identifier, full_name, phone, email, status)
@@ -191,20 +194,20 @@ NEIGHBORS = [
 # descripción única). El número (ATN-0001, ...) lo genera el modelo.
 # (neighbor_id, subtype_code, delegation_name, responsible_username, description, status)
 ATTENTIONS = [
-    ("11.111.111-1", "SAT01", "Centro", "funcionario", "Solicitud de ayuda social para grupo familiar.", "received"),
-    ("22.222.222-2", "SAT03", "Centro", "funcionario", "Visita a terreno por denuncia de microbasural.", "in_progress"),
-    ("33.333.333-3", "SAT05", "Centro", "funcionario", "Emisión de certificado de residencia.", "resolved"),
-    ("44.444.444-4", "SAT02", "Avenida del Mar", "funcionario.mar", "Postulación a subsidio y beneficios sociales.", "received"),
-    ("55.555.555-5", "SAT04", "Avenida del Mar", "funcionario.mar", "Reparación de luminaria en mal estado.", "in_progress"),
-    ("66.666.666-6", "SAT03", "La Antena-La Florida", "funcionario", "Visita a terreno por sede vecinal.", "received"),
-    ("77.777.777-7", "SAT01", "La Antena-La Florida", "funcionario", "Ayuda social por emergencia familiar.", "in_progress"),
-    ("88.888.888-8", "SAT06", "Las Compañías", "coordinador2", "Solicitud de patente comercial.", "received"),
-    ("99.999.999-9", "SAT07", "Las Compañías", "coordinador2", "Orientación de trámites municipales.", "resolved"),
-    ("10.101.010-1", "SAT02", "La Pampa", "coordinador2", "Consulta por subsidio y beneficios.", "received"),
-    ("12.121.212-2", "SAT05", "La Pampa", "coordinador2", "Certificado de residencia para postulación.", "in_progress"),
-    ("13.131.313-3", "SAT03", "Rural", "coordinador2", "Visita a terreno en localidad rural.", "received"),
-    ("14.141.414-4", "SAT07", "Rural", "coordinador2", "Orientación de trámites para comité rural.", "in_progress"),
-    ("15.151.515-5", "SAT04", "Centro", "coordinador", "Reparación de luminaria en plaza central.", "received"),
+    ("11.111.111-1", "SAT001", "Centro", "funcionario", "Solicitud de ayuda social para grupo familiar.", "received"),
+    ("22.222.222-2", "SAT003", "Centro", "funcionario", "Visita a terreno por denuncia de microbasural.", "in_progress"),
+    ("33.333.333-3", "SAT005", "Centro", "funcionario", "Emisión de certificado de residencia.", "resolved"),
+    ("44.444.444-4", "SAT002", "Avenida del Mar", "funcionario.mar", "Postulación a subsidio y beneficios sociales.", "received"),
+    ("55.555.555-5", "SAT004", "Avenida del Mar", "funcionario.mar", "Reparación de luminaria en mal estado.", "in_progress"),
+    ("66.666.666-6", "SAT003", "La Antena-La Florida", "funcionario", "Visita a terreno por sede vecinal.", "received"),
+    ("77.777.777-7", "SAT001", "La Antena-La Florida", "funcionario", "Ayuda social por emergencia familiar.", "in_progress"),
+    ("88.888.888-8", "SAT006", "Las Compañías", "coordinador2", "Solicitud de patente comercial.", "received"),
+    ("99.999.999-9", "SAT007", "Las Compañías", "coordinador2", "Orientación de trámites municipales.", "resolved"),
+    ("10.101.010-1", "SAT002", "La Pampa", "coordinador2", "Consulta por subsidio y beneficios.", "received"),
+    ("12.121.212-2", "SAT005", "La Pampa", "coordinador2", "Certificado de residencia para postulación.", "in_progress"),
+    ("13.131.313-3", "SAT003", "Rural", "coordinador2", "Visita a terreno en localidad rural.", "received"),
+    ("14.141.414-4", "SAT007", "Rural", "coordinador2", "Orientación de trámites para comité rural.", "in_progress"),
+    ("15.151.515-5", "SAT004", "Centro", "coordinador", "Reparación de luminaria en plaza central.", "received"),
 ]
 
 

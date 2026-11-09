@@ -17,7 +17,8 @@
 <div class="scope" role="note">{% sgr_icon 'info' 18 %}<span>{{ scope_note }}</span></div>
 {% endif %}
 
-{# Búsqueda, filtro de estado y exportación: un solo formulario GET #}
+{# Búsqueda, filtros y exportación: un solo formulario GET. El último estado #}
+{# usado queda guardado en la sesión; "Limpiar filtros" lo borra (?limpiar=1). #}
 <section class="card toolbar" aria-label="Búsqueda y filtros">
   <form method="get" action="{{ search_url }}" id="toolbarForm" role="search">
     <div class="grow">
@@ -28,14 +29,14 @@
     </div>
     <div class="statebox">
       <label for="estado">Filtrar estado</label>
-      <select class="in" id="estado" name="estado">
+      <select class="in" id="estado" name="estado" data-autosubmit>
         <option value=""{% if not estado %} selected{% endif %}>Todos</option>
         {% for option in status_options %}
         <option value="{{ option.0 }}"{% if estado == option.0 %} selected{% endif %}>{{ option.1 }}</option>
         {% endfor %}
       </select>
     </div>
-      <a class="btn-outline" href="{{ search_url }}" id="clearBtn">Limpiar filtros</a>
+      <a class="btn-outline" href="{{ clear_url }}" id="clearBtn">Limpiar filtros</a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
     {% endif %}
@@ -185,7 +186,7 @@
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>
-  <a class="btn primary" href="{{ search_url }}">Limpiar filtros</a>
+  <a class="btn primary" href="{{ clear_url }}">Limpiar filtros</a>
   {% endif %}
 </div>
 {% endif %}

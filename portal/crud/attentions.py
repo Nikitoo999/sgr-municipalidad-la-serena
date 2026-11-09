@@ -7,19 +7,22 @@ funcionario únicamente donde él es responsable. Las vistas de crear/editar/ver
 son propias para respetar el diseño "Ingreso de atención" (búsqueda de
 solicitante, delegación fija por perfil, tipo/sub atención dependientes,
 descripción con contador, estado editable solo al editar).
+
+Bloque 2A: el listado recuerda en ``request.session`` sus filtros, orden y
+filas por página (``?limpiar=1`` los borra), el orden por columna usa el motor
+común (``portal.crud.views.order_queryset``) y el Excel se descarga como
+``atenciones_<AAAAMMDD_HHMM>_<usuario>.xlsx``.
 """
 
 from datetime import date, datetime, time, timedelta
-from urllib.parse import urlencode
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
-from django.core.paginator import Paginator
 from django.db.models import Case, IntegerField, Value, When
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -44,6 +47,7 @@ from .forms import AttentionForm
 from .search import apply_search
 from .views import (
     BORDER,
+    CLEAR_PARAM,
     HEADER_ALIGN,
     HEADER_FILL,
     HEADER_FONT,
@@ -52,9 +56,14 @@ from .views import (
     CrudDetailView,
     CrudListView,
     CrudUpdateView,
+    build_querystring,
+    export_filename,
     filtered_queryset,
-    resolve_cell,
+    order_queryset,
+    paginate_listing,
     scoped_queryset,
+    split_order,
+    xlsx_response,
 )
 
 
@@ -105,6 +114,34 @@ def scope_note(request):
     return f"Tu perfil muestra solo registros de {_deleg_label(active)}."
 
 
+#: Orden lógico del avance de una atención (Ingresada -> En gestión -> Resuelta).
+_STATUS_PROGRESS = (
+    Attention.AttentionStatus.RECEIVED,
+    Attention.AttentionStatus.IN_PROGRESS,
+    Attention.AttentionStatus.RESOLVED,
+)
+
+
+def attention_sort_annotate(queryset, key):
+    """El estado se ordena por avance (no alfabético) con una anotación."""
+    if key != "estado":
+        return queryset
+    return queryset.annotate(
+        _estado_orden=Case(
+            *[When(status=value, then=Value(position))
+              for position, value in enumerate(_STATUS_PROGRESS)],
+            default=Value(len(_STATUS_PROGRESS)),
+            output_field=IntegerField(),
+        )
+    )
+
+
+#: Tamaños de página permitidos (el primero es el valor por defecto).
+PAGE_SIZE_OPTIONS = (5, 10, 25, 50)
+DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]
+DEFAULT_SORT = "numero"
+
+
 ATTENTIONS_MODULE = ModuleConfig(
     module_key="attentions",
     slug="atenciones",
@@ -112,15 +149,23 @@ ATTENTIONS_MODULE = ModuleConfig(
     form_class=AttentionForm,
     list_title="Atenciones",
     singular_label="Atención",
+    gender="f",
     columns=(
-        ColumnSpec("number", "N°"),
-        ColumnSpec("created_at_display", "Fecha y hora"),
-        ColumnSpec("solicitante_name", "Solicitante"),
-        ColumnSpec("type_name", "Tipo"),
-        ColumnSpec("subtype_name", "Sub atención"),
-        ColumnSpec("delegation", "Delegación", cell=CELL_DELEGATION),
-        ColumnSpec("responsible_name", "Responsable"),
-        ColumnSpec("status_display", "Estado", cell=CELL_STATUS),
+        ColumnSpec("number", "N°", sort_key="numero", sort_fields=("number",)),
+        ColumnSpec("created_at_display", "Fecha y hora",
+                   sort_key="fecha", sort_fields=("created_at",)),
+        ColumnSpec("solicitante_name", "Solicitante",
+                   sort_key="solicitante", sort_fields=("neighbor__full_name",)),
+        ColumnSpec("type_name", "Tipo", sort_key="tipo", sort_fields=("attention_type__name",)),
+        ColumnSpec("subtype_name", "Sub atención",
+                   sort_key="subtipo", sort_fields=("attention_subtype__name",)),
+        ColumnSpec("delegation", "Delegación", cell=CELL_DELEGATION,
+                   sort_key="delegacion", sort_fields=("delegation__code",)),
+        ColumnSpec("responsible_name", "Responsable", sort_key="responsable", sort_fields=(
+            "responsible__first_name", "responsible__last_name", "responsible__username",
+        )),
+        ColumnSpec("status_display", "Estado", cell=CELL_STATUS,
+                   sort_key="estado", sort_fields=("_estado_orden",)),
     ),
     search_fields=(
         "number", "neighbor__full_name", "neighbor__identifier",
@@ -135,6 +180,13 @@ ATTENTIONS_MODULE = ModuleConfig(
         ("resolved", "Resuelta"),
     ),
     ordering=("number",),
+    default_sort=DEFAULT_SORT,
+    sort_annotate=attention_sort_annotate,
+    page_size_options=PAGE_SIZE_OPTIONS,
+    select_related=(
+        "neighbor", "attention_type", "attention_subtype", "delegation", "responsible",
+    ),
+    row_label=lambda attention: attention.number or f"N° {attention.pk}",
     scope=attentions_scope,
     form_template="portal/crud/attention_form.html",
 )
@@ -152,46 +204,19 @@ register_module(ATTENTIONS_MODULE)
 # blanca o se convierte a número/fecha; un valor inválido se ignora y nunca
 # produce un error 500. El alcance por rol (``attentions_scope``) se aplica
 # antes que cualquier filtro, así ningún parámetro puede ampliar lo visible.
+# El último estado usado se guarda en ``request.session`` (ver
+# ``CrudListView.get``): al volver al listado sin parámetros se reutiliza.
 
-#: Tamaños de página permitidos (el primero es el valor por defecto).
-PAGE_SIZE_OPTIONS = (5, 10, 25, 50)
-DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]
-
-#: Clave pública de orden -> campos reales de la base de datos. La clave
-#: ``estado`` se resuelve aparte para ordenar por avance (no alfabético).
-SORT_FIELDS = {
-    "numero": ("number",),
-    "fecha": ("created_at",),
-    "solicitante": ("neighbor__full_name",),
-    "tipo": ("attention_type__name",),
-    "subtipo": ("attention_subtype__name",),
-    "delegacion": ("delegation__code",),
-    "responsable": (
-        "responsible__first_name", "responsible__last_name",
-        "responsible__username",
-    ),
-    "estado": ("_estado_orden",),
-}
-DEFAULT_SORT = "numero"
+#: Clave pública de orden -> campos reales de la base de datos (derivado de
+#: las columnas; la clave ``estado`` ordena por avance con una anotación).
+SORT_FIELDS = ATTENTIONS_MODULE.sort_map
 
 #: Campo de cada columna del listado -> clave de orden.
 COLUMN_SORT_KEY = {
-    "number": "numero",
-    "created_at_display": "fecha",
-    "solicitante_name": "solicitante",
-    "type_name": "tipo",
-    "subtype_name": "subtipo",
-    "delegation": "delegacion",
-    "responsible_name": "responsable",
-    "status_display": "estado",
+    column.field_name: column.sort_key
+    for column in ATTENTIONS_MODULE.columns
+    if column.sort_key
 }
-
-#: Orden lógico del avance de una atención (Ingresada -> En gestión -> Resuelta).
-_STATUS_PROGRESS = (
-    Attention.AttentionStatus.RECEIVED,
-    Attention.AttentionStatus.IN_PROGRESS,
-    Attention.AttentionStatus.RESOLVED,
-)
 
 #: Parámetros GET que se conservan al paginar, ordenar y exportar.
 LIST_PARAM_KEYS = (
@@ -199,13 +224,11 @@ LIST_PARAM_KEYS = (
     "desde", "hasta", "orden", "por_pagina",
 )
 
+#: Parámetros que forman el estado guardado del listado (incluye la página).
+LIST_STATE_KEYS = LIST_PARAM_KEYS + ("page",)
 
-def split_order(orden):
-    """``"-fecha"`` -> ``("fecha", True)``; solo se admite UN guion inicial."""
-    orden = orden or ""
-    if orden.startswith("-"):
-        return orden[1:], True
-    return orden, False
+#: Parámetros que cuentan como "hay filtros activos".
+FILTER_KEYS = ("q", "estado", "tipo", "subtipo", "delegacion", "responsable", "desde", "hasta")
 
 
 def _parse_pk(raw):
@@ -225,14 +248,16 @@ def _parse_date(raw):
         return None
 
 
-def parse_list_params(request):
+def parse_list_params(request, data=None):
     """Lee y valida los parámetros del listado/exportación de atenciones.
 
-    Devuelve un diccionario con los valores ya normalizados (cadenas vacías
-    cuando el parámetro no viene o es inválido) más ``date_error`` si el rango
-    de fechas es incoherente.
+    ``data`` son los parámetros efectivos (los de la URL o los recordados en
+    la sesión); si no se indica, se usan los de la URL. Devuelve un diccionario
+    con los valores ya normalizados (cadenas vacías cuando el parámetro no
+    viene o es inválido) más ``date_error`` si el rango de fechas es
+    incoherente.
     """
-    get = request.GET
+    get = request.GET if data is None else data
     valid_states = {value for value, _label in ATTENTIONS_MODULE.status_options}
 
     estado = get.get("estado") or ""
@@ -256,6 +281,8 @@ def parse_list_params(request):
     if por_pagina not in PAGE_SIZE_OPTIONS:
         por_pagina = None
 
+    page = str(get.get("page") or "").strip()
+
     return {
         "q": (get.get("q") or "").strip(),
         "estado": estado if estado in valid_states else "",
@@ -267,6 +294,7 @@ def parse_list_params(request):
         "hasta": hasta.isoformat() if hasta else "",
         "orden": orden,
         "por_pagina": str(por_pagina) if por_pagina else "",
+        "page": page,
         "date_error": date_error,
     }
 
@@ -297,36 +325,21 @@ def _apply_date_range(queryset, desde, hasta):
 def order_attentions(queryset, orden):
     """Ordena por una clave pública (``-clave`` = descendente).
 
-    Siempre añade ``pk`` como desempate para que la paginación sea estable.
+    Usa el orden común del motor (``order_queryset``): siempre añade ``pk``
+    como desempate para que la paginación sea estable.
     """
-    key, descending = split_order(orden)
-    if key not in SORT_FIELDS:
-        key, descending = DEFAULT_SORT, False
-    if key == "estado":
-        queryset = queryset.annotate(
-            _estado_orden=Case(
-                *[When(status=value, then=Value(position))
-                  for position, value in enumerate(_STATUS_PROGRESS)],
-                default=Value(len(_STATUS_PROGRESS)),
-                output_field=IntegerField(),
-            )
-        )
-    fields = [f"-{name}" if descending else name for name in SORT_FIELDS[key]]
-    fields.append("-pk" if descending else "pk")
-    return queryset.order_by(*fields)
+    return order_queryset(queryset, ATTENTIONS_MODULE, orden)
 
 
-def attentions_listing_queryset(request, config):
-    """Atenciones del listado/exportación: alcance + filtros + orden.
+def attentions_listing_queryset(request, config, data=None):
+    """Atenciones del listado/exportación: alcance + filtros + búsqueda + orden.
 
-    No aplica la búsqueda ``q`` (la aplica quien llama con ``apply_search``,
-    porque en SQLite devuelve una lista). Devuelve ``(queryset, params)``.
+    ``data`` son los parámetros efectivos (URL o sesión). La búsqueda ``q`` se
+    resuelve en la base de datos (``apply_search`` devuelve un queryset).
+    Devuelve ``(queryset, params)``.
     """
-    params = parse_list_params(request)
-    queryset = filtered_queryset(request, config).select_related(
-        "neighbor", "attention_type", "attention_subtype",
-        "delegation", "responsible",
-    )
+    params = parse_list_params(request, data)
+    queryset = filtered_queryset(request, config, estado=params["estado"])
     if params["tipo"]:
         queryset = queryset.filter(attention_type_id=params["tipo"])
     if params["subtipo"]:
@@ -338,6 +351,7 @@ def attentions_listing_queryset(request, config):
     if params["responsable"]:
         queryset = queryset.filter(responsible_id=params["responsable"])
     queryset = _apply_date_range(queryset, params["desde"], params["hasta"])
+    queryset = apply_search(queryset, config.search_fields, params["q"])
     return order_attentions(queryset, params["orden"]), params
 
 
@@ -346,10 +360,7 @@ def list_querystring(params, **overrides):
 
     ``overrides`` reemplaza valores; pasar ``None`` quita el parámetro.
     """
-    data = {key: params.get(key, "") for key in LIST_PARAM_KEYS}
-    data.update(overrides)
-    clean = {key: value for key, value in data.items() if value not in (None, "")}
-    return f"?{urlencode(clean)}" if clean else ""
+    return build_querystring(params, LIST_PARAM_KEYS, **overrides)
 
 
 def _type_options(selected):
@@ -446,100 +457,43 @@ class AttentionListView(CrudListView):
     Parámetros GET (todos opcionales y validados): ``q``, ``estado``, ``tipo``,
     ``subtipo``, ``delegacion`` (solo en la vista "Todas"), ``responsable``,
     ``desde``/``hasta`` (AAAA-MM-DD), ``orden`` (clave o ``-clave``),
-    ``por_pagina`` (5, 10, 25 o 50) y ``page``.
+    ``por_pagina`` (5, 10, 25 o 50) y ``page``. El último estado usado se
+    guarda en la sesión (``CrudListView.get``) y ``?limpiar=1`` lo borra.
     """
 
     template_name = "portal/crud/attention_list.html"
 
+    def list_keys(self):
+        return LIST_STATE_KEYS
+
     def get_context_data(self, **kwargs):
-        # Se salta CrudListView.get_context_data a propósito: ese método pagina
-        # con ``config.per_page`` fijo y sin los filtros nuevos, y repetir la
-        # consulta solo para descartarla sería trabajo desperdiciado. Este
-        # método entrega las mismas claves de contexto que usa la plantilla.
+        # Se salta CrudListView.get_context_data a propósito: ese método usa
+        # los filtros genéricos del motor y repetir la consulta solo para
+        # descartarla sería trabajo desperdiciado. Este método entrega las
+        # mismas claves de contexto que usa la plantilla.
         context = super(CrudListView, self).get_context_data(**kwargs)
         config = self.config
         request = self.request
 
-        queryset, params = attentions_listing_queryset(request, config)
-        rows_all = apply_search(queryset, config.search_fields, params["q"])
-
-        page_size = int(params["por_pagina"] or DEFAULT_PAGE_SIZE)
-        paginator = Paginator(rows_all, page_size)
-        page_obj = paginator.get_page(request.GET.get("page"))
-
-        rows = [
-            {
-                "pk": obj.pk,
-                "cells": [resolve_cell(obj, column) for column in config.columns],
-            }
-            for obj in page_obj.object_list
-        ]
-
-        page_links = []
-        for number in paginator.get_elided_page_range(
-            page_obj.number, on_each_side=2, on_ends=1,
-        ):
-            if number == Paginator.ELLIPSIS:
-                page_links.append({"ellipsis": True})
-            else:
-                page_links.append({
-                    "number": number,
-                    "url": list_querystring(params, page=number),
-                    "current": number == page_obj.number,
-                })
-
-        # Encabezados ordenables: un clic ordena ascendente y el siguiente
-        # invierte; ``aria-sort`` informa a los lectores de pantalla.
-        current_key, current_desc = split_order(params["orden"] or DEFAULT_SORT)
-        headers = []
-        for column in config.columns:
-            key = COLUMN_SORT_KEY.get(column.field_name)
-            is_current = key == current_key
-            next_order = f"-{key}" if is_current and not current_desc else key
-            headers.append({
-                "label": column.header,
-                "url": list_querystring(params, orden=next_order, page=None) if key else "",
-                "sortable": bool(key),
-                "current": is_current,
-                "direction": ("desc" if current_desc else "asc") if is_current else "",
-                "aria_sort": (
-                    "descending" if current_desc else "ascending"
-                ) if is_current else "none",
-            })
+        queryset, params = attentions_listing_queryset(request, config, self.list_params or {})
+        context.update(paginate_listing(config, queryset, params, LIST_STATE_KEYS))
 
         active = get_active_delegation(request)
         role = get_role(request.user)
-        filters_active = any(
-            params[key] for key in (
-                "q", "estado", "tipo", "subtipo", "delegacion",
-                "responsable", "desde", "hasta",
-            )
-        )
+        filters_active = any(params[key] for key in FILTER_KEYS)
         base_search = reverse(config.module_key)
 
         context.update(
             {
                 "active_module": config.module_key,
                 "config": config,
-                "rows": rows,
                 "columns": config.columns,
-                "headers": headers,
-                "page_obj": page_obj,
-                "page_links": page_links,
-                "prev_url": list_querystring(
-                    params, page=page_obj.previous_page_number() if page_obj.has_previous() else None,
-                ),
-                "next_url": list_querystring(
-                    params, page=page_obj.next_page_number() if page_obj.has_next() else None,
-                ),
-                "showing_from": page_obj.start_index(),
-                "showing_to": page_obj.end_index(),
-                "total": paginator.count,
                 "query": params["q"],
                 "estado": params["estado"],
                 "status_options": config.status_options,
                 "empty_kind": "results" if filters_active else "records",
                 "search_url": base_search,
+                "clear_url": f"{base_search}?{CLEAR_PARAM}=1",
                 "export_url": reverse(f"{config.module_key}_export")
                 + list_querystring(params, page=None, por_pagina=None),
                 "new_url": reverse(f"{config.module_key}_new"),
@@ -562,9 +516,6 @@ class AttentionListView(CrudListView):
                 "date_from": params["desde"],
                 "date_to": params["hasta"],
                 "date_error": params["date_error"],
-                "current_order": params["orden"],
-                "page_size": page_size,
-                "page_size_options": PAGE_SIZE_OPTIONS,
                 "scope_note": scope_note(request),
                 **self.access_flags(),
             }
@@ -664,7 +615,10 @@ class AttentionDetailView(_AttentionFormContext, CrudDetailView):
 
 
 class AttentionExportView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, View):
-    """Exporta a Excel las atenciones filtradas y con alcance."""
+    """Exporta a Excel las atenciones filtradas y con alcance.
+
+    El archivo se llama ``atenciones_<AAAAMMDD_HHMM>_<usuario>.xlsx``.
+    """
 
     action = "export"
 
@@ -672,7 +626,7 @@ class AttentionExportView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMix
         # Mismos filtros y orden que el listado; se exportan TODAS las filas
         # del resultado (sin paginar).
         queryset, params = attentions_listing_queryset(request, self.config)
-        rows_all = list(apply_search(queryset, self.config.search_fields, params["q"]))
+        rows_all = list(queryset)
 
         headers = ["N°", "Fecha y hora", "Solicitante", "Tipo", "Sub atención",
                    "Delegación", "Responsable", "Estado"]
@@ -706,13 +660,18 @@ class AttentionExportView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMix
         for index, header in enumerate(headers, start=1):
             letter = get_column_letter(index)
             sheet.column_dimensions[letter].width = max(len(header) + 2, 14)
+        sheet.freeze_panes = "A2"
 
-        response = HttpResponse(
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename = export_filename(self.config.slug, request.user)
+        detail = " ".join(
+            f"{key}={params[key]!r}" for key in FILTER_KEYS + ("orden",) if params[key]
         )
-        response["Content-Disposition"] = 'attachment; filename="atenciones.xlsx"'
-        workbook.save(response)
-        return response
+        audit(
+            request, "export", module="attentions",
+            object_repr=f"{len(rows_all)} registros",
+            detail=f"{filename} · {detail}".rstrip(" ·"),
+        )
+        return xlsx_response(workbook, filename)
 
 
 class AttentionNeighborsView(LoginRequiredMixin, ModulePermissionMixin, View):
