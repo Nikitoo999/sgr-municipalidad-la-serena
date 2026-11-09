@@ -1,0 +1,127 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Cierre semanal{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{{ list_url }}">Atenciones</a> / Cierre semanal</nav>
+<div class="titlebar"><h1>Cierre semanal de atenciones</h1></div>
+
+<div class="scope" role="note">{% sgr_icon 'info' 18 %}<span>Al cerrar una semana (lunes a domingo) de una delegación, sus atenciones quedan en solo lectura y no se pueden ingresar nuevas en esa semana. Solo superadministración y coordinación pueden reabrirla. Las atenciones ingresadas por el rol Delegado no suman al puntaje operativo.</span></div>
+
+{% if delegation_options %}
+<form class="card fgrid closure-form" method="post" id="closureForm">
+  {% csrf_token %}
+  <input type="hidden" name="accion" value="cerrar">
+  <div class="grid">
+    <div>
+      <label class="fl" for="id_delegacion">Delegación <span class="req" aria-hidden="true">*</span></label>
+      <select class="in" id="id_delegacion" name="delegacion" required>
+        {% for option in delegation_options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="fl" for="id_semana">Semana <span class="req" aria-hidden="true">*</span></label>
+      <select class="in" id="id_semana" name="semana" required>
+        {% for option in week_options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="full">
+      <label class="fl" for="id_observacion">Observación</label>
+      <input class="in" id="id_observacion" name="observacion" maxlength="200" placeholder="Opcional, por ejemplo: cierre revisado con la jefatura.">
+    </div>
+  </div>
+  <div class="formfoot">
+    <a class="btn ghost" href="{{ list_url }}">Volver a Atenciones</a>
+    <button class="btn primary" type="submit" data-confirm-close>{% sgr_icon 'lock' 18 %}<span>Cerrar semana</span></button>
+  </div>
+</form>
+{% else %}
+<div class="state"><h2>No tienes delegaciones activas para cerrar</h2></div>
+{% endif %}
+
+<h2 class="section-title">Semanas cerradas</h2>
+{% if rows %}
+<div class="tablewrap">
+  <table>
+    <caption class="sr">Semanas cerradas por delegación</caption>
+    <thead>
+      <tr>
+        <th scope="col">Semana</th>
+        <th scope="col">Delegación</th>
+        <th scope="col">Atenciones ingresadas</th>
+        <th scope="col">Suman al puntaje</th>
+        <th scope="col">Cerrada por</th>
+        <th scope="col">Fecha de cierre</th>
+        {% if can_reopen %}<th scope="col">Acciones</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td><span class="chip"><svg class="sq" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" fill="{{ row.closure.delegation.color|default:'#920000' }}"/></svg>{{ row.closure.delegation.code }} · {{ row.closure.delegation.name }}</span></td>
+        <td>{{ row.total }}</td>
+        <td>{{ row.puntaje }}</td>
+        <td>{{ row.closed_by }}</td>
+        <td>{{ row.closed_at }}{% if row.closure.notes %}<br><span class="help">{{ row.closure.notes }}</span>{% endif %}</td>
+        {% if can_reopen %}
+        <td>
+          <form method="post" class="inline-form">
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="reabrir">
+            <input type="hidden" name="cierre" value="{{ row.closure.pk }}">
+            <button class="btn ghost btn-sm" type="submit" data-confirm-reopen="{{ row.label }}">Reabrir</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="state">
+  <div class="ic">{% sgr_icon 'calendar' 24 %}</div>
+  <h2>Aún no hay semanas cerradas</h2>
+  <p>Cuando cierres una semana aparecerá aquí con su resumen de atenciones.</p>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+// Confirmaciones del cierre semanal (SweetAlert2 lo carga base.html). El
+// servidor valida todo: esto solo evita un clic por error.
+(function () {
+  'use strict';
+  function confirmSubmit(button, title, text) {
+    button.addEventListener('click', function (e) {
+      if (!window.Swal || button.dataset.confirmed) return;
+      e.preventDefault();
+      Swal.fire({
+        icon: 'warning', title: title, text: text, showCancelButton: true,
+        confirmButtonText: 'Sí, continuar', cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#920000'
+      }).then(function (result) {
+        if (!result.isConfirmed) return;
+        button.dataset.confirmed = '1';
+        button.form.requestSubmit ? button.form.requestSubmit(button) : button.form.submit();
+      });
+    });
+  }
+  document.querySelectorAll('[data-confirm-close]').forEach(function (button) {
+    confirmSubmit(button, '¿Cerrar la semana?',
+      'Las atenciones de esa semana quedarán en solo lectura y no se podrán ingresar nuevas en ella.');
+  });
+  document.querySelectorAll('[data-confirm-reopen]').forEach(function (button) {
+    confirmSubmit(button, '¿Reabrir la semana ' + button.dataset.confirmReopen + '?',
+      'Las atenciones de esa semana se podrán volver a editar. Queda registrado en la auditoría.');
+  });
+})();
+</script>
+{% endblock %}

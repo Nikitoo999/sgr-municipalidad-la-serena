@@ -1,7 +1,8 @@
 import os
 import secrets
-from django.core.exceptions import ValidationError
 from datetime import timedelta
+
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -291,12 +292,20 @@ class Neighbor(BaseModel):
 
 
 class Attention(BaseModel):
-    """Atención ciudadana ingresada por un funcionario."""
+    """Atención ciudadana ingresada por un funcionario.
+
+    Bloque 2B: el vecino se identifica con RUT, nombre y teléfono obligatorios
+    (``Neighbor``), se marca si requiere visita a terreno, admite el estado
+    "Sin resolver" (dar de baja con motivo obligatorio), hasta 3 gestiones de
+    seguimiento (``AttentionFollowUp``) y guarda si suma al puntaje operativo
+    (los ingresos del rol Delegado no suman). Ver ``operaciones.rules``.
+    """
 
     class AttentionStatus(models.TextChoices):
         RECEIVED = "received", "Ingresada"
         IN_PROGRESS = "in_progress", "En gestión"
         RESOLVED = "resolved", "Resuelta"
+        UNRESOLVED = "unresolved", "Sin resolver"
 
     number = models.CharField(max_length=12, unique=True, null=True, blank=True, verbose_name="Número de atención")
     neighbor = models.ForeignKey(
@@ -323,6 +332,16 @@ class Attention(BaseModel):
     status = models.CharField(
         max_length=20, choices=AttentionStatus.choices,
         default=AttentionStatus.RECEIVED, verbose_name="Estado",
+    )
+    requires_visit = models.BooleanField(
+        default=False, verbose_name="Requiere visita a terreno",
+    )
+    unresolved_reason = models.TextField(
+        blank=True, default="", verbose_name="Motivo de baja (Sin resolver)",
+    )
+    counts_for_score = models.BooleanField(
+        default=True, verbose_name="Cuenta para el puntaje operativo",
+        help_text="Las atenciones ingresadas por el rol Delegado no suman al puntaje operativo.",
     )
     evidence_image = models.ImageField(
         upload_to=attention_image_path, max_length=255, blank=True, null=True,
@@ -388,8 +407,27 @@ class Attention(BaseModel):
 
     @property
     def status_display(self):
-        """Estado en texto (Ingresada/En gestión/Resuelta)."""
+        """Estado en texto (Ingresada/En gestión/Resuelta/Sin resolver)."""
         return self.get_status_display()
+
+    @property
+    def neighbor_rut(self):
+        return self.neighbor.identifier if self.neighbor_id else "—"
+
+    @property
+    def neighbor_phone(self):
+        return (self.neighbor.phone or "—") if self.neighbor_id else "—"
+
+    @property
+    def requires_visit_display(self):
+        return "Sí" if self.requires_visit else "No"
+
+    @property
+    def score_display(self):
+        """Texto del puntaje operativo (columna de exportación y consulta)."""
+        if self.counts_for_score:
+            return "Cuenta"
+        return "No cuenta (ingreso del rol Delegado)"
 
     def save(self, *args, **kwargs):
         """Asigna number (formato ATN-0001) tras el primer insert.
@@ -583,3 +621,99 @@ class TubeEntry(BaseModel):
         super().clean()
         if self.status == self.Status.DONE and not self.proof_image:
             raise ValidationError({"proof_image": "Para marcar como Realizado hay que subir la foto de respaldo."})
+
+class AttentionFollowUp(BaseModel):
+    """Gestión de seguimiento de una atención (Bloque 2B, máximo 3).
+
+    Registra lo que se hizo después del ingreso (llamada, visita, derivación,
+    respuesta al vecino). Una gestión NO es una atención nueva: no suma al
+    puntaje operativo ni cuenta para el tope diario de ingresos. El máximo de
+    3 lo validan ``operaciones.rules.register_follow_up`` y, además, la base
+    de datos (correlativo único por atención y CHECK entre 1 y 3).
+    """
+
+    attention = models.ForeignKey(
+        Attention, on_delete=models.CASCADE,
+        related_name="follow_ups", verbose_name="Atención",
+    )
+    sequence = models.PositiveSmallIntegerField(verbose_name="N° de gestión")
+    description = models.TextField(verbose_name="Detalle de la gestión")
+    performed_by = models.ForeignKey(
+        User, on_delete=models.RESTRICT,
+        related_name="attention_follow_ups", verbose_name="Registrada por",
+    )
+
+    class Meta:
+        verbose_name = "Gestión de seguimiento"
+        verbose_name_plural = "Gestiones de seguimiento"
+        db_table = "gestion_atencion"
+        ordering = ["attention", "sequence"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["attention", "sequence"], name="uniq_gestion_atencion_secuencia",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sequence__gte=1) & models.Q(sequence__lte=3),
+                name="chk_gestion_atencion_max_3",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.attention.number} · gestión {self.sequence}"
+
+    @property
+    def created_at_display(self):
+        if self.created_at is None:
+            return "—"
+        return timezone.localtime(self.created_at).strftime("%d-%m-%Y %H:%M")
+
+    @property
+    def performed_by_name(self):
+        if self.performed_by_id is None:
+            return "—"
+        return self.performed_by.get_full_name() or self.performed_by.username
+
+
+class WeeklyClosure(BaseModel):
+    """Cierre semanal de atenciones de una delegación (Bloque 2B).
+
+    La semana va de lunes a domingo (``week_start`` siempre es lunes). Con la
+    semana cerrada no se ingresan ni se editan atenciones de esa semana en esa
+    delegación. Reabrir la semana es un borrado lógico del cierre; si se
+    vuelve a cerrar, se reutiliza el mismo registro.
+    """
+
+    delegation = models.ForeignKey(
+        Delegation, on_delete=models.RESTRICT,
+        related_name="weekly_closures", verbose_name="Delegación",
+    )
+    week_start = models.DateField(verbose_name="Semana (lunes)")
+    closed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="weekly_closures", verbose_name="Cerrada por",
+    )
+    closed_at = models.DateTimeField(default=timezone.now, verbose_name="Fecha de cierre")
+    notes = models.CharField(max_length=200, blank=True, default="", verbose_name="Observación")
+
+    class Meta:
+        verbose_name = "Cierre semanal"
+        verbose_name_plural = "Cierres semanales"
+        db_table = "cierre_semanal"
+        ordering = ["-week_start", "delegation__code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["delegation", "week_start"], name="uniq_cierre_semanal_deleg_semana",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.delegation.code} · semana {self.week_start:%d-%m-%Y}"
+
+    @property
+    def week_end(self):
+        return self.week_start + timedelta(days=6)
+
+    def clean(self):
+        super().clean()
+        if self.week_start and self.week_start.weekday() != 0:
+            raise ValidationError({"week_start": "La semana debe comenzar un lunes."})
