@@ -12,6 +12,7 @@ import os
 import re
 
 from django.core.exceptions import ValidationError
+from PIL import Image
 
 #: Cuerpo (1 a 9 dígitos) + dígito verificador (0-9 o K), con puntos/guion opcionales.
 _RUT_INPUT = re.compile(r"^0*(\d{1,9})\s*-?\s*-?([\dKk])$")
@@ -136,8 +137,8 @@ def validate_full_name(value, max_length=150):
 
 # --- Archivos subidos (Clase 9: MEDIA) -------------------------------------
 
-#: Imagenes de evidencia: extensiones permitidas y peso maximo (2 MB).
-IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+#: Imágenes de evidencia: solo JPEG/PNG (se valida la cabecera real) y 2 MiB.
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 IMAGE_MAX_MB = 2
 
 #: Documentos de respaldo: PDF o imagen, peso maximo (5 MB).
@@ -168,9 +169,43 @@ def _validate_upload(value, extensions, max_mb):
         )
 
 
+def _validate_image_content(value):
+    """Comprueba que el contenido sea una imagen JPEG/PNG real (magic bytes).
+
+    Pillow abre el archivo y ``verify()`` valida su cabecera e integridad: evita
+    que un script o texto renombrado a ``.jpg``/``.png`` pase el filtro.
+    """
+    try:
+        value.seek(0)
+        img = Image.open(value)
+        fmt = (img.format or "").upper()
+        img.verify()
+    except ValidationError:
+        raise
+    except Exception:
+        raise ValidationError(
+            "El archivo no es una imagen válida. Solo se aceptan imágenes JPEG "
+            "o PNG sin datos corruptos.",
+            code="imagen_invalida",
+        )
+    if fmt not in ("JPEG", "PNG"):
+        raise ValidationError(
+            "Formato de imagen no permitido. Solo se aceptan JPEG y PNG.",
+            code="imagen_formato",
+        )
+
+
 def validate_image_file(value):
-    """Imagen de evidencia: .jpg, .jpeg, .png o .webp, hasta 2 MB."""
+    """Imagen de evidencia: solo JPEG/PNG, máximo 2 MiB y contenido real."""
+    if getattr(value, "_committed", False):
+        return
     _validate_upload(value, IMAGE_EXTENSIONS, IMAGE_MAX_MB)
+    _validate_image_content(value)
+    # Devuelve el cursor al inicio para que Django guarde el archivo completo.
+    try:
+        value.seek(0)
+    except Exception:
+        pass
 
 
 def validate_attachment_file(value):

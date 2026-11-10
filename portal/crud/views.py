@@ -149,12 +149,18 @@ def resolve_object_or_deny(request, config, queryset, pk):
     raise Http404("Registro inexistente.")
 
 
-def scoped_queryset(request, config):
-    """Queryset vivo del módulo, con el orden y el alcance aplicados."""
+def scoped_queryset(request, config, ordering=None):
+    """Queryset vivo del módulo, con el orden y el alcance aplicados.
+
+    ``ordering`` permite a los listados sobrescribir el orden declarado en el
+    módulo (p. ej. orden dinámico por columna) sin tocar el queryset original.
+    """
     queryset = config.model.alive.all()
     if config.select_related:
         queryset = queryset.select_related(*config.select_related)
-    if config.ordering:
+    if ordering is not None:
+        queryset = queryset.order_by(*ordering)
+    elif config.ordering:
         queryset = queryset.order_by(*config.ordering)
     if config.scope is not None:
         queryset = config.scope(request, queryset)
@@ -186,7 +192,7 @@ def filtered_queryset(request, config, estado=None):
 
 
 def querystring(query, estado, extra=None):
-    """URL query conservando búsqueda y filtros (compatibilidad Parte 4)."""
+    """URL query conservando búsqueda, estado y filtros adicionales."""
     params = {}
     if query:
         params["q"] = query

@@ -244,11 +244,17 @@ class ValidatorsUnitTests(TestCase):
     """Los validadores sirven directamente sobre archivos subidos."""
 
     def test_imagen_valida_y_limites(self):
-        validate_image_file(SimpleUploadedFile("a.JPG", b"x" * 100))  # mayúsculas ok
+        # PNG real: pasa extensión (mayúsculas ok) + validación de magic bytes.
+        validate_image_file(SimpleUploadedFile("a.PNG", png_bytes(), content_type="image/png"))
         with self.assertRaises(ValidationError):
+            # Extensión no permitida para imágenes.
             validate_image_file(SimpleUploadedFile("a.pdf", b"x"))
         with self.assertRaises(ValidationError):
+            # Peso > 2 MiB: se rechaza antes de leer el contenido.
             validate_image_file(SimpleUploadedFile("a.png", b"x" * (2 * MB + 1)))
+        with self.assertRaises(ValidationError):
+            # Extensión .png pero contenido que no es imagen (magic bytes).
+            validate_image_file(SimpleUploadedFile("falso.png", b"esto no es una imagen", content_type="image/png"))
 
     def test_adjunto_valido_y_limites(self):
         validate_attachment_file(SimpleUploadedFile("a.pdf", b"x" * 100))

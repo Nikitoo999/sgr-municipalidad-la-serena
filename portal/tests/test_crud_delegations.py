@@ -199,8 +199,12 @@ class CrudDelegationsTestCase(TestCase):
         self.client.login(username="superadmin", password="Demo2026!")
         resp = self.client.get(reverse("delegations"), {"estado": "Inactiva"})
         self.assertEqual(self._codes_shown(resp), ["DEL04"])
+        # El filtro elige el conjunto correcto; el orden por defecto es por fecha
+        # de creación descendente, así que se compara sin depender del orden.
         resp = self.client.get(reverse("delegations"), {"estado": "Activa"})
-        self.assertEqual(self._codes_shown(resp), ["DEL01", "DEL02", "DEL03"])
+        self.assertEqual(
+            sorted(self._codes_shown(resp)), ["DEL01", "DEL02", "DEL03"]
+        )
 
     def test_paginacion_conserva_filtros(self):
         for i in range(5, 12):
@@ -396,4 +400,3 @@ class CrudDelegationsTestCase(TestCase):
         # Búsqueda inteligente: el campo q existe y no hay botón Buscar.
         self.assertContains(resp, 'id="q"')
         self.assertNotContains(resp, 'id="searchBtn"')
-

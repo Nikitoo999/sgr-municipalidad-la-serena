@@ -199,6 +199,9 @@ class PortalLoginView(LoginView):
 
 class PortalLogoutView(LogoutView):
     next_page = reverse_lazy('login')
+    # El cierre de sesión solo se permite vía POST (con CSRF): una petición GET
+    # no debe cerrar la sesión (protección contra "logout CSRF").
+    http_method_names = ['post']
 
     def post(self, request, *args, **kwargs):
         auth_logout(request)

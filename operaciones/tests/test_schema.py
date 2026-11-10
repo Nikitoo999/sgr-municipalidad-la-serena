@@ -103,12 +103,14 @@ class AttentionSchemaTests(TestCase):
         call_command("seed_demo", verbosity=0)
         n_vecinos = Neighbor.objects.count()
         n_atenciones = Attention.objects.count()
-        self.assertEqual(n_vecinos, 14)
-        self.assertEqual(n_atenciones, 14)
+        # El seed genera volumen masivo (objetivo pauta: 50+ por CRUD y 2.000+ total).
+        self.assertGreaterEqual(n_vecinos, 50)
+        self.assertGreaterEqual(n_atenciones, 50)
         numeros = list(Attention.objects.values_list("number", flat=True))
-        self.assertEqual(len(set(numeros)), 14)
+        self.assertEqual(len(set(numeros)), n_atenciones)
         for numero in numeros:
-            self.assertTrue(re.match(r"^ATN-\d{4}$", numero or ""))
+            self.assertTrue(re.match(r"^ATN-\d+$", numero or ""))
+        # Segunda ejecución: idempotente (no duplica registros).
         call_command("seed_demo", verbosity=0)
         self.assertEqual(Neighbor.objects.count(), n_vecinos)
         self.assertEqual(Attention.objects.count(), n_atenciones)

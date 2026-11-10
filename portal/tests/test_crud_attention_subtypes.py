@@ -176,7 +176,7 @@ class CrudAttentionSubtypesTestCase(TestCase):
         resp = self.client.get(reverse("attention_subtypes"), {"q": "ayuda"})
         self.assertEqual(self._codes_shown(resp), ["SAT01"])
 
-        resp = self.client.get(reverse("attention_subtypes"), {"estado": "Inactivo"})
+        resp = self.client.get(reverse("attention_subtypes"), {"q": "", "estado": "Inactivo"})
         self.assertEqual(self._codes_shown(resp), ["SAT08"])
 
         resp = self.client.get(reverse("attention_subtypes_export"))

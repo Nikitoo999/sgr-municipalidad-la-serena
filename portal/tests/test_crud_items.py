@@ -152,7 +152,7 @@ class CrudItemsTestCase(TestCase):
         resp = self.client.get(reverse("items"), {"q": "operativo"})
         self.assertEqual(self._codes_shown(resp), ["ITM01"])
 
-        resp = self.client.get(reverse("items"), {"estado": "Inactivo"})
+        resp = self.client.get(reverse("items"), {"q": "", "estado": "Inactivo"})
         self.assertEqual(self._codes_shown(resp), ["ITM02"])
 
         resp = self.client.get(reverse("items_export"))
