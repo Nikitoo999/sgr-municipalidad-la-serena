@@ -101,7 +101,9 @@ class AttentionEventEmissionTests(TestCase):
 
     def _post_data(self):
         return {
-            "neighbor": str(self.vecino.pk),
+            "neighbor_rut": self.vecino.identifier,
+            "neighbor_name": self.vecino.full_name,
+            "neighbor_phone": "+56 9 1111 1111",
             "delegation": str(self.d1.pk),
             "attention_type": str(self.tipo.pk),
             "attention_subtype": str(self.sub.pk),

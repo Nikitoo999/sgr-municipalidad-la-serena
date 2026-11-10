@@ -28,6 +28,8 @@ erDiagram
         ForeignKey task FK
         CharField name
         DateField execution_date
+        ForeignKey item FK
+        CharField status
     }
     atencion {
         BigAutoField id PK
@@ -42,6 +44,21 @@ erDiagram
         TextField description
         ForeignKey responsible FK
         CharField status
+        BooleanField requires_visit
+        TextField unresolved_reason
+        BooleanField counts_for_score
+        FileField evidence_image
+        FileField attachment
+    }
+    gestion_atencion {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey attention FK
+        PositiveSmallIntegerField sequence
+        TextField description
+        ForeignKey performed_by FK
     }
     beneficio {
         BigAutoField id PK
@@ -65,6 +82,32 @@ erDiagram
         CharField address
         ForeignKey delegation FK
         ForeignKey role FK
+        ForeignKey position FK
+        BooleanField must_change_password
+    }
+    dia_libre_funcionario {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey employee FK
+        CharField kind
+        DateField start_date
+        DateField end_date
+        CharField notes
+        ForeignKey registered_by FK
+    }
+    felicitacion_reclamo {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey employee FK
+        CharField kind
+        DateField date
+        CharField description
+        FileField file
+        ForeignKey registered_by FK
     }
     evidencia {
         BigAutoField id PK
@@ -73,7 +116,10 @@ erDiagram
         DateTimeField deleted_at
         ForeignKey activity FK
         CharField image_url
+        FileField file
         BooleanField is_validated
+        ForeignKey validated_by FK
+        DateTimeField validated_at
     }
     vecino {
         BigAutoField id PK
@@ -109,6 +155,40 @@ erDiagram
         CharField reason
         DateTimeField reassigned_at
         TextField notes
+    }
+    tubo {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey delegation FK
+        CharField channel
+        CharField title
+        CharField origin
+        CharField requester
+        CharField territory
+        ForeignKey responsible FK
+        DateField request_date
+        DateField due_date
+        CharField support_area
+        TextField notes
+        CharField status
+        CharField letter_number
+        CharField contact_phone
+        CharField verification_code
+        FileField proof_image
+        DateTimeField completed_at
+    }
+    cierre_semanal {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey delegation FK
+        DateField week_start
+        ForeignKey closed_by FK
+        DateTimeField closed_at
+        CharField notes
     }
     portal_audit_log {
         BigAutoField id PK
@@ -159,6 +239,25 @@ erDiagram
         TextField description
         CharField status
     }
+    organizacion_comunitaria {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        CharField name
+        CharField category
+        CharField legal_address
+        CharField territory
+        ForeignKey delegation FK
+        PositiveIntegerField active_members
+        DateField constitution_date
+        CharField registry_number
+        DateField registry_date
+        CharField directive_number
+        BooleanField verified
+        CharField status
+        TextField notes
+    }
     delegacion {
         BigAutoField id PK
         DateTimeField created_at
@@ -205,6 +304,29 @@ erDiagram
         IntegerField quarter
         CharField status
     }
+    cargo {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        CharField code
+        CharField name
+        TextField summary
+        TextField functions
+        BooleanField is_evaluated
+        CharField status
+    }
+    meta_cargo_item {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey position FK
+        ForeignKey item FK
+        ForeignKey period FK
+        DecimalField weight
+        DecimalField target_value
+    }
     item_proyecto {
         BigAutoField id PK
         DateTimeField created_at
@@ -237,29 +359,46 @@ erDiagram
         CharField action
     }
     tarea_agenda ||--o{ actividad : task
+    item_proyecto ||--o{ actividad : item
     vecino ||--o{ atencion : neighbor
     delegacion ||--o{ atencion : delegation
     tipo_atencion ||--o{ atencion : attention_type
     sub_atencion ||--o{ atencion : attention_subtype
     auth_user ||--o{ atencion : responsible
+    atencion ||--o{ gestion_atencion : attention
+    auth_user ||--o{ gestion_atencion : performed_by
     funcionario ||--o{ beneficio : employee
     delegacion ||--o{ beneficio : delivery_area
     funcionario ||--|| auth_user : user
     delegacion ||--o{ funcionario : delegation
     rol ||--o{ funcionario : role
+    cargo ||--o{ funcionario : position
+    funcionario ||--o{ dia_libre_funcionario : employee
+    auth_user ||--o{ dia_libre_funcionario : registered_by
+    funcionario ||--o{ felicitacion_reclamo : employee
+    auth_user ||--o{ felicitacion_reclamo : registered_by
     actividad ||--o{ evidencia : activity
+    auth_user ||--o{ evidencia : validated_by
     meta ||--o{ tarea_agenda : goal
     funcionario ||--o{ tarea_agenda : assigned_to
     tarea_agenda ||--o{ derivacion_tarea : task
     funcionario ||--o{ derivacion_tarea : original_employee
     funcionario ||--o{ derivacion_tarea : reassigned_employee
+    delegacion ||--o{ tubo : delegation
+    funcionario ||--o{ tubo : responsible
+    delegacion ||--o{ cierre_semanal : delegation
+    auth_user ||--o{ cierre_semanal : closed_by
     auth_user ||--o{ portal_audit_log : user
     auth_user ||--o{ portal_password_reset_code : user
     meta ||--o{ cumplimiento : goal
     tipo_atencion ||--o{ sub_atencion : attention_type
+    delegacion ||--o{ organizacion_comunitaria : delegation
     periodo ||--o{ meta : period
     delegacion ||--o{ meta : delegation
     meta ||--o{ item_medicion : goal
+    cargo ||--o{ meta_cargo_item : position
+    item_proyecto ||--o{ meta_cargo_item : item
+    periodo ||--o{ meta_cargo_item : period
     rol ||--o{ rol_permiso : role
 ```
 
@@ -298,6 +437,8 @@ Actividad.
 | task | ForeignKey | no | no | tarea_agenda CASCADE | Tarea de Agenda |
 | name | CharField | no | no |  | Nombre de la Actividad |
 | execution_date | DateField | no | no |  | Fecha de Ejecución |
+| item | ForeignKey | si | no | item_proyecto SET_NULL | Ítem de la matriz |
+| status | CharField | no | no |  | Estado |
 
 ### atencion (operaciones.Attention)
 
@@ -317,6 +458,28 @@ Atención.
 | description | TextField | no | no |  | Descripción |
 | responsible | ForeignKey | no | no | auth_user RESTRICT | Funcionario responsable |
 | status | CharField | no | no |  | Estado |
+| requires_visit | BooleanField | no | no |  | Requiere visita a terreno |
+| unresolved_reason | TextField | no | no |  | Motivo de baja (Sin resolver) |
+| counts_for_score | BooleanField | no | no |  | Cuenta para el puntaje operativo |
+| evidence_image | FileField | si | no |  | Imagen de evidencia (máx. 2 MB) |
+| attachment | FileField | si | no |  | Documento de respaldo (máx. 5 MB) |
+
+### gestion_atencion (operaciones.AttentionFollowUp)
+
+Gestión de seguimiento.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| attention | ForeignKey | no | no | atencion CASCADE | Atención |
+| sequence | PositiveSmallIntegerField | no | no |  | N° de gestión |
+| description | TextField | no | no |  | Detalle de la gestión |
+| performed_by | ForeignKey | no | no | auth_user RESTRICT | Registrada por |
+
+Restriccion unica: uniq_gestion_atencion_secuencia (attention, sequence).
 
 ### beneficio (operaciones.Benefit)
 
@@ -350,7 +513,43 @@ Funcionario.
 | address | CharField | no | no |  | Dirección |
 | delegation | ForeignKey | no | no | delegacion RESTRICT | Delegación Asignada |
 | role | ForeignKey | no | no | rol PROTECT | Rol |
+| position | ForeignKey | si | no | cargo PROTECT | Cargo |
+| must_change_password | BooleanField | no | no |  | Debe cambiar contraseña al ingresar |
 | authorized_delegations | M2M a delegacion (tabla funcionario_authorized_delegations) | - | - | - | Delegaciones autorizadas |
+
+### dia_libre_funcionario (operaciones.EmployeeDayOff)
+
+Día libre.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| employee | ForeignKey | no | no | funcionario CASCADE | Funcionario |
+| kind | CharField | no | no |  | Tipo |
+| start_date | DateField | no | no |  | Desde |
+| end_date | DateField | no | no |  | Hasta |
+| notes | CharField | no | no |  | Observaciones |
+| registered_by | ForeignKey | si | no | auth_user SET_NULL | Registrado por |
+
+### felicitacion_reclamo (operaciones.EmployeeFeedback)
+
+Felicitación o reclamo.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| employee | ForeignKey | no | no | funcionario CASCADE | Funcionario |
+| kind | CharField | no | no |  | Tipo |
+| date | DateField | no | no |  | Fecha |
+| description | CharField | no | no |  | Descripción |
+| file | FileField | si | no |  | Respaldo formal (máx. 5 MB) |
+| registered_by | ForeignKey | si | no | auth_user SET_NULL | Registrado por |
 
 ### evidencia (operaciones.Evidence)
 
@@ -364,7 +563,10 @@ Evidencia.
 | deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
 | activity | ForeignKey | no | no | actividad CASCADE | Actividad Respaldada |
 | image_url | CharField | no | no |  | URL de Imagen/Archivo |
+| file | FileField | si | no |  | Archivo de evidencia (máx. 5 MB) |
 | is_validated | BooleanField | no | no |  | Validado por Jefatura |
+| validated_by | ForeignKey | si | no | auth_user SET_NULL | Validado por |
+| validated_at | DateTimeField | si | no |  | Fecha de validación |
 
 ### vecino (operaciones.Neighbor)
 
@@ -415,6 +617,52 @@ Derivación de tarea.
 | reason | CharField | no | no |  | Motivo de la Derivación |
 | reassigned_at | DateTimeField | no | no |  | Fecha de Derivación |
 | notes | TextField | si | no |  | Observaciones |
+
+### tubo (operaciones.TubeEntry)
+
+Solicitud del tubo.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| delegation | ForeignKey | no | no | delegacion RESTRICT | Delegación |
+| channel | CharField | no | no |  | Canal |
+| title | CharField | no | no |  | Actividad / solicitud / problema |
+| origin | CharField | no | no |  | Interno o externo |
+| requester | CharField | no | no |  | Solicitante |
+| territory | CharField | no | no |  | Territorio |
+| responsible | ForeignKey | si | no | funcionario SET_NULL | Responsable |
+| request_date | DateField | no | no |  | Fecha de solicitud |
+| due_date | DateField | si | no |  | Fecha de compromiso |
+| support_area | CharField | no | no |  | Área o persona de apoyo |
+| notes | TextField | no | no |  | Avance y observaciones |
+| status | CharField | no | no |  | Estatus |
+| letter_number | CharField | no | no |  | N° de carta |
+| contact_phone | CharField | no | no |  | Teléfono de contacto |
+| verification_code | CharField | no | no |  | Código de verificación |
+| proof_image | FileField | si | no |  | Foto de respaldo (máx. 2 MB) |
+| completed_at | DateTimeField | si | no |  | Fecha de realización |
+
+### cierre_semanal (operaciones.WeeklyClosure)
+
+Cierre semanal.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| delegation | ForeignKey | no | no | delegacion RESTRICT | Delegación |
+| week_start | DateField | no | no |  | Semana (lunes) |
+| closed_by | ForeignKey | si | no | auth_user SET_NULL | Cerrada por |
+| closed_at | DateTimeField | no | no |  | Fecha de cierre |
+| notes | CharField | no | no |  | Observación |
+
+Restriccion unica: uniq_cierre_semanal_deleg_semana (delegation, week_start).
 
 ### portal_audit_log (portal.AuditLog)
 
@@ -490,6 +738,30 @@ Tipo de atención.
 | description | TextField | no | no |  | Descripción |
 | status | CharField | no | no |  | Estado |
 
+### organizacion_comunitaria (sgr_core.CommunityOrganization)
+
+Organización comunitaria.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| name | CharField | no | no |  | Nombre de la organización |
+| category | CharField | no | no |  | Categoría |
+| legal_address | CharField | no | no |  | Domicilio legal |
+| territory | CharField | no | no |  | Territorio (según la base) |
+| delegation | ForeignKey | si | no | delegacion RESTRICT | Delegación |
+| active_members | PositiveIntegerField | si | no |  | Socios activos |
+| constitution_date | DateField | si | no |  | Fecha de constitución |
+| registry_number | CharField | no | no |  | N° registro P.J. |
+| registry_date | DateField | si | no |  | Fecha de inscripción en registro |
+| directive_number | CharField | no | no |  | N° registro de directiva |
+| verified | BooleanField | no | no |  | Verificada |
+| status | CharField | no | no |  | Estado |
+| notes | TextField | no | no |  | Observaciones de limpieza |
+
 ### delegacion (sgr_core.Delegation)
 
 Delegación.
@@ -555,6 +827,41 @@ Período de Medición.
 | end_date | DateField | no | no |  | Fecha Fin |
 | quarter | IntegerField | no | no |  | Trimestre |
 | status | CharField | no | no |  | Estado |
+
+### cargo (sgr_core.Position)
+
+Cargo.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| code | CharField | no | si |  | Código |
+| name | CharField | no | no |  | Nombre del cargo |
+| summary | TextField | no | no |  | Resumen del cargo |
+| functions | TextField | no | no |  | Descriptor de funciones |
+| is_evaluated | BooleanField | no | no |  | Se evalúa en la matriz |
+| status | CharField | no | no |  | Estado |
+
+### meta_cargo_item (sgr_core.PositionItemGoal)
+
+Meta por cargo.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| position | ForeignKey | no | no | cargo CASCADE | Cargo |
+| item | ForeignKey | no | no | item_proyecto RESTRICT | Ítem |
+| period | ForeignKey | no | no | periodo RESTRICT | Período |
+| weight | DecimalField | no | no |  | Ponderador (%) |
+| target_value | DecimalField | no | no |  | Meta del trimestre |
+
+Restriccion unica: uniq_position_item_period (position, item, period).
 
 ### item_proyecto (sgr_core.ProjectItem)
 

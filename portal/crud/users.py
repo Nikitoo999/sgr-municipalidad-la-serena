@@ -4,14 +4,21 @@ Solo la declara: el motor (``portal.crud.views``) hace todo el trabajo. El
 listado se acota con :func:`users_scope` (misma regla de rango + delegación que
 ``portal.access.visible_users``) y el borrado nunca es físico: el guard impide
 eliminar al único superusuario y el modelo desactiva la cuenta.
+
+Bloque 2A: orden por columna y filtros propios por Estado (cuenta activa o
+inactiva), Rol y Delegación. Las opciones de Rol y Delegación salen de los
+usuarios que el operador ya puede ver, así el filtro nunca amplía el alcance.
 """
+
+from django.db.models import Q
 
 from ..access import get_role
 from ..access import allowed_delegations
+from sgr_core.models import Delegation, Role
 from sgr_core.roles import SCOPE_RANKS
 from operaciones.models import Employee
 
-from .config import CELL_STATUS, CELL_DELEGATION, ColumnSpec, ModuleConfig, register_module
+from .config import CELL_STATUS, CELL_DELEGATION, ColumnSpec, FilterSpec, ModuleConfig, register_module
 from .forms import UserForm
 
 
@@ -65,6 +72,40 @@ def user_delete_guard(employee, request=None):
     return ""
 
 
+def _visible_employees(request):
+    return users_scope(request, Employee.alive.all())
+
+
+def role_options(request):
+    """Roles de los usuarios visibles (filtro propio "Rol")."""
+    roles = Role.objects.filter(
+        pk__in=_visible_employees(request).values("role_id"),
+    ).order_by("code")
+    return [(role.pk, f"{role.code} · {role.name}") for role in roles]
+
+
+def delegation_options(request):
+    """Delegaciones (base o autorizadas) de los usuarios visibles."""
+    visible = _visible_employees(request)
+    delegations = Delegation.objects.filter(
+        Q(pk__in=visible.values("delegation_id"))
+        | Q(pk__in=visible.values("authorized_delegations"))
+    ).order_by("code")
+    return [(d.pk, f"{d.code} · {d.name}") for d in delegations]
+
+
+def filter_by_delegation(queryset, value):
+    """Usuarios cuya delegación base o autorizada es la elegida."""
+    return queryset.filter(
+        Q(delegation_id=value) | Q(authorized_delegations__id=value)
+    ).distinct()
+
+
+def filter_by_status(queryset, value):
+    """El estado del usuario es el de su cuenta (``user.is_active``)."""
+    return queryset.filter(user__is_active=(value == "Activo"))
+
+
 USERS_MODULE = ModuleConfig(
     module_key="users",
     slug="usuarios",
@@ -72,22 +113,38 @@ USERS_MODULE = ModuleConfig(
     form_class=UserForm,
     list_title="Usuarios",
     singular_label="Usuario",
+    gender="m",
     columns=(
-        ColumnSpec("rut", "RUT"),
-        ColumnSpec("full_name", "Nombre"),
-        ColumnSpec("email", "Correo"),
-        ColumnSpec("role_code", "Rol"),
-        ColumnSpec("delegations", "Delegaciones", cell=CELL_DELEGATION),
-        ColumnSpec("status_label", "Estado", cell=CELL_STATUS),
+        ColumnSpec("rut", "RUT", sort_key="rut", sort_fields=("rut",)),
+        ColumnSpec("full_name", "Nombre", sort_key="nombre",
+                   sort_fields=("user__first_name", "user__last_name", "user__username")),
+        ColumnSpec("email", "Correo", sort_key="correo", sort_fields=("user__email",)),
+        ColumnSpec("role_code", "Rol", sort_key="rol", sort_fields=("role__code",)),
+        ColumnSpec("delegations", "Delegaciones", cell=CELL_DELEGATION,
+                   sort_key="delegacion", sort_fields=("delegation__code",)),
+        # Ascendente muestra primero los activos.
+        ColumnSpec("status_label", "Estado", cell=CELL_STATUS,
+                   sort_key="estado", sort_fields=("-user__is_active",)),
     ),
     search_fields=(
         "rut", "user__first_name", "user__last_name", "user__email",
         "user__username", "role__name", "role__code", "delegation__name",
         "delegation__code",
     ),
+    search_placeholder="Buscar por RUT, nombre, correo, rol o delegación...",
     status_field=None,
-    status_options=(),
+    status_options=(("Activo", "Activo"), ("Inactivo", "Inactivo")),
+    status_filter=filter_by_status,
+    filters=(
+        FilterSpec("rol", "Rol", "role_id", options=role_options),
+        FilterSpec("delegacion", "Delegación", "delegation_id",
+                   options=delegation_options, apply=filter_by_delegation,
+                   empty_label="Todas"),
+    ),
     ordering=("user__first_name", "user__last_name", "rut"),
+    default_sort="nombre",
+    select_related=("user", "role", "delegation"),
+    row_label=lambda employee: employee.full_name,
     scope=users_scope,
     delete_guard=user_delete_guard,
     form_template="portal/crud/users_form.html",

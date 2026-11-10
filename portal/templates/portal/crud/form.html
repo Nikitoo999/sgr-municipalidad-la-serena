@@ -1,12 +1,12 @@
 {% extends 'portal/base.html' %}
 {% load static sgr_icons %}
-{% block title %}{{ config.list_title }}{% endblock %}
+{% block title %}{{ page_action }}{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url config.module_key %}">{{ config.list_title }}</a> / {{ page_action }}</nav>
-<div class="titlebar"><h1>{{ config.list_title }}: {{ page_action|lower }}</h1></div>
+<div class="titlebar"><h1>{{ page_action }}</h1></div>
 
 <form class="card fgrid" method="post" enctype="multipart/form-data" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}{% if form.role_scopes_json %} data-role-scopes="{{ form.role_scopes_json }}"{% endif %}>
   {% csrf_token %}
@@ -16,6 +16,14 @@
     {% endfor %}
   </div>
   <div class="grid">
+    {% if code_preview %}
+    {# Código automático: no se ingresa; el valor mostrado es referencial #}
+    <div class="">
+      <label class="fl" for="id_code">Código</label>
+      <input class="in" id="id_code" value="{{ code_preview }}" disabled aria-describedby="id_code-help">
+      <p class="help" id="id_code-help">Se asigna automáticamente al guardar (correlativo). El valor mostrado es referencial.</p>
+    </div>
+    {% endif %}
     {% for field in form %}
     <div class="{% if field.name in form.full_width_fields %}full{% endif %}">
       <label class="fl" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required and not is_view %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
@@ -45,7 +53,7 @@
   <div class="formfoot">
     <a class="btn ghost" href="{{ cancel_url }}" id="cancelBtn">{% if is_view %}Volver{% else %}Cancelar{% endif %}</a>
     {% if not is_view %}
-    <button class="btn primary" type="submit" id="saveBtn">Guardar cambios</button>
+    <button class="btn primary" type="submit" id="saveBtn">{{ save_label }}</button>
     {% endif %}
   </div>
 </form>

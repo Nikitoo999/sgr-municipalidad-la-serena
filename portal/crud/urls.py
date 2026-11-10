@@ -8,6 +8,9 @@ Se generan por cada módulo registrado en :mod:`portal.crud.config`:
 - ``/<slug>/<pk>/editar/`` (editar)
 - ``/<slug>/<pk>/eliminar/`` (eliminar, solo POST)
 - ``/<slug>/exportar/`` (exportar a Excel)
+
+Atenciones (Bloque 2B) suma ``/atenciones/<pk>/gestiones/nueva/`` (gestión de
+seguimiento, solo POST) y ``/atenciones/cierre-semanal/`` (cierre semanal).
 """
 
 from django.urls import path
@@ -23,9 +26,11 @@ from .attentions import (
     AttentionCreateView,
     AttentionDetailView,
     AttentionExportView,
+    AttentionFollowUpCreateView,
     AttentionListView,
     AttentionNeighborsView,
     AttentionUpdateView,
+    AttentionWeekClosureView,
 )
 from .config import registered_modules
 from .views import (
@@ -102,3 +107,17 @@ urlpatterns = [
 urlpatterns.append(
     path("atenciones/solicitantes/", AttentionNeighborsView.as_view(), name="attention_neighbors"),
 )
+
+# Bloque 2B: gestiones de seguimiento y cierre semanal de atenciones.
+urlpatterns += [
+    path(
+        "atenciones/<int:pk>/gestiones/nueva/",
+        AttentionFollowUpCreateView.as_view(module_key="attentions"),
+        name="attention_follow_up_new",
+    ),
+    path(
+        "atenciones/cierre-semanal/",
+        AttentionWeekClosureView.as_view(module_key="attentions"),
+        name="attention_week_closures",
+    ),
+]

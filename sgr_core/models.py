@@ -1,10 +1,64 @@
-from django.db import models
+from django.db import IntegrityError, models, transaction
+from django.db.models import IntegerField, Max
+from django.db.models.functions import Cast, Substr
 
 from .roles import ACTIONS, MODULES, SCOPES, SCOPE_RANKS
 
 DELEGATION_STATUS_CHOICES = [("Activa", "Activa"), ("Inactiva", "Inactiva")]
 ROLE_STATUS_CHOICES = [("Activo", "Activo"), ("Inactivo", "Inactivo")]
 CATALOG_STATUS_CHOICES = [("Activo", "Activo"), ("Inactivo", "Inactivo")]
+
+
+class AutoCodeMixin:
+    """Código correlativo automático del mantenedor (DEL01, ROL01, ITM001...).
+
+    Cada modelo declara ``CODE_PREFIX`` y ``CODE_DIGITS``. Al crear un registro
+    sin código, ``save()`` busca en la base de datos el mayor correlativo con
+    ese prefijo (incluidos los eliminados de forma lógica, porque ``code`` es
+    único en toda la tabla), le suma 1 y guarda dentro de
+    ``transaction.atomic()``. Si dos personas guardan a la vez y les toca el
+    mismo número, la restricción ``unique`` rechaza el segundo INSERT y se
+    reintenta con el siguiente número.
+
+    Si el código ya viene informado (datos demo, migraciones o pruebas) se
+    respeta tal cual: solo se genera cuando falta.
+    """
+
+    CODE_PREFIX = ""
+    CODE_DIGITS = 2
+    CODE_MAX_ATTEMPTS = 5
+
+    @classmethod
+    def next_code(cls):
+        """Siguiente código libre, por ejemplo ``DEL07`` o ``ITM008``.
+
+        El máximo se calcula en la base de datos (sin traer filas a Python):
+        solo cuentan los códigos con el formato ``<PREFIJO><dígitos>``.
+        """
+        prefix = cls.CODE_PREFIX
+        last = (
+            cls.objects.filter(code__regex=rf"^{prefix}[0-9]+$")
+            .annotate(_correlativo=Cast(Substr("code", len(prefix) + 1), IntegerField()))
+            .aggregate(maximo=Max("_correlativo"))["maximo"]
+        ) or 0
+        return f"{prefix}{last + 1:0{cls.CODE_DIGITS}d}"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or self.code:
+            return super().save(*args, **kwargs)
+        for _attempt in range(self.CODE_MAX_ATTEMPTS):
+            self.code = type(self).next_code()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                # Solo se reintenta si el choque fue por el código.
+                if not type(self).objects.filter(code=self.code).exists():
+                    raise
+        raise IntegrityError(
+            f"No se pudo asignar un código correlativo con el prefijo {self.CODE_PREFIX}."
+        )
+
 
 class AliveQuerySet(models.QuerySet):
     """QuerySet que excluye registros con borrado lógico."""
@@ -33,7 +87,10 @@ class BaseModel(models.Model):
     class Meta:
         abstract = True
 
-class Delegation(BaseModel):
+class Delegation(AutoCodeMixin, BaseModel):
+    CODE_PREFIX = "DEL"
+    CODE_DIGITS = 2
+
     name = models.CharField(max_length=50, verbose_name="Nombre de Delegación")
     code = models.CharField(max_length=8, unique=True, verbose_name="Código")
     commune = models.CharField(max_length=80, default="La Serena", verbose_name="Comuna")
@@ -54,7 +111,10 @@ class Delegation(BaseModel):
     def is_active(self):
         return self.status == "Activa"
 
-class Role(BaseModel):
+class Role(AutoCodeMixin, BaseModel):
+    CODE_PREFIX = "ROL"
+    CODE_DIGITS = 2
+
     code = models.CharField(max_length=8, unique=True, verbose_name="Código")
     name = models.CharField(max_length=50, verbose_name="Nombre del Rol")
     description = models.TextField(blank=True, default="", verbose_name="Descripción")
@@ -166,8 +226,11 @@ class MeasurementItem(BaseModel):
         return f"{self.name} ({self.unit_of_measure})"
 
 
-class ProjectItem(BaseModel):
+class ProjectItem(AutoCodeMixin, BaseModel):
     """Ítem de proyecto del catálogo (mantenedor Ítems y metas)."""
+
+    CODE_PREFIX = "ITM"
+    CODE_DIGITS = 3
 
     code = models.CharField(max_length=8, unique=True, verbose_name="Código")
     name = models.CharField(max_length=100, verbose_name="Nombre del ítem")
@@ -184,8 +247,11 @@ class ProjectItem(BaseModel):
         return f"{self.code} - {self.name}"
 
 
-class AttentionType(BaseModel):
+class AttentionType(AutoCodeMixin, BaseModel):
     """Tipo de atención del catálogo (mantenedor Tipo de Atención)."""
+
+    CODE_PREFIX = "TAT"
+    CODE_DIGITS = 2
 
     code = models.CharField(max_length=8, unique=True, verbose_name="Código")
     name = models.CharField(max_length=100, verbose_name="Nombre del tipo")
@@ -202,8 +268,11 @@ class AttentionType(BaseModel):
         return f"{self.code} - {self.name}"
 
 
-class AttentionSubtype(BaseModel):
+class AttentionSubtype(AutoCodeMixin, BaseModel):
     """Sub atención del catálogo (mantenedor Sub Atención)."""
+
+    CODE_PREFIX = "SAT"
+    CODE_DIGITS = 3
 
     code = models.CharField(max_length=8, unique=True, verbose_name="Código")
     name = models.CharField(max_length=100, verbose_name="Nombre de la sub atención")

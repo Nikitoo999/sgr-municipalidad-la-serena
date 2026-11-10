@@ -1,0 +1,13 @@
+{% load sgr_icons %}{# Campo de formulario con etiqueta, ayuda y errores (Bloque 2B). Uso: {% include 'portal/crud/_field.html' with field=form.x css='full' %} #}
+<div class="{{ css|default:'' }}">
+  <label class="fl" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required and not is_view %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+  {{ field }}
+  {% if field.help_text and not is_view %}
+  <p class="help" id="{{ field.id_for_label }}-help">{{ field.help_text }}</p>
+  {% endif %}
+  <div id="{{ field.id_for_label }}-e" aria-live="polite">
+    {% for error in field.errors %}
+    <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+    {% endfor %}
+  </div>
+</div>

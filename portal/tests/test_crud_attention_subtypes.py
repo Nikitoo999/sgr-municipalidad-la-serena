@@ -1,7 +1,7 @@
 """Pruebas de la Parte 6: mantenedor de Sub Atención.
 
-Cubre: permisos por rol (solo superadmin y coordinador), código duplicado sin
-distinguir mayúsculas, solo tipos activos en el formulario (conservando el
+Cubre: permisos por rol (solo superadmin y coordinador), código automático
+SAT002 (el POST no lo impone), solo tipos activos en el formulario (conservando el
 actual al editar aunque esté inactivo), regla de eliminación (con atenciones no
 se elimina) y búsqueda/filtro/exportación.
 """
@@ -65,7 +65,7 @@ class CrudAttentionSubtypesTestCase(TestCase):
 
     def _post(self, **extra):
         data = {
-            "code": "SAT09", "name": "Nueva sub atención",
+            "name": "Nueva sub atención",
             "attention_type": str(self.tipo_activo.pk), "status": "Activo",
         }
         data.update(extra)
@@ -103,11 +103,15 @@ class CrudAttentionSubtypesTestCase(TestCase):
     # Código duplicado
     # ---------------------------------------------------------------
 
-    def test_codigo_duplicado_sin_mayusculas(self):
+    def test_codigo_automatico_ignora_post(self):
+        # SAT01 existe (formato antiguo de 2 dígitos): el siguiente es SAT002.
         self._login("coordinador")
         resp = self.client.post(reverse("attention_subtypes_new"), self._post(code="sat01"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Ya existe una sub atención con este código")
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(
+            AttentionSubtype.alive.get(name="Nueva sub atención").code, "SAT002",
+        )
+        self.assertEqual(AttentionSubtype.objects.filter(code__iexact="SAT01").count(), 1)
 
     # ---------------------------------------------------------------
     # Solo tipos activos en el formulario

@@ -119,4 +119,50 @@ fieldset>legend{font-weight:600;margin-bottom:8px;padding:0}
 
 /* ---- Archivos adjuntos de la atencion (Clase 9: MEDIA) ---- */
 .media-box{display:flex;gap:10px;align-items:center;margin-top:8px}
+.media-box[hidden]{display:none}
 .media-thumb{width:96px;height:96px;object-fit:cover;border:1px solid var(--line);border-radius:8px;background:#fff}
+
+/* ---- Bloque 2A: filtros propios, filas por página y orden por columna ----
+   Compartido por todos los listados del motor (antes solo en Atenciones). */
+.toolbar .tb-break{flex-basis:100%;height:0}
+.toolbar .field{display:flex;flex-direction:column;min-width:0}
+.toolbar .field .in{min-width:130px;max-width:200px}
+.toolbar .field.field-size .in{min-width:90px}
+
+.tablewrap th .sortlink{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.tablewrap th .sortlink:hover{text-decoration:underline}
+.tablewrap th .sortlink:focus-visible{outline:2px solid var(--muni);outline-offset:2px;border-radius:4px}
+.tablewrap th .arr{font-size:11px;line-height:1;opacity:.35}
+.tablewrap th .sortlink.is-current .arr{opacity:1;color:var(--muni)}
+
+.pager .pg.gap{border:0;background:transparent;cursor:default;min-width:auto;padding:0 4px}
+
+/* ---- Bloque 2B: atenciones ampliadas ---- */
+.b-bad{background:var(--bad-bg);color:var(--bad)}
+.titleacts{display:flex;gap:10px;flex-wrap:wrap}
+.scope.scope-lock{background:var(--warn-bg);border-color:#f0d9a0;color:var(--warn)}
+.help-inline{font-weight:400;color:var(--muted);font-size:13px}
+.checkrow{display:flex;align-items:center;gap:10px;min-height:42px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font-weight:600}
+.checkrow input{width:18px;height:18px;accent-color:var(--muni);flex:none}
+.checkrow input:disabled{cursor:not-allowed}
+.ib.lock{color:var(--warn);cursor:default}
+.ib.lock:hover{background:var(--warn-bg);border-color:#f0d9a0}
+
+/* Gestiones de seguimiento (máx. 3) */
+.followups{margin-top:18px}
+.fu-head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.fu-head h2{font-size:18px;margin:0}
+.fu-list{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.fu-list li{border:1px solid var(--line);border-left:4px solid var(--muni);border-radius:8px;padding:10px 14px;background:#fff}
+.fu-list li p{margin:4px 0 0;white-space:pre-line}
+.fu-meta{color:var(--muted);font-size:13px}
+.fu-meta strong{color:var(--ink)}
+.fu-empty{color:var(--muted);margin:12px 0 0}
+.fu-form{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.fu-blocked{display:flex;gap:6px;align-items:center;margin-top:14px}
+
+/* Cierre semanal */
+.closure-form{margin-bottom:18px}
+.section-title{font-size:18px;margin:6px 0 12px}
+.inline-form{margin:0}
+.btn.btn-sm{height:34px;padding:0 12px;font-size:13px}

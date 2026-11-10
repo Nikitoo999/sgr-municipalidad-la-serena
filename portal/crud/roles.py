@@ -1,12 +1,17 @@
 """Configuración del mantenedor de Roles (Parte 5).
 
 Solo la declara: el motor (``portal.crud.views``) hace todo el trabajo.
+Bloque 2A: código automático (ROL01...), orden por columna (incluida la
+cantidad de módulos habilitados) y filtro propio por Alcance.
 """
+
+from django.db.models import Count
 
 from operaciones.models import Employee
 from sgr_core.models import Role
+from sgr_core.roles import SCOPES
 
-from .config import CELL_STATUS, ColumnSpec, ModuleConfig, register_module
+from .config import CELL_STATUS, ColumnSpec, FilterSpec, ModuleConfig, register_module
 from .forms import RoleForm
 
 
@@ -30,6 +35,18 @@ def role_delete_guard(role, request=None):
     return ""
 
 
+def scope_options(request):
+    """Alcances de datos (filtro propio "Alcance")."""
+    return list(SCOPES)
+
+
+def role_sort_annotate(queryset, key):
+    """La columna "Módulos habilitados" se ordena por un conteo en la BD."""
+    if key == "modulos":
+        return queryset.annotate(_modulos=Count("permissions__module", distinct=True))
+    return queryset
+
+
 ROLES_MODULE = ModuleConfig(
     module_key="roles",
     slug="roles",
@@ -37,17 +54,28 @@ ROLES_MODULE = ModuleConfig(
     form_class=RoleForm,
     list_title="Roles",
     singular_label="Rol",
+    gender="m",
     columns=(
-        ColumnSpec("code", "Código"),
-        ColumnSpec("name", "Rol"),
-        ColumnSpec("scope_label", "Alcance"),
-        ColumnSpec("enabled_modules_count", "Módulos habilitados"),
-        ColumnSpec("status", "Estado", cell=CELL_STATUS),
+        ColumnSpec("code", "Código", sort_key="codigo", sort_fields=("code",)),
+        ColumnSpec("name", "Rol", sort_key="nombre", sort_fields=("name",)),
+        # El código del alcance ordena de mayor a menor alcance
+        # (all, authorized, own_delegation, own_records).
+        ColumnSpec("scope_label", "Alcance", sort_key="alcance", sort_fields=("scope",)),
+        ColumnSpec("enabled_modules_count", "Módulos habilitados",
+                   sort_key="modulos", sort_fields=("_modulos",)),
+        ColumnSpec("status", "Estado", cell=CELL_STATUS,
+                   sort_key="estado", sort_fields=("status",)),
     ),
     search_fields=("code", "name", "scope"),
+    search_placeholder="Buscar por código o nombre del rol...",
     status_field="status",
     status_options=(("Activo", "Activo"), ("Inactivo", "Inactivo")),
+    filters=(
+        FilterSpec("alcance", "Alcance", "scope", options=scope_options),
+    ),
     ordering=("code",),
+    default_sort="codigo",
+    sort_annotate=role_sort_annotate,
     delete_guard=role_delete_guard,
 )
 
