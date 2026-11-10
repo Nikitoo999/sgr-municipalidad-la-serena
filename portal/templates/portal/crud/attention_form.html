@@ -88,7 +88,7 @@
     <div>
       <label class="fl" for="id_evidence_image">{{ form.evidence_image.label }}</label>
       {{ form.evidence_image }}
-      <p class="help">Formatos: JPG, PNG o WEBP.</p>
+      <p class="help">Formatos: JPG o PNG (máx. 2 MB).</p>
       {% if form.instance.evidence_image %}
       <div class="media-box">
         <a href="{{ form.instance.evidence_image.url }}" target="_blank" rel="noopener"><img class="media-thumb" src="{{ form.instance.evidence_image.url }}" alt="Imagen de evidencia actual"></a>

@@ -43,6 +43,12 @@ HEADER_ALIGN = Alignment(horizontal="center", vertical="center")
 THIN = Side(style="thin", color="D9D9D9")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
+#: Tamaños de página permitidos en los listados genéricos del motor.
+PER_PAGE_OPTIONS = (5, 15, 30)
+DEFAULT_PER_PAGE = 5
+#: Orden por defecto: creación más reciente con ``pk`` descendente de desempate.
+DEFAULT_ORDERING = ("-created_at", "-pk")
+
 
 def _display(value):
     """Texto de una celda para listado/Excel (nunca datos sensibles)."""
@@ -126,19 +132,24 @@ def resolve_object_or_deny(request, config, queryset, pk):
     raise Http404("Registro inexistente.")
 
 
-def scoped_queryset(request, config):
-    """Queryset vivo del módulo, con el orden y el alcance aplicados."""
+def scoped_queryset(request, config, ordering=None):
+    """Queryset vivo del módulo, con el orden y el alcance aplicados.
+
+    ``ordering`` permite a los listados sobrescribir el orden declarado en el
+    módulo (p. ej. orden dinámico por columna) sin tocar el queryset original.
+    """
     queryset = config.model.alive.all()
-    if config.ordering:
-        queryset = queryset.order_by(*config.ordering)
+    effective = ordering if ordering is not None else config.ordering
+    if effective:
+        queryset = queryset.order_by(*effective)
     if config.scope is not None:
         queryset = config.scope(request, queryset)
     return queryset
 
 
-def filtered_queryset(request, config):
+def filtered_queryset(request, config, ordering=None):
     """Queryset vivo + alcance + filtro de estado (sin búsqueda ni página)."""
-    queryset = scoped_queryset(request, config)
+    queryset = scoped_queryset(request, config, ordering=ordering)
     estado = request.GET.get("estado", "")
     valid = [option[0] for option in config.status_options]
     if config.status_field and estado in valid:
@@ -146,15 +157,58 @@ def filtered_queryset(request, config):
     return queryset
 
 
-def querystring(query, estado, extra=None):
-    """URL query conservando búsqueda y filtros (para la paginación)."""
+def _coerce_per_page(raw, fallback=DEFAULT_PER_PAGE):
+    """Tamaño de página válido (5, 15 o 30); cualquier otro valor -> fallback."""
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return fallback
+    return value if value in PER_PAGE_OPTIONS else fallback
+
+
+def _orderable_fields(config):
+    """Campos del modelo ordenables en BD (columnas con campo real + fechas)."""
+    fields = {"created_at", "pk", "id"}
+    for column in config.columns:
+        name = column.field_name
+        try:
+            config.model._meta.get_field(name)
+        except Exception:
+            continue
+        fields.add(name)
+    return fields
+
+
+def _ordering_from(config, order, direction):
+    """Orden dinámico validado; si no aplica, devuelve el orden por defecto."""
+    if order in _orderable_fields(config):
+        if direction == "desc":
+            return (f"-{order}", "-pk")
+        return (order, "-pk")
+    return DEFAULT_ORDERING
+
+
+def _list_params(query, estado, per_page, order, direction):
+    """Parámetros GET que se conservan entre búsqueda, filtros y paginación."""
     params = {}
     if query:
         params["q"] = query
     if estado:
         params["estado"] = estado
-    if extra:
-        params.update({key: value for key, value in extra.items() if value})
+    if per_page != DEFAULT_PER_PAGE:
+        params["per_page"] = per_page
+    if order:
+        params["order"] = order
+    if direction == "desc":
+        params["direction"] = direction
+    return params
+
+
+def _list_url(query, estado, per_page, order, direction, page=None):
+    """URL de listado conservando estado; ``page`` None omite la página."""
+    params = _list_params(query, estado, per_page, order, direction)
+    if page not in (None, ""):
+        params["page"] = page
     return f"?{urlencode(params)}" if params else ""
 
 
@@ -197,22 +251,144 @@ class CrudBaseMixin:
 
 
 class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, TemplateView):
-    """Listado con búsqueda, filtro de estado y paginación de 5 filas."""
+    """Listado con búsqueda, filtro, orden por columna y paginación variable.
+
+    El estado del listado (búsqueda, filtro, tamaño, orden y página) se conserva
+    en la sesión por módulo: al navegar fuera y volver se restaura lo último; si
+    el usuario cambia la búsqueda, un filtro o el orden, la paginación se reinicia
+    a la página 1.
+    """
 
     template_name = "portal/crud/list.html"
     action = "view"
+
+    def _state_key(self):
+        return f"crud_state_{self.module_key}"
+
+    def _resolve_state(self, request):
+        """Estado del listado: el GET manda; si falta, se restaura de la sesión.
+
+        Cambiar ``q``, ``estado`` o el tamaño de página reinicia a la página 1.
+        ``?clear=1`` limpia búsqueda y filtros conservando tamaño y orden.
+        """
+        config = self.config
+        saved = request.session.get(self._state_key(), {})
+
+        if "clear" in request.GET:
+            state = {
+                "q": "",
+                "estado": "",
+                "per_page": _coerce_per_page(
+                    request.GET.get("per_page"), saved.get("per_page", DEFAULT_PER_PAGE)
+                ),
+                "order": saved.get("order", ""),
+                "direction": saved.get("direction", "asc"),
+                "page": 1,
+            }
+            request.session[self._state_key()] = state
+            request.session.modified = True
+            return state
+
+        per_page = _coerce_per_page(
+            request.GET.get("per_page"), saved.get("per_page", DEFAULT_PER_PAGE)
+        )
+        per_page_changed = (
+            "per_page" in request.GET
+            and per_page != saved.get("per_page", DEFAULT_PER_PAGE)
+        )
+
+        filters_changed = False
+        if "q" in request.GET:
+            query = (request.GET.get("q") or "").strip()
+            filters_changed = query != saved.get("q", "")
+        else:
+            query = saved.get("q", "")
+
+        if "estado" in request.GET:
+            estado = request.GET.get("estado") or ""
+            if estado != saved.get("estado", ""):
+                filters_changed = True
+        else:
+            estado = saved.get("estado", "")
+
+        orderable = _orderable_fields(config)
+        sort_changed = "order" in request.GET
+        if "order" in request.GET:
+            order = request.GET.get("order") or ""
+            direction = request.GET.get("direction") or "asc"
+            if direction not in ("asc", "desc"):
+                direction = "asc"
+            if order not in orderable:
+                order = ""
+        else:
+            order = saved.get("order", "")
+            direction = saved.get("direction", "asc")
+            if order not in orderable:
+                order = ""
+
+        if "page" in request.GET:
+            try:
+                page = int(request.GET.get("page"))
+            except (TypeError, ValueError):
+                page = 1
+            if page < 1:
+                page = 1
+        elif filters_changed or sort_changed or per_page_changed:
+            page = 1
+        else:
+            page = saved.get("page", 1)
+
+        state = {
+            "q": query,
+            "estado": estado,
+            "per_page": per_page,
+            "order": order,
+            "direction": direction,
+            "page": page,
+        }
+        request.session[self._state_key()] = state
+        request.session.modified = True
+        return state
+
+    def _sortable_columns(self, config, state):
+        """Columnas como dicts (header, sortable, url, active, arrow)."""
+        orderable = _orderable_fields(config)
+        columns = []
+        for column in config.columns:
+            entry = {
+                "header": column.header,
+                "sortable": False,
+                "url": "",
+                "active": False,
+                "arrow": "",
+            }
+            if column.field_name in orderable:
+                entry["sortable"] = True
+                entry["active"] = state["order"] == column.field_name
+                if entry["active"]:
+                    new_direction = "asc" if state["direction"] == "desc" else "desc"
+                    entry["arrow"] = "↑" if state["direction"] == "asc" else "↓"
+                else:
+                    new_direction = "asc"
+                entry["url"] = _list_url(
+                    state["q"], state["estado"], state["per_page"],
+                    column.field_name, new_direction,
+                )
+            columns.append(entry)
+        return columns
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         config = self.config
         request = self.request
-        query = (request.GET.get("q") or "").strip()
-        estado = request.GET.get("estado") or ""
+        state = self._resolve_state(request)
 
-        queryset = filtered_queryset(request, config)
-        rows_all = apply_search(queryset, config.search_fields, query)
-        paginator = Paginator(rows_all, config.per_page)
-        page_obj = paginator.get_page(request.GET.get("page"))
+        ordering = _ordering_from(config, state["order"], state["direction"])
+        queryset = filtered_queryset(request, config, ordering=ordering)
+        rows_all = apply_search(queryset, config.search_fields, state["q"])
+
+        paginator = Paginator(rows_all, state["per_page"])
+        page_obj = paginator.get_page(state["page"])
 
         rows = [
             {
@@ -225,7 +401,10 @@ class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, Tem
         page_links = [
             {
                 "number": number,
-                "url": querystring(query, estado, {"page": number}),
+                "url": _list_url(
+                    state["q"], state["estado"], state["per_page"],
+                    state["order"], state["direction"], page=number,
+                ),
                 "current": number == page_obj.number,
             }
             for number in range(1, paginator.num_pages + 1)
@@ -236,20 +415,36 @@ class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, Tem
                 "active_module": config.module_key,
                 "config": config,
                 "rows": rows,
-                "columns": config.columns,
+                "columns": self._sortable_columns(config, state),
                 "page_obj": page_obj,
                 "page_links": page_links,
-                "prev_url": querystring(query, estado, {"page": page_obj.previous_page_number() if page_obj.has_previous() else None}),
-                "next_url": querystring(query, estado, {"page": page_obj.next_page_number() if page_obj.has_next() else None}),
+                "prev_url": _list_url(
+                    state["q"], state["estado"], state["per_page"],
+                    state["order"], state["direction"],
+                    page=(page_obj.previous_page_number() if page_obj.has_previous() else None),
+                ),
+                "next_url": _list_url(
+                    state["q"], state["estado"], state["per_page"],
+                    state["order"], state["direction"],
+                    page=(page_obj.next_page_number() if page_obj.has_next() else None),
+                ),
                 "showing_from": page_obj.start_index(),
                 "showing_to": page_obj.end_index(),
                 "total": paginator.count,
-                "query": query,
-                "estado": estado,
+                "query": state["q"],
+                "estado": state["estado"],
+                "per_page": state["per_page"],
+                "per_page_options": PER_PAGE_OPTIONS,
+                "order": state["order"],
+                "direction": state["direction"],
                 "status_options": config.status_options,
-                "empty_kind": "results" if (query or estado) else "records",
+                "empty_kind": "results" if (state["q"] or state["estado"]) else "records",
                 "search_url": reverse(config.module_key),
-                "export_url": f"{reverse(f'{config.module_key}_export')}{querystring(query, estado)}",
+                "clear_url": f"{reverse(config.module_key)}?clear=1",
+                "export_url": (
+                    f"{reverse(f'{config.module_key}_export')}"
+                    f"{_list_url(state['q'], state['estado'], state['per_page'], state['order'], state['direction'])}"
+                ),
                 "new_url": reverse(f"{config.module_key}_new"),
                 "detail_url_name": f"{config.module_key}_detail",
                 "edit_url_name": f"{config.module_key}_edit",

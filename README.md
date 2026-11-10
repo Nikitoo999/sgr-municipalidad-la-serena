@@ -25,6 +25,52 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 | Base de datos| MariaDB/MySQL en producción y SQLite por defecto en desarrollo, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/legacy/sgr_municipalidad_laserena_mysql.sql` (MySQL 8, **solo histórico**, ya no refleja el sistema); el driver `mysqlclient` está en `requirements.txt` |
 | Variables de entorno | `python-dotenv` (archivo `.env`) |
 
+## 🚀 Puesta en marcha (desarrollo local)
+
+1. **Crear y activar el entorno virtual:**
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate      # Linux / macOS
+   # Windows (PowerShell):
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+2. **Instalar dependencias:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configurar variables de entorno** (copia la plantilla y ajusta `DJANGO_SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` y las variables `DB_*`):
+
+   ```bash
+   cp .env.example .env
+   ```
+
+4. **Aplicar las migraciones:**
+
+   ```bash
+   python manage.py migrate
+   ```
+
+5. **Cargar los datos de demostración** (idempotente; ver "Datos de prueba y conteo de registros"):
+
+   ```bash
+   python manage.py seed_demo
+   ```
+
+6. **Levantar el servidor:**
+
+   ```bash
+   # Servidor de desarrollo HTTP (sin WebSockets en vivo):
+   python manage.py runserver
+   # Servidor ASGI con Daphne (WebSockets de chat y atenciones en vivo):
+   daphne -b 0.0.0.0 -p 8000 config.asgi:application
+   ```
+
+---
+
 ## 📁 Estructura del proyecto
 
 ```
@@ -387,3 +433,89 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
    > ⚠️ **Tiempo real y escalado:** el `CHANNEL_LAYERS` actual usa `InMemoryChannelLayer`,
    > válido para un **único proceso** de Daphne. Para escalar a varios workers/instancias,
    > configura `channels_redis` y apunta `CHANNEL_LAYERS` a Redis.
+
+---
+
+## 📊 Datos de prueba y conteo de registros
+
+`python manage.py seed_demo` es **reproducible e idempotente**: usa
+`get_or_create`/`update_or_create` con claves naturales deterministas, de modo que
+ejecutarlo varias veces **no duplica registros**. Al terminar genera **2.339
+registros de negocio** (sin contar sesiones ni tablas internas de Django):
+
+| Modelo | Registros |
+|---|---|
+| Atenciones | 1.814 |
+| Vecinos | 214 |
+| Tareas | 68 |
+| Actividades | 67 |
+| Evidencias | 67 |
+| Empleados (usuarios) | 63 |
+| Sub atenciones | 8 |
+| Ítems (matriz) | 7 |
+| Delegaciones | 6 |
+| Ítems de medición | 6 |
+| Tipos de atención | 5 |
+| Roles base | 4 |
+| Metas institucionales | 4 |
+| Cumplimiento | 4 |
+| Períodos | 2 |
+| **Total** | **2.339** |
+
+> Los **catálogos** (delegaciones, roles, tipos y subtipos) son reducidos por su
+> propia naturaleza; todos los módulos transaccionales (atenciones, tareas,
+> actividades, evidencias, vecinos y usuarios) **superan los 50 registros** exigidos.
+
+---
+
+## 🔑 Cuentas de prueba (6 perfiles obligatorios)
+
+Las contraseñas **no se publican en este documento**: se entregan de forma privada
+al docente. Para las pruebas locales, el comando de semillas crea los usuarios con
+la clave de demostración unificada (visible solo en la salida de `seed_demo`).
+
+| # | Cuenta | Rol implementado | Usuario demo | Ámbito / delegación |
+|---|--------|------------------|--------------|---------------------|
+| 1 | **Administrador A** | Superadministrador (rol de sistema) | `superadmin@example.test` | Todas las delegaciones |
+| 2 | **Editor A** | Coordinador (zona 1) | `coordinador@example.test` | DEL01, DEL02, DEL03 (selector) |
+| 3 | **Lector A** | Delegado municipal | `delegado@example.test` | DEL01 (su delegación) |
+| 4 | **Lector B** | Delegado municipal | `delegado.mar@example.test` | DEL02 (su delegación) |
+| 5 | **Cliente 1** | Funcionario | `funcionario@example.test` | DEL01 (solo registros propios) |
+| 6 | **Cliente 2** | Funcionario | `funcionario.mar@example.test` | DEL02 (solo registros propios) |
+
+### Responsabilidades, acciones permitidas y restringidas
+
+| Cuenta | Permite | Restringe |
+|---|---|---|
+| **Administrador A** | Gestiona delegaciones, roles, usuarios y catálogos; CRUD completo **incluye eliminar** (borrado lógico). | — |
+| **Editor A** | Crear/editar/exportar atenciones; administrar usuarios, ítems, tipos y subtipos; ver metas, agenda, cumplimiento y reportes. | No elimina registros (solo el Administrador); alcance limitado a sus delegaciones autorizadas. |
+| **Lector A / Lector B** | Ver y editar la agenda y el cumplimiento de su delegación; crear/editar y exportar atenciones; ver reportes. | No accede a datos de otras delegaciones (403/404 en servidor); no administra roles ni usuarios de rango igual o mayor. |
+| **Cliente 1 / Cliente 2** | Ingresar atenciones, ver y exportar **solo las suyas**; ver/crear sus tareas; ver su cumplimiento. | No ve atenciones de otros ni accede a pantallas administrativas (403/404). |
+
+---
+
+## 🧪 Recorridos de prueba
+
+**Editor A (`coordinador`)**
+1. Inicia sesión y llega al **Inicio**; el selector "Delegación activa" está habilitado (DEL01–DEL03).
+2. Abre **Atenciones** → "Nuevo registro", elige vecino, tipo/sub atención y guarda: aparece el aviso `ATN-XXXX` y la fila se publica **en vivo** en el listado (WebSocket).
+3. Cambia orden por columna y tamaño de página (5/15/30); prueba buscador y filtro de estado; exporta a Excel las filas filtradas.
+4. Intenta ver/editar una atención fuera de sus delegaciones autorizadas: el servidor responde **403**.
+
+**Lector B (`delegado.mar`, DEL02)**
+1. Inicia sesión; su delegación está fija en DEL02 (no puede cambiarla).
+2. Consulta las atenciones de DEL02.
+3. Intenta acceder por URL directa a una atención de DEL01: obtiene **403** (o **404** si no existe), sin ver datos ajenos.
+4. Intenta abrir `Roles` o `Usuarios` sin permiso: **403**.
+
+**Cliente 1 (`funcionario`, DEL01)**
+1. Inicia sesión; el listado muestra el aviso "solo las atenciones que ingresaste tú".
+2. Ingresa una nueva atención y verifica que solo ve la suya (y no las de otros funcionarios).
+3. Intenta entrar a `Delegaciones`, `Roles`, `Usuarios` o `/admin/`: se bloquea sin permisos (**403/404**).
+4. Un `GET /logout/` no cierra sesión (el cierre es **solo POST** con CSRF).
+
+---
+
+## 🌐 URL de despliegue (AWS)
+
+- **URL pública de la aplicación:** *(pendiente de publicar — completar tras el despliegue en EC2)*

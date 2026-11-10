@@ -174,7 +174,7 @@
   var previewBox = document.getElementById('evidencePreviewBox');
   var currentUrl = null;
 
-  bind(document.getElementById('id_evidence_image'), 2, ['.jpg', '.jpeg', '.png', '.webp'], function (file) {
+  bind(document.getElementById('id_evidence_image'), 2, ['.jpg', '.jpeg', '.png'], function (file) {
     if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
     if (!preview || !previewBox) return;
     if (!file) { previewBox.hidden = true; preview.removeAttribute('src'); return; }

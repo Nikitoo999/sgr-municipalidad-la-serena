@@ -208,6 +208,126 @@ ATTENTIONS = [
 ]
 
 
+def _seed_massive(delegs, subtypes, goals, hoy):
+    """Volumen masivo idempotente: 2.000+ registros y 50+ por CRUD transaccional.
+
+    Genera vecinos, atenciones, tareas, actividades y evidencias con claves
+    naturales deterministas (``get_or_create``), de modo que ejecutar el comando
+    varias veces nunca duplica registros.
+    """
+    User = get_user_model()
+    deleg_list = list(delegs.values())
+    rol04 = Role.objects.filter(code="ROL04").first()
+
+    # --- Empleados masivos (50, rol Funcionario) ---
+    if rol04 is not None:
+        for i in range(1, 51):
+            username = f"func{i:03d}"
+            u, _created = User.objects.get_or_create(
+                username=username,
+                defaults={
+                    "first_name": f"Funcionario {i:03d}", "last_name": "Demo",
+                    "email": f"{username}@ejemplo.cl",
+                },
+            )
+            if _created:
+                u.set_password(DEMO_PASSWORD)
+                u.save()
+            Employee.objects.get_or_create(
+                user=u,
+                defaults={
+                    "rut": f"20.000.{i:03d}-5",
+                    "delegation": deleg_list[i % len(deleg_list)],
+                    "role": rol04,
+                },
+            )
+
+    responsables = list(User.objects.filter(
+        is_active=True, employee__isnull=False,
+    ).order_by("id"))
+    if not responsables:
+        responsables = list(User.objects.filter(is_superuser=True)[:1])
+    subtype_list = (
+        [s for s in subtypes.values() if s.status == "Activo"] or list(subtypes.values())
+    )
+    goal_list = list(goals.values())
+
+    # --- Vecinos masivos (200) ---
+    total_vecinos = 200
+    for i in range(1, total_vecinos + 1):
+        identifier = f"NBR-{i:05d}"
+        Neighbor.objects.get_or_create(
+            identifier=identifier,
+            defaults={
+                "full_name": f"Vecino masivo {i:04d}",
+                "phone": f"+569{i:08d}",
+                "email": f"vecino{i:04d}@ejemplo.cl",
+                "status": "Activo",
+            },
+        )
+    bulk_neighbors = {
+        n.identifier: n
+        for n in Neighbor.objects.filter(identifier__startswith="NBR-")
+    }
+
+    # --- Atenciones masivas (1.800) ---
+    statuses = ("received", "in_progress", "resolved")
+    for i in range(1, 1801):
+        neighbor = bulk_neighbors[f"NBR-{(i % total_vecinos) + 1:05d}"]
+        subtype = subtype_list[i % len(subtype_list)]
+        deleg = deleg_list[i % len(deleg_list)]
+        resp = responsables[i % len(responsables)]
+        Attention.objects.get_or_create(
+            neighbor=neighbor,
+            attention_subtype=subtype,
+            delegation=deleg,
+            description=f"Registro masivo de atención #{i:05d} - {subtype.name}.",
+            defaults={
+                "attention_type": subtype.attention_type,
+                "responsible": resp,
+                "status": statuses[i % len(statuses)],
+            },
+        )
+
+    # --- Tareas masivas (60) ---
+    for i in range(1, 61):
+        goal = goal_list[i % len(goal_list)]
+        due = goal.period.start_date + timedelta(days=(i % 20) + 5)
+        Task.objects.get_or_create(
+            title=f"Tarea masiva #{i:04d}",
+            goal=goal,
+            defaults={
+                "description": f"Tarea creada por seed_demo (volumen masivo #{i:04d}).",
+                "due_date": due,
+                "status": "Pendiente",
+            },
+        )
+
+    # --- Actividades masivas (60, una por tarea masiva) ---
+    tasks_masivos = list(
+        Task.objects.filter(title__startswith="Tarea masiva").order_by("id")
+    )
+    for i, task in enumerate(tasks_masivos, start=1):
+        Activity.objects.get_or_create(
+            task=task,
+            name=f"Actividad masiva #{i:04d}",
+            defaults={"execution_date": hoy - timedelta(days=(i % 30))},
+        )
+
+    # --- Evidencias masivas (60, una por actividad masiva) ---
+    actividades_masivas = list(
+        Activity.objects.filter(name__startswith="Actividad masiva").order_by("id")
+    )
+    for i, activity in enumerate(actividades_masivas):
+        Evidence.objects.get_or_create(
+            activity=activity,
+            defaults={
+                "image_url": f"https://ejemplo.cl/evidencias/masiva-{i:05d}.jpg",
+                "is_validated": (i % 2 == 0),
+            },
+        )
+
+
 class Command(BaseCommand):
     help = "Carga datos ficticios de demostración sobre los modelos actuales (idempotente)."
 
@@ -528,6 +648,9 @@ class Command(BaseCommand):
             if created:
                 created_at = base_now - timedelta(days=(i % 10), hours=i)
                 Attention.objects.filter(pk=attention.pk).update(created_at=created_at)
+
+        # --- Volumen masivo (objetivo pauta: 2.000+ registros y 50+ por CRUD) ---
+        _seed_massive(delegs, subtypes, goals, hoy)
 
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
         self.stdout.write(f"  Administrador:  {ADMIN_USER} / {DEMO_PASSWORD}")

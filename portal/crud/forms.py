@@ -1006,7 +1006,7 @@ class AttentionForm(CrudModelForm):
             ),
             "status": forms.Select(attrs={"class": "in"}),
             "evidence_image": forms.FileInput(
-                attrs={"class": "in", "accept": ".jpg,.jpeg,.png,.webp"},
+                attrs={"class": "in", "accept": ".jpg,.jpeg,.png"},
             ),
             "attachment": forms.FileInput(
                 attrs={"class": "in", "accept": ".pdf,.jpg,.jpeg,.png,.webp"},

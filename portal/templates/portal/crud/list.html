@@ -3,6 +3,11 @@
 {% block title %}{{ config.list_title }}{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<style>
+  .th-sort{display:inline-flex;align-items:center;gap:4px;color:inherit;text-decoration:none}
+  .th-sort:hover,.th-sort.active{color:#920000}
+  .th-sort .sort-arrow{font-size:12px;color:#920000}
+</style>
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ config.list_title }}</nav>
@@ -30,7 +35,15 @@
         {% endfor %}
       </select>
     </div>
-      <a class="btn-outline" href="{{ search_url }}" id="clearBtn">Limpiar filtros</a>
+    <div class="statebox">
+      <label for="per_page">Mostrar</label>
+      <select class="in" id="per_page" name="per_page" onchange="this.form.submit()">
+        {% for size in per_page_options %}
+        <option value="{{ size }}"{% if per_page == size %} selected{% endif %}>{{ size }} registros</option>
+        {% endfor %}
+      </select>
+    </div>
+      <a class="btn-outline" href="{{ clear_url }}" id="clearBtn">Limpiar filtros</a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
     {% endif %}
@@ -44,7 +57,15 @@
     <thead>
       <tr>
         {% for column in columns %}
-        <th scope="col">{{ column.header }}</th>
+        <th scope="col">
+          {% if column.sortable %}
+          <a class="th-sort{% if column.active %} active{% endif %}" href="{{ column.url }}" title="Ordenar por {{ column.header }}">
+            {{ column.header }}{% if column.arrow %}<span class="sort-arrow">{{ column.arrow }}</span>{% endif %}
+          </a>
+          {% else %}
+          {{ column.header }}
+          {% endif %}
+        </th>
         {% endfor %}
         <th scope="col">Acciones</th>
       </tr>
@@ -109,7 +130,7 @@
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>
-  <a class="btn primary" href="{{ search_url }}">Limpiar filtros</a>
+  <a class="btn primary" href="{{ clear_url }}">Limpiar filtros</a>
   {% endif %}
 </div>
 {% endif %}

@@ -18,6 +18,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect
@@ -607,7 +608,9 @@ class AttentionCreateView(_AttentionFormContext, CrudCreateView):
         obj = form.save(commit=False)
         obj.responsible = self.request.user
         obj.save()
-        _broadcast_attention(obj, "created")
+        # La notificación se emite solo tras confirmar la transacción en la BD,
+        # evitando avisar al lector antes de que el registro quede persistido.
+        transaction.on_commit(lambda: _broadcast_attention(obj, "created"))
         audit(
             self.request, "create", module="attentions",
             object_repr=str(obj), detail=f"Creado por {self.request.user}",
@@ -633,7 +636,7 @@ class AttentionUpdateView(_AttentionFormContext, CrudUpdateView):
 
     def form_valid(self, form):
         obj = form.save()
-        _broadcast_attention(obj, "updated")
+        transaction.on_commit(lambda: _broadcast_attention(obj, "updated"))
         audit(
             self.request, "edit", module="attentions",
             object_repr=str(obj), detail=f"Editado por {self.request.user}",
