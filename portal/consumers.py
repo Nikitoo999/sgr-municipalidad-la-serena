@@ -11,6 +11,10 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from portal.access import allowed_delegations, get_role
 
+# Códigos de cierre WebSocket según RFC 6455.
+CLOSE_POLICY_VIOLATION = 1008   # "Policy Violation" — permisos insuficientes
+CLOSE_NOT_AUTHORIZED = 4001     # código personalizado para "no autorizado"
+
 
 def _user_can_access_delegation(user, delegation_code):
     """True si el usuario autenticado puede escuchar la sala de esa delegación.
@@ -35,19 +39,35 @@ class DelegationChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         user = self.scope.get("user")
         if user is None or not user.is_authenticated:
-            await self.close()
+            # Sin autenticación: cerrar inmediatamente sin permisos.
+            await self.close(code=CLOSE_NOT_AUTHORIZED)
             return
         self.delegation_code = self.scope['url_route']['kwargs']['delegation_code']
-        if not await database_sync_to_async(_user_can_access_delegation)(user, self.delegation_code):
-            await self.close()
+
+        # Validación estricta en servidor: verificar permisos antes de admitir.
+        can_access = await database_sync_to_async(_user_can_access_delegation)(
+            user, self.delegation_code
+        )
+        if not can_access:
+            # Política de seguridad: close con código 1008 (Policy Violation).
+            await self.close(code=CLOSE_POLICY_VIOLATION)
             return
+
         self.room_group_name = f'chat_{self.delegation_code}'
-        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        except Exception:
+            await self.close(code=CLOSE_POLICY_VIOLATION)
+            return
+
         await self.accept()
 
     async def disconnect(self, close_code):
         if hasattr(self, "room_group_name"):
-            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+            try:
+                await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+            except Exception:
+                pass
 
     async def receive_json(self, content, **kwargs):
         message = (content.get('message') or '').strip()
@@ -55,6 +75,14 @@ class DelegationChatConsumer(AsyncJsonWebsocketConsumer):
             return
         user = self.scope.get('user')
         username = user.username if user and user.is_authenticated else 'Anónimo'
+
+        # Verificar permisos en el momento del envío (no solo en connect)
+        can_access = await database_sync_to_async(_user_can_access_delegation)(
+            user, self.delegation_code
+        )
+        if not can_access:
+            return
+
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -79,19 +107,33 @@ class AttentionLiveConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         user = self.scope.get("user")
         if user is None or not user.is_authenticated:
-            await self.close()
+            await self.close(code=CLOSE_NOT_AUTHORIZED)
             return
         self.delegation_code = self.scope['url_route']['kwargs']['delegation_code']
-        if not await database_sync_to_async(_user_can_access_delegation)(user, self.delegation_code):
-            await self.close()
+
+        # Validación estricta en servidor.
+        can_access = await database_sync_to_async(_user_can_access_delegation)(
+            user, self.delegation_code
+        )
+        if not can_access:
+            await self.close(code=CLOSE_POLICY_VIOLATION)
             return
+
         self.room_group_name = f'atenciones_{self.delegation_code}'
-        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        except Exception:
+            await self.close(code=CLOSE_POLICY_VIOLATION)
+            return
+
         await self.accept()
 
     async def disconnect(self, close_code):
         if hasattr(self, "room_group_name"):
-            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+            try:
+                await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+            except Exception:
+                pass
 
     async def attention_created(self, event):
         await self.send_json({

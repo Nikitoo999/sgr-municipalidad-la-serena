@@ -69,9 +69,22 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # ASGI para tiempo real (Django Channels + Daphne) — Clase 11.
 ASGI_APPLICATION = 'config.asgi.application'
 
+# CHANNEL_LAYERS — Redis para multi-proceso y escalabilidad horizontal.
+# Se lee REDIS_URL desde el .env; fallback a localhost:6379/0 si no se define.
+# IMPORTANTE: Antes de este cambio usaba InMemoryChannelLayer (único proceso Daphne).
+# Al migrar a Redis se necesita reiniciar Daphne con múltiples workers y
+# configurar redis-server (o AWS ElastiCache) en el despliegue.
+import os
+
+_redis_url = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
+
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [_redis_url],
+            'symmetric_encryption_keys': [SECRET_KEY[:32]],  # clave de cifrado simétrico opcional; vacía el payload si no se desea
+        },
     },
 }
 
