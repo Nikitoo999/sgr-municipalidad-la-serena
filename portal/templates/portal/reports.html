@@ -1,0 +1,128 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<style>
+.b-rojo{background:#fdecea;color:#b71c1c}
+.dias-sin{color:var(--bad);font-weight:700}
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }}</nav>
+<div class="titlebar"><h1>{{ module_label }}</h1></div>
+
+<section class="card toolbar" aria-label="Filtro de trimestre">
+<form method="get" role="search">
+    <div class="statebox">
+    <label for="period">Trimestre</label>
+    <select class="in" id="period" name="period">
+        {% for p in periodos %}
+        <option value="{{ p.pk }}"{% if periodo and p.pk == periodo.pk %} selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+    </select>
+    </div>
+    <button class="btn primary" type="submit">Ver reportes</button>
+</form>
+</section>
+
+{% if not periodo %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>Sin trimestres registrados</h2>
+<p>Primero hay que crear un período de medición para generar los reportes.</p>
+</div>
+{% elif not reporte_funcionarios %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>No hay funcionarios en el alcance actual</h2>
+<p>Cambia la delegación activa o revisa que existan funcionarios en tu alcance.</p>
+</div>
+{% else %}
+<section class="card" style="margin-bottom:16px">
+<h2>Ingresos diarios y días sin registrar</h2>
+<p class="meta">{{ periodo.name }}</p>
+<div class="tablewrap">
+    <table>
+    <caption class="sr">Ingresos y cumplimiento por funcionario en {{ periodo.name }}</caption>
+    <thead>
+        <tr>
+        <th scope="col">Funcionario</th>
+        <th scope="col">Cargo</th>
+        <th scope="col">Ingresos</th>
+        <th scope="col">Días sin ingresar</th>
+        <th scope="col">Días sobre el límite (&gt;7)</th>
+        <th scope="col">Cumplimiento</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for fila in reporte_funcionarios %}
+        <tr>
+        <td>
+            {{ fila.employee.full_name }}
+            {% if fila.es_delegado %}<span class="badge b-info">Delegado</span>{% endif %}
+        </td>
+        <td>{{ fila.employee.position.name|default:"Sin cargo" }}</td>
+        <td>{{ fila.total_ingresos }}</td>
+        <td>
+            {% if fila.dias_sin_ingresar %}
+            <span class="dias-sin" title="{% for d in fila.dias_sin_ingresar %}{{ d|date:'d/m' }}{% if not forloop.last %}, {% endif %}{% endfor %}">{{ fila.dias_sin_ingresar|length }} día{{ fila.dias_sin_ingresar|length|pluralize }}</span>
+            {% else %}
+            <span class="badge b-ok">Al día</span>
+            {% endif %}
+        </td>
+        <td>
+            {% if fila.dias_sobre_limite %}
+            <span class="badge b-warn">{{ fila.dias_sobre_limite|length }} día{{ fila.dias_sobre_limite|length|pluralize }}</span>
+            {% else %}Ninguno{% endif %}
+        </td>
+        <td>
+            {% if not fila.employee.position_id %}<span class="meta">Sin cargo: no se evalúa</span>{% else %}
+            <strong>{{ fila.cumplimiento.porcentaje }}%</strong>
+            <span class="badge {% if fila.cumplimiento.semaforo == 'verde' %}b-ok{% elif fila.cumplimiento.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">
+            {% if fila.cumplimiento.semaforo == 'verde' %}Verde{% elif fila.cumplimiento.semaforo == 'amarillo' %}Amarillo{% else %}Rojo{% endif %}
+            </span>
+            {% endif %}
+        </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    </table>
+</div>
+</section>
+
+<section class="card" style="margin-bottom:16px">
+<h2>Ranking de cumplimiento</h2>
+<p class="meta">Funcionarios evaluados del trimestre. No incluye a los delegados.</p>
+{% if ranking %}
+<div class="tablewrap">
+    <table>
+    <caption class="sr">Ranking de cumplimiento en {{ periodo.name }}</caption>
+    <thead>
+        <tr>
+        <th scope="col">#</th>
+        <th scope="col">Funcionario</th>
+        <th scope="col">Cargo</th>
+        <th scope="col">Puntaje total</th>
+        <th scope="col">Cumplimiento</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for fila in ranking %}
+        <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ fila.employee.full_name }}</td>
+        <td>{{ fila.employee.position.name|default:"Sin cargo" }}</td>
+        <td>{{ fila.cumplimiento.puntaje_total }} pts</td>
+        <td><strong>{{ fila.cumplimiento.porcentaje }}%</strong></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    </table>
+</div>
+{% else %}
+<p class="meta">No hay funcionarios evaluados para el ranking.</p>
+{% endif %}
+</section>
+{% endif %}
+{% endblock %}

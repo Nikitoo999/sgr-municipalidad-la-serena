@@ -1,3 +1,4 @@
+import secrets
 from django.core.exceptions import ValidationError
 from datetime import timedelta
 from django.db import models, transaction
@@ -11,6 +12,7 @@ from sgr_core.models import (
     InstitutionalGoal,
     Position,
     Delegation,
+    ProjectItem,
     Role,
 )
 
@@ -35,10 +37,27 @@ class Task(BaseModel):
     def __str__(self):
         return f"{self.title} - {self.status}"
 
+    @property
+    def code(self):
+        """Código de la tarea; identifica la carpeta de sus evidencias (TAR-00012)."""
+        return f"TAR-{self.pk:05d}" if self.pk else ""
+
 class Activity(BaseModel):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="activities", verbose_name="Tarea de Agenda")
     name = models.CharField(max_length=100, verbose_name="Nombre de la Actividad")
     execution_date = models.DateField(verbose_name="Fecha de Ejecución")
+    item = models.ForeignKey(
+    ProjectItem, on_delete=models.SET_NULL, null=True, blank=True,
+    related_name="activities", verbose_name="Ítem de la matriz",
+    )
+
+    class Status(models.TextChoices):
+        PENDING = "Pendiente", "Pendiente"
+        DONE = "Realizada", "Realizada"
+
+    status = models.CharField(
+        max_length=15, choices=Status.choices, default=Status.PENDING, verbose_name="Estado",
+    )
 
     class Meta:
         verbose_name = "Actividad"
@@ -48,14 +67,24 @@ class Activity(BaseModel):
     def __str__(self):
         return self.name
 
+def evidence_upload_to(instance, filename):
+    """Guarda la evidencia bajo el código de su tarea: evidencias/TAR-00012/archivo."""
+    return f"evidencias/{instance.activity.task.code}/{filename}"
+
 class Evidence(BaseModel):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="evidences", verbose_name="Actividad Respaldada")
-    image_url = models.CharField(max_length=255, verbose_name="URL de Imagen/Archivo")
+    image_url = models.CharField(max_length=255, blank=True, default="", verbose_name="URL de Imagen/Archivo")
     file = models.FileField(
-        upload_to="evidencias/%Y/%m/", max_length=255, blank=True, null=True,
+        upload_to=evidence_upload_to, max_length=255, blank=True, null=True,
         validators=[validate_attachment_file], verbose_name="Archivo de evidencia (máx. 5 MB)",
     )
     is_validated = models.BooleanField(default=False, verbose_name="Validado por Jefatura")
+    validated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="validated_evidences", verbose_name="Validado por",
+    )
+    validated_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de validación")
+
 
     class Meta:
         verbose_name = "Evidencia"
@@ -142,7 +171,7 @@ class Employee(BaseModel):
 
         - scope all: todas las delegaciones activas.
         - scope authorized: las delegaciones autorizadas; si no tiene ninguna
-          declarada, solo su delegación base.
+        declarada, solo su delegación base.
         - own_delegation / own_records: solo su delegación base.
         """
         if self.role_id is None:
@@ -391,3 +420,119 @@ class EmployeeDayOff(BaseModel):
                 total += 1
             day += timedelta(days=1)
         return total
+
+class EmployeeFeedback(BaseModel):
+    """Felicitación (suma) o reclamo (resta) asociado a un funcionario."""
+
+    class Kind(models.TextChoices):
+        PRAISE = "praise", "Felicitación"
+        COMPLAINT = "complaint", "Reclamo"
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE,
+        related_name="feedbacks", verbose_name="Funcionario",
+    )
+    kind = models.CharField(max_length=10, choices=Kind.choices, verbose_name="Tipo")
+    date = models.DateField(verbose_name="Fecha")
+    description = models.CharField(max_length=255, verbose_name="Descripción")
+    file = models.FileField(
+        upload_to="respaldos/%Y/%m/", max_length=255, blank=True, null=True,
+        validators=[validate_attachment_file], verbose_name="Respaldo formal (máx. 5 MB)",
+    )
+    registered_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="registered_feedbacks", verbose_name="Registrado por",
+    )
+
+    class Meta:
+        verbose_name = "Felicitación o reclamo"
+        verbose_name_plural = "Felicitaciones y reclamos"
+        db_table = "felicitacion_reclamo"
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} - {self.employee} ({self.date})"
+
+    def clean(self):
+        super().clean()
+        if self.kind == self.Kind.PRAISE and not self.file:
+            raise ValidationError({"file": "Una felicitación solo suma puntaje con respaldo formal."})
+
+def generate_verification_code():
+    """Código corto que debe verse en la foto de respaldo (sin caracteres ambiguos)."""
+    alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(secrets.choice(alfabeto) for _ in range(6))
+
+
+class TubeEntry(BaseModel):
+    """Solicitud o trabajo del tubo (delegación, Antena o Cartas)."""
+
+    class Channel(models.TextChoices):
+        DELEGATION = "delegation", "Tubo de la delegación"
+        ANTENNA = "antenna", "Tubo Antena"
+        LETTERS = "letters", "Tubo Cartas"
+
+    class Status(models.TextChoices):
+        RECEIVED = "received", "Ingresado"
+        PENDING = "pending", "Pendiente"
+        IN_PROGRESS = "in_progress", "En proceso"
+        DONE = "done", "Realizado"
+        NOT_APPLICABLE = "not_applicable", "No aplica"
+
+    class Origin(models.TextChoices):
+        INTERNAL = "INT", "Interno"
+        EXTERNAL = "EXT", "Externo"
+
+    delegation = models.ForeignKey(
+        Delegation, on_delete=models.RESTRICT,
+        related_name="tube_entries", verbose_name="Delegación",
+    )
+    channel = models.CharField(
+        max_length=12, choices=Channel.choices, default=Channel.DELEGATION, verbose_name="Canal",
+    )
+    title = models.CharField(max_length=255, verbose_name="Actividad / solicitud / problema")
+    origin = models.CharField(max_length=3, choices=Origin.choices, default=Origin.EXTERNAL, verbose_name="Interno o externo")
+    requester = models.CharField(max_length=150, verbose_name="Solicitante")
+    territory = models.CharField(max_length=60, blank=True, default="", verbose_name="Territorio")
+    responsible = models.ForeignKey(
+        Employee, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tube_entries", verbose_name="Responsable",
+    )
+    request_date = models.DateField(verbose_name="Fecha de solicitud")
+    due_date = models.DateField(null=True, blank=True, verbose_name="Fecha de compromiso")
+    support_area = models.CharField(max_length=100, blank=True, default="", verbose_name="Área o persona de apoyo")
+    notes = models.TextField(blank=True, default="", verbose_name="Avance y observaciones")
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.RECEIVED, verbose_name="Estatus")
+    letter_number = models.CharField(max_length=20, blank=True, default="", verbose_name="N° de carta")
+    contact_phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Teléfono de contacto")
+    verification_code = models.CharField(
+        max_length=8, default=generate_verification_code, editable=False,
+        verbose_name="Código de verificación",
+    )
+    proof_image = models.ImageField(
+        upload_to="tubos/%Y/%m/", max_length=255, blank=True, null=True,
+        validators=[validate_image_file], verbose_name="Foto de respaldo (máx. 2 MB)",
+    )
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de realización")
+
+    class Meta:
+        verbose_name = "Solicitud del tubo"
+        verbose_name_plural = "Tubos"
+        db_table = "tubo"
+        ordering = ["-request_date", "-pk"]
+        indexes = [
+            models.Index(fields=["delegation", "channel", "status"], name="idx_tubo_deleg_canal_estado"),
+        ]
+
+    def __str__(self):
+        return f"{self.code} - {self.title}"
+
+    @property
+    def code(self):
+        """Código de la solicitud (TUB-00012)."""
+        return f"TUB-{self.pk:05d}" if self.pk else ""
+
+    def clean(self):
+        super().clean()
+        if self.status == self.Status.DONE and not self.proof_image:
+            raise ValidationError({"proof_image": "Para marcar como Realizado hay que subir la foto de respaldo."})
