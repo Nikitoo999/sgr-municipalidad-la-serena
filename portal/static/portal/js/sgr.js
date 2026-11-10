@@ -102,6 +102,7 @@
       wsState.attempt = nextAttempt;
       connectWebSocket();
     }, delay);
+  }
 
   function connectWebSocket() {
     var wsScheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -281,9 +282,14 @@
   var profileModal = document.getElementById('profileModal');
   var openProfileBtn = document.getElementById('openProfileModalBtn');
   var closeProfileBtn = document.getElementById('closeProfileModalBtn');
-  var openModal = function () {};
-  var closeModal = function () {};
+  var openModal = function () {
+    if (profileModal) profileModal.hidden = false;
+  };
+  var closeModal = function () {
+    if (profileModal) profileModal.hidden = true;
+  };
   if (profileModal && openProfileBtn && closeProfileBtn) {
-    openModal
+    openProfileBtn.addEventListener('click', openModal);
+    closeProfileBtn.addEventListener('click', closeModal);
   }
 })();
