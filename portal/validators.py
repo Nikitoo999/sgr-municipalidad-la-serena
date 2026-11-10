@@ -3,6 +3,9 @@
 RUT chileno: formato y dígito verificador (módulo 11, K = 10). La normalización
 de salida siempre es ``12.345.678-5`` (cuerpo con puntos cada tres desde la
 derecha, guion y dígito verificador en mayúscula).
+
+Bloque 2B (datos obligatorios del vecino): teléfono chileno normalizado como
+``+56912345678`` y nombre completo (nombre y apellido).
 """
 
 import os
@@ -75,6 +78,61 @@ def validate_rut(value):
             code="rut_dv",
         )
     return format_rut(body, dv)
+
+
+# --- Datos del vecino (Bloque 2B) ------------------------------------------
+
+#: Caracteres admitidos al escribir un teléfono (dígitos, +, espacios, (), - y .).
+_PHONE_INPUT = re.compile(r"^\+?[\d\s().-]+$")
+
+#: Signos admitidos dentro de un nombre además de letras y espacios.
+_NAME_EXTRA_CHARS = set("'’.-")
+
+
+def normalize_phone(value):
+    """Teléfono chileno normalizado como ``+56`` + 9 dígitos.
+
+    Acepta ``+56 9 1234 5678``, ``9 1234 5678``, ``912345678`` o fijos como
+    ``51 234 5678``. Lanza ``ValidationError`` si no tiene 9 dígitos
+    nacionales.
+    """
+    text = str(value or "").strip()
+    if not text or not _PHONE_INPUT.match(text):
+        raise ValidationError(
+            "Ingresa un teléfono válido, por ejemplo +56 9 1234 5678.",
+            code="telefono_formato",
+        )
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 11 and digits.startswith("56"):
+        digits = digits[2:]
+    if len(digits) != 9:
+        raise ValidationError(
+            "El teléfono debe tener 9 dígitos (con o sin +56), por ejemplo +56 9 1234 5678.",
+            code="telefono_largo",
+        )
+    return f"+56{digits}"
+
+
+def validate_full_name(value, max_length=150):
+    """Nombre completo: al menos nombre y apellido, solo letras y signos de nombre.
+
+    Devuelve el nombre con los espacios normalizados.
+    """
+    text = " ".join(str(value or "").split())
+    if not text:
+        raise ValidationError("Ingresa el nombre completo del vecino.", code="nombre_vacio")
+    if len(text) > max_length:
+        raise ValidationError(
+            f"El nombre no puede superar los {max_length} caracteres.", code="nombre_largo",
+        )
+    if len(text.split(" ")) < 2:
+        raise ValidationError("Ingresa nombre y apellido del vecino.", code="nombre_incompleto")
+    if any(not (char.isalpha() or char == " " or char in _NAME_EXTRA_CHARS) for char in text):
+        raise ValidationError(
+            "El nombre solo puede tener letras, espacios, apóstrofos, puntos y guiones.",
+            code="nombre_caracteres",
+        )
+    return text
 
 
 # --- Archivos subidos (Clase 9: MEDIA) -------------------------------------

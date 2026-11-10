@@ -12,8 +12,9 @@ from django.core.mail import send_mail
 from django.core.validators import RegexValidator
 from django.db import transaction
 
+from operaciones import rules as attention_rules
 from operaciones.models import Attention, Employee, Neighbor
-from portal.validators import validate_rut
+from portal.validators import normalize_phone, validate_full_name, validate_rut
 from sgr_core.models import (
     AttentionSubtype,
     AttentionType,
@@ -57,14 +58,35 @@ class CrudModelForm(forms.ModelForm):
 
     full_width_fields = ('description', 'address')
 
+    #: Campo con código correlativo automático (Bloque 2A). Al crear no se
+    #: muestra (lo asigna ``AutoCodeMixin.save()``); al editar o consultar
+    #: queda de solo lectura: un campo ``disabled`` ignora lo que llegue por
+    #: POST, así un formulario manipulado no puede cambiar el código.
+    auto_code_field = None
+
     def __init__(self, *args, request=None, **kwargs):
         self.request = request
         super().__init__(*args, **kwargs)
+        self._setup_auto_code()
+
+    def _setup_auto_code(self):
+        name = self.auto_code_field
+        if not name or name not in self.fields:
+            return
+        if self.instance.pk is None:
+            del self.fields[name]
+            return
+        field = self.fields[name]
+        field.disabled = True
+        field.required = False
+        field.help_text = "Código correlativo asignado por el sistema; no se puede modificar."
 
 
 class DelegationForm(CrudModelForm):
-    """Delegación: código (único, mayúsculas), nombre (único), comuna,
+    """Delegación: código automático (DEL01...), nombre (único), comuna,
     dirección, color hex y estado."""
+
+    auto_code_field = "code"
 
     class Meta:
         model = Delegation
@@ -78,7 +100,6 @@ class DelegationForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo DEL08. Se guarda en mayúsculas.",
             "name": "Nombre visible de la delegación. Debe ser único.",
             "commune": "Comuna de la delegación.",
             "address": "Dirección o referencia de la oficina (opcional).",
@@ -87,7 +108,7 @@ class DelegationForm(CrudModelForm):
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "DEL08",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -116,19 +137,6 @@ class DelegationForm(CrudModelForm):
                 attrs={"class": "in", "aria-describedby": "id_status-help id_status-e"},
             ),
         }
-
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código de la delegación.")
-        exists = Delegation.objects.filter(code=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError(
-                "Ya existe una delegación con este código."
-            )
-        return code
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()
@@ -207,8 +215,8 @@ class PermissionMatrixWidget(forms.CheckboxSelectMultiple):
 
 
 class RoleForm(CrudModelForm):
-    """Rol: código (único, mayúsculas), nombre, descripción, alcance, estado y
-    la matriz de permisos módulo × acción.
+    """Rol: código automático (ROL01...), nombre, descripción, alcance, estado
+    y la matriz de permisos módulo × acción.
 
     Reglas validadas en el servidor:
     - un módulo con cualquier acción create/edit/delete/export exige también "Ver";
@@ -218,6 +226,7 @@ class RoleForm(CrudModelForm):
     """
 
     full_width_fields = ('description', 'permissions')
+    auto_code_field = "code"
 
     #: Matriz como lista de valores "modulo.accion".
     permissions = forms.MultipleChoiceField(
@@ -238,7 +247,6 @@ class RoleForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo ROL05. Se guarda en mayúsculas.",
             "name": "Nombre visible del rol. Debe ser único.",
             "description": "Explica qué hace este perfil (opcional).",
             "scope": "Define qué delegaciones puede ver el rol.",
@@ -246,7 +254,7 @@ class RoleForm(CrudModelForm):
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "ROL05",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -279,17 +287,6 @@ class RoleForm(CrudModelForm):
     # ---------------------------------------------------------------
     # Validaciones del servidor
     # ---------------------------------------------------------------
-
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código del rol.")
-        exists = Role.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe un rol con este código.")
-        return code
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()
@@ -793,7 +790,9 @@ class UserForm(CrudModelForm):
 
 
 class ProjectItemForm(CrudModelForm):
-    """Ítem de proyecto: código (único, mayúsculas), nombre, descripción y estado."""
+    """Ítem de proyecto: código automático (ITM001...), nombre, descripción y estado."""
+
+    auto_code_field = "code"
 
     class Meta:
         model = ProjectItem
@@ -805,14 +804,13 @@ class ProjectItemForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo ITM08. Se guarda en mayúsculas.",
             "name": "Nombre visible del ítem.",
             "description": "Explica qué mide este ítem (opcional).",
             "status": "Un ítem inactivo no aparece en los formularios nuevos.",
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "ITM08",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -829,20 +827,11 @@ class ProjectItemForm(CrudModelForm):
             ),
         }
 
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código del ítem.")
-        exists = ProjectItem.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe un ítem con este código.")
-        return code
-
 
 class AttentionTypeForm(CrudModelForm):
-    """Tipo de atención: código (único, mayúsculas), nombre, descripción y estado."""
+    """Tipo de atención: código automático (TAT01...), nombre, descripción y estado."""
+
+    auto_code_field = "code"
 
     class Meta:
         model = AttentionType
@@ -854,14 +843,13 @@ class AttentionTypeForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo TAT06. Se guarda en mayúsculas.",
             "name": "Nombre visible del tipo de atención.",
             "description": "Explica qué agrupa este tipo (opcional).",
             "status": "Un tipo inactivo no aparece al crear sub atenciones nuevas.",
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "TAT06",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -877,24 +865,15 @@ class AttentionTypeForm(CrudModelForm):
             ),
         }
 
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código del tipo de atención.")
-        exists = AttentionType.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe un tipo de atención con este código.")
-        return code
-
 
 class AttentionSubtypeForm(CrudModelForm):
-    """Sub atención: código (único, mayúsculas), nombre, tipo asociado y estado.
+    """Sub atención: código automático (SAT001...), nombre, tipo asociado y estado.
 
     Solo se ofrecen tipos Activos; al editar se conserva el tipo actual aunque
     esté inactivo, para que la consulta/edición lo muestre seleccionado.
     """
+
+    auto_code_field = "code"
 
     class Meta:
         model = AttentionSubtype
@@ -906,14 +885,13 @@ class AttentionSubtypeForm(CrudModelForm):
             "status": "Estado",
         }
         help_texts = {
-            "code": "Código interno corto, por ejemplo SAT09. Se guarda en mayúsculas.",
             "name": "Nombre visible de la sub atención.",
             "attention_type": "Solo se ofrecen tipos activos.",
             "status": "Una sub atención inactiva no aparece en los formularios nuevos.",
         }
         widgets = {
             "code": forms.TextInput(
-                attrs={"class": "in", "maxlength": 8, "placeholder": "SAT09",
+                attrs={"class": "in", "maxlength": 8,
                        "aria-describedby": "id_code-help id_code-e"},
             ),
             "name": forms.TextInput(
@@ -941,58 +919,77 @@ class AttentionSubtypeForm(CrudModelForm):
                 ).order_by("code")
         self.fields["attention_type"].queryset = qs
 
-    def clean_code(self):
-        code = (self.cleaned_data.get("code") or "").strip().upper()
-        if not code:
-            raise forms.ValidationError("Ingresa el código de la sub atención.")
-        exists = AttentionSubtype.objects.filter(code__iexact=code)
-        if self.instance and self.instance.pk:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
-            raise forms.ValidationError("Ya existe una sub atención con este código.")
-        return code
-
 
 class AttentionForm(CrudModelForm):
-    """Ingreso / edición de una atención ciudadana (Parte 7).
+    """Ingreso / edición de una atención ciudadana (Parte 7 + Bloque 2B).
 
     Reglas del diseño "Ingreso de atención":
 
-    - Vecino o solicitante: se elige desde la búsqueda (endpoint JSON) y se
-      guarda como pk oculto; queda bloqueado al editar.
+    - Vecino o solicitante (2.5): RUT (validado con dígito verificador),
+      nombre completo y teléfono son obligatorios al ingresar. Si el RUT ya
+      existe se reutiliza el vecino y se actualizan su nombre y teléfono; si
+      no, se registra al guardar. Queda bloqueado al editar.
     - Delegación: delegado/funcionario la tienen fija por perfil; coordinador y
       superadmin eligen entre las permitidas (la activa preseleccionada). En
       edición nadie la cambia.
     - Tipo y sub atención: solo activos; la sub debe pertenecer al tipo y ambos
       activos. El estado solo se edita al editar (al crear queda "Ingresada").
     - Descripción: entre 10 y 500 caracteres.
+    - "Requiere visita a terreno" (2.5): casilla opcional.
+    - "Sin resolver" (2.6): dar de baja exige un motivo (10 a 500 caracteres).
+    - Tope diario (2.7): máximo 7 ingresos por funcionario y día.
+    - Cierre semanal (2.7): no se ingresa en una semana cerrada de la
+      delegación ni se edita una atención de una semana cerrada.
+
+    Las reglas de negocio viven en ``operaciones.rules``.
     """
 
-    full_width_fields = ("description",)
+    full_width_fields = ("description", "unresolved_reason")
 
-    neighbor = forms.ModelChoiceField(
-        queryset=Neighbor.alive.all(),
-        widget=forms.HiddenInput(),
-        error_messages={
-            "required": "Busca y selecciona al solicitante.",
-            "invalid_choice": "Selecciona un solicitante de la lista.",
-        },
+    neighbor_rut = forms.CharField(
+        label="RUT del vecino", max_length=12,
+        error_messages={"required": "Ingresa el RUT del vecino."},
+        help_text="Con o sin puntos, por ejemplo 12.345.678-5.",
+        widget=forms.TextInput(attrs={
+            "class": "in", "maxlength": 12, "placeholder": "12.345.678-5",
+            "autocomplete": "off", "aria-describedby": "id_neighbor_rut-help id_neighbor_rut-e",
+        }),
+    )
+    neighbor_name = forms.CharField(
+        label="Nombre completo", max_length=150,
+        error_messages={"required": "Ingresa el nombre completo del vecino."},
+        help_text="Nombre y apellido(s).",
+        widget=forms.TextInput(attrs={
+            "class": "in", "maxlength": 150, "placeholder": "María González Rojas",
+            "autocomplete": "off", "aria-describedby": "id_neighbor_name-help id_neighbor_name-e",
+        }),
+    )
+    neighbor_phone = forms.CharField(
+        label="Teléfono", max_length=20,
+        error_messages={"required": "Ingresa el teléfono de contacto del vecino."},
+        help_text="9 dígitos, con o sin +56. Ej.: +56 9 1234 5678.",
+        widget=forms.TextInput(attrs={
+            "class": "in", "maxlength": 20, "placeholder": "+56 9 1234 5678",
+            "inputmode": "tel", "autocomplete": "off",
+            "aria-describedby": "id_neighbor_phone-help id_neighbor_phone-e",
+        }),
     )
 
     class Meta:
         model = Attention
         fields = (
-            "neighbor", "delegation", "attention_type",
-            "attention_subtype", "description", "status",
+            "delegation", "attention_type", "attention_subtype", "description",
+            "requires_visit", "status", "unresolved_reason",
             "evidence_image", "attachment",
         )
         labels = {
-            "neighbor": "Vecino o solicitante",
             "delegation": "Delegación de atención",
             "attention_type": "Tipo de Atención",
             "attention_subtype": "Sub Atención",
             "description": "Descripción de la atención",
+            "requires_visit": "Requiere visita a terreno",
             "status": "Estado",
+            "unresolved_reason": "Motivo de baja (Sin resolver)",
         }
         widgets = {
             "delegation": forms.Select(attrs={"class": "in"}),
@@ -1004,7 +1001,14 @@ class AttentionForm(CrudModelForm):
                     "placeholder": "Describa la solicitud y los antecedentes necesarios.",
                 },
             ),
+            "requires_visit": forms.CheckboxInput(attrs={"class": "chk"}),
             "status": forms.Select(attrs={"class": "in"}),
+            "unresolved_reason": forms.Textarea(
+                attrs={
+                    "class": "in", "rows": 3, "maxlength": 500,
+                    "placeholder": "Explica por qué la atención se da de baja sin resolver.",
+                },
+            ),
             "evidence_image": forms.FileInput(
                 attrs={"class": "in", "accept": ".jpg,.jpeg,.png"},
             ),
@@ -1016,16 +1020,17 @@ class AttentionForm(CrudModelForm):
     def __init__(self, *args, request=None, **kwargs):
         super().__init__(*args, request=request, **kwargs)
         editing = self.instance.pk is not None
+        self.editing = editing
         role = get_role(request.user) if request is not None else None
 
-        # Estado: solo se edita al editar (al crear queda "Ingresada").
-        if not editing:
-            self.fields.pop("status", None)
-
-        # Vecino: bloqueado al editar.
         if editing:
-            self.fields["neighbor"].required = False
-            self.fields["neighbor"].disabled = True
+            # Vecino bloqueado al editar: sus datos se muestran como texto.
+            for name in ("neighbor_rut", "neighbor_name", "neighbor_phone"):
+                self.fields.pop(name, None)
+        else:
+            # Estado y motivo de baja solo al editar (al crear queda "Ingresada").
+            self.fields.pop("status", None)
+            self.fields.pop("unresolved_reason", None)
 
         # Delegación: fija por perfil (delegado/funcionario) o selector permitido.
         self.fixed_delegation = None
@@ -1049,6 +1054,16 @@ class AttentionForm(CrudModelForm):
         self.fields["attention_type"].queryset = type_qs
         self.fields["attention_subtype"].queryset = subtype_qs
 
+        # Mensajes específicos en vez del genérico "Este campo es obligatorio."
+        required = {
+            "delegation": "Selecciona la delegación de atención.",
+            "attention_type": "Selecciona el tipo de atención.",
+            "attention_subtype": "Selecciona la sub atención.",
+        }
+        for name, message in required.items():
+            if name in self.fields:
+                self.fields[name].error_messages["required"] = message
+
     @staticmethod
     def _with_current(qs, current_pk):
         """Añade el registro actual aunque esté inactivo (para edición)."""
@@ -1065,6 +1080,19 @@ class AttentionForm(CrudModelForm):
         pks = [delegation.pk for delegation in allowed_delegations(request.user)]
         return Delegation.alive.filter(status="Activa", pk__in=pks).order_by("code")
 
+    # ---------------------------------------------------------------
+    # Datos obligatorios del vecino (2.5)
+    # ---------------------------------------------------------------
+
+    def clean_neighbor_rut(self):
+        return validate_rut(self.cleaned_data.get("neighbor_rut"))
+
+    def clean_neighbor_name(self):
+        return validate_full_name(self.cleaned_data.get("neighbor_name"))
+
+    def clean_neighbor_phone(self):
+        return normalize_phone(self.cleaned_data.get("neighbor_phone"))
+
     def clean(self):
         cleaned = super().clean()
         editing = self.instance.pk is not None
@@ -1077,7 +1105,8 @@ class AttentionForm(CrudModelForm):
         elif "delegation" in self.fields:
             delegation = cleaned.get("delegation")
             if delegation is None:
-                self.add_error("delegation", "Selecciona la delegación de atención.")
+                if "delegation" not in self.errors:
+                    self.add_error("delegation", "Selecciona la delegación de atención.")
             elif delegation.status != "Activa":
                 self.add_error(
                     "delegation",
@@ -1096,14 +1125,17 @@ class AttentionForm(CrudModelForm):
                 self.add_error(None, "La atención no tiene un solicitante asociado.")
 
         # Tipo y sub atención.
+        # (Si el campo ya trae su propio error, no se repite el mensaje.)
         attention_type = cleaned.get("attention_type")
         attention_subtype = cleaned.get("attention_subtype")
         if attention_type is None:
-            self.add_error("attention_type", "Selecciona el tipo de atención.")
+            if "attention_type" not in self.errors:
+                self.add_error("attention_type", "Selecciona el tipo de atención.")
         elif attention_type.status != "Activo":
             self.add_error("attention_type", "El tipo de atención no está activo.")
         if attention_subtype is None:
-            self.add_error("attention_subtype", "Selecciona la sub atención.")
+            if "attention_subtype" not in self.errors:
+                self.add_error("attention_subtype", "Selecciona la sub atención.")
         elif attention_subtype.status != "Activo":
             self.add_error("attention_subtype", "La sub atención no está activa.")
         elif attention_type is not None and attention_subtype.attention_type_id != attention_type.pk:
@@ -1118,15 +1150,107 @@ class AttentionForm(CrudModelForm):
         else:
             cleaned["description"] = description
 
+        if editing:
+            self._clean_editing(cleaned)
+        else:
+            self._clean_creating(delegation)
         return cleaned
 
+    def _clean_creating(self, delegation):
+        """Reglas del ingreso: tope diario y semana abierta (2.7)."""
+        user = getattr(self.request, "user", None)
+        limit_error = attention_rules.daily_limit_error(user)
+        if limit_error:
+            self.add_error(None, limit_error)
+        if delegation is not None:
+            closure = attention_rules.closure_for(delegation.pk, attention_rules.local_day())
+            if closure is not None:
+                self.add_error(
+                    None,
+                    f"La semana {attention_rules.week_label(closure.week_start)} está "
+                    f"cerrada para {delegation.code} | Delegación {delegation.name}: "
+                    "no se pueden ingresar atenciones.",
+                )
+
+    def _clean_editing(self, cleaned):
+        """Reglas de la edición: semana cerrada y motivo de "Sin resolver"."""
+        closure = attention_rules.attention_closure(self.instance)
+        if closure is not None:
+            self.add_error(
+                None,
+                f"La semana {attention_rules.week_label(closure.week_start)} está cerrada: "
+                f"la atención {self.instance.number} no se puede editar.",
+            )
+        status = cleaned.get("status")
+        reason = " ".join((cleaned.get("unresolved_reason") or "").split())
+        if status == Attention.AttentionStatus.UNRESOLVED:
+            if len(reason) < 10:
+                self.add_error(
+                    "unresolved_reason",
+                    "Indica el motivo para dar de baja la atención como «Sin resolver» "
+                    "(al menos 10 caracteres).",
+                )
+            elif len(reason) > 500:
+                self.add_error("unresolved_reason", "El motivo no puede superar los 500 caracteres.")
+            else:
+                cleaned["unresolved_reason"] = reason
+        elif "unresolved_reason" in self.fields:
+            # El motivo solo tiene sentido en "Sin resolver": si se reabre, se limpia.
+            cleaned["unresolved_reason"] = ""
+
+    def _resolve_neighbor(self):
+        """Vecino del RUT ingresado: se reutiliza (actualizando nombre y
+        teléfono) o se registra. Incluye los borrados de forma lógica, porque
+        el RUT es único en toda la tabla."""
+        rut = self.cleaned_data["neighbor_rut"]
+        name = self.cleaned_data["neighbor_name"]
+        phone = self.cleaned_data["neighbor_phone"]
+        neighbor = Neighbor.objects.filter(identifier=rut).first()
+        if neighbor is None:
+            return Neighbor.objects.create(identifier=rut, full_name=name, phone=phone)
+        changed = []
+        for field_name, value in (("full_name", name), ("phone", phone)):
+            if getattr(neighbor, field_name) != value:
+                setattr(neighbor, field_name, value)
+                changed.append(field_name)
+        if neighbor.deleted_at is not None:
+            neighbor.deleted_at = None
+            changed.append("deleted_at")
+        if changed:
+            neighbor.save(update_fields=changed + ["updated_at"])
+        return neighbor
+
     def save(self, commit=True):
+        """Guarda la atención; al crear, registra o actualiza al vecino.
+
+        La vista llama a este método dentro de ``transaction.atomic()``, así
+        el vecino y la atención se guardan juntos o no se guarda nada.
+        """
         instance = super().save(commit=False)
-        # Delegación fija por perfil (crear): el formulario no la incluye.
-        if instance.pk is None and "delegation" not in self.fields:
-            instance.delegation = self.fixed_delegation
+        if instance.pk is None:
+            instance.neighbor = self._resolve_neighbor()
+            # Delegación fija por perfil (crear): el formulario no la incluye.
+            if "delegation" not in self.fields:
+                instance.delegation = self.fixed_delegation
         if commit:
             instance.save()
         return instance
 
 
+class FollowUpForm(forms.Form):
+    """Nueva gestión de seguimiento de una atención (2.6)."""
+
+    description = forms.CharField(
+        label="Detalle de la gestión",
+        error_messages={"required": "Describe la gestión realizada."},
+        widget=forms.Textarea(attrs={"class": "in", "rows": 3, "maxlength": 500}),
+    )
+
+    def clean_description(self):
+        # El largo se valida después de normalizar los espacios.
+        text = " ".join((self.cleaned_data.get("description") or "").split())
+        if len(text) < 10:
+            raise forms.ValidationError("Describe la gestión con al menos 10 caracteres.")
+        if len(text) > 500:
+            raise forms.ValidationError("La gestión no puede superar los 500 caracteres.")
+        return text

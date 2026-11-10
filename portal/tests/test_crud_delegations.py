@@ -2,9 +2,10 @@
 
 Cubre: permisos por rol (solo el superadmin entra), búsqueda sin tildes ni
 mayúsculas y con varias palabras, filtro de estado, paginación conservando
-filtros, exportación que respeta filtros y columnas, código duplicado, color
-inválido, eliminación bloqueada con relaciones y borrado lógico sin ellas,
-AuditLog, 403 por URL directa de otro rol y 404 inexistente.
+filtros, exportación que respeta filtros y columnas, código automático (un
+código enviado por POST se ignora), color inválido, eliminación bloqueada con
+relaciones y borrado lógico sin ellas, AuditLog, 403 por URL directa de otro
+rol y 404 inexistente.
 """
 from datetime import date
 
@@ -120,20 +121,21 @@ class CrudDelegationsTestCase(TestCase):
         self.client.login(username="superadmin", password="Demo2026!")
 
         resp = self.client.post(reverse("delegations_new"), {
-            "code": "del08", "name": "Nueva Delegación", "commune": "La Serena",
+            "name": "Nueva Delegación", "commune": "La Serena",
             "address": "Calle Nueva 8", "color": "#920000", "status": "Activa",
         })
         self.assertEqual(resp.status_code, 302)
-        created = Delegation.alive.get(code="DEL08")  # se guarda en mayúsculas
-        self.assertEqual(created.name, "Nueva Delegación")
+        created = Delegation.alive.get(name="Nueva Delegación")
+        # Código automático: DEL01..DEL04 ya existen, el siguiente es DEL05.
+        self.assertEqual(created.code, "DEL05")
 
         detail = self.client.get(reverse("delegations_detail", args=[created.pk]))
         self.assertEqual(detail.status_code, 200)
-        self.assertContains(detail, "Consulta de registro")
+        self.assertContains(detail, "Consulta de delegación")
         self.assertContains(detail, "disabled")
 
         resp = self.client.post(reverse("delegations_edit", args=[created.pk]), {
-            "code": "DEL08", "name": "Nueva Delegación Editada",
+            "code": "DEL99", "name": "Nueva Delegación Editada",
             "commune": "La Serena", "address": "Calle Nueva 8",
             "color": "#17663b", "status": "Inactiva",
         })
@@ -141,26 +143,30 @@ class CrudDelegationsTestCase(TestCase):
         created.refresh_from_db()
         self.assertEqual(created.name, "Nueva Delegación Editada")
         self.assertEqual(created.status, "Inactiva")
+        # El código es de solo lectura: el POST manipulado no lo cambia.
+        self.assertEqual(created.code, "DEL05")
 
-    def test_codigo_duplicado_rechazado(self):
+    def test_codigo_enviado_por_post_se_ignora(self):
+        # El formulario de creación ya no tiene campo código: aunque un POST
+        # manipulado envíe "DEL01", el sistema asigna el siguiente correlativo.
         self.client.login(username="superadmin", password="Demo2026!")
         resp = self.client.post(reverse("delegations_new"), {
             "code": "DEL01", "name": "Otra", "commune": "La Serena",
             "address": "", "color": "", "status": "Activa",
         })
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Ya existe una delegación con este código", status_code=200)
-        self.assertFalse(Delegation.alive.filter(name="Otra").exists())
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Delegation.alive.get(name="Otra").code, "DEL05")
+        self.assertEqual(Delegation.objects.filter(code="DEL01").count(), 1)
 
     def test_color_invalido_rechazado(self):
         self.client.login(username="superadmin", password="Demo2026!")
         resp = self.client.post(reverse("delegations_new"), {
-            "code": "DEL09", "name": "Con color malo", "commune": "La Serena",
+            "name": "Con color malo", "commune": "La Serena",
             "address": "", "color": "rojo", "status": "Activa",
         })
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "#RRGGBB", status_code=200)
-        self.assertFalse(Delegation.alive.filter(code="DEL09").exists())
+        self.assertFalse(Delegation.alive.filter(name="Con color malo").exists())
 
     # ---------------------------------------------------------------
     # Búsqueda, filtro y paginación
@@ -221,10 +227,10 @@ class CrudDelegationsTestCase(TestCase):
         resp = self.client.get(reverse("delegations"), {"q": "noexiste"})
         self.assertContains(resp, "No encontramos resultados")
         self.assertNotContains(resp, "Aún no hay registros")
-        # Sin ningún registro vivo: estado "aún no hay registros".
-        # Se limpia la búsqueda previa (q vacío) porque la sesión la conserva.
+        # Sin ningún registro vivo: estado "aún no hay registros". La búsqueda
+        # anterior quedó recordada en la sesión, así que se limpia primero.
         Delegation.objects.update(deleted_at=timezone.now())
-        resp = self.client.get(reverse("delegations"), {"q": ""})
+        resp = self.client.get(reverse("delegations"), {"limpiar": 1}, follow=True)
         self.assertContains(resp, "Aún no hay registros")
 
     # ---------------------------------------------------------------
@@ -358,12 +364,12 @@ class CrudDelegationsTestCase(TestCase):
     def test_auditlog_registra_acciones(self):
         self.client.login(username="superadmin", password="Demo2026!")
         self.client.post(reverse("delegations_new"), {
-            "code": "DEL20", "name": "Auditoría Demo", "commune": "La Serena",
+            "name": "Auditoría Demo", "commune": "La Serena",
             "address": "", "color": "", "status": "Activa",
         })
-        created = Delegation.alive.get(code="DEL20")
+        created = Delegation.alive.get(name="Auditoría Demo")
         self.client.post(reverse("delegations_edit", args=[created.pk]), {
-            "code": "DEL20", "name": "Auditoría Demo 2", "commune": "La Serena",
+            "name": "Auditoría Demo 2", "commune": "La Serena",
             "address": "", "color": "", "status": "Activa",
         })
         self.client.get(reverse("delegations_export"))
@@ -394,4 +400,3 @@ class CrudDelegationsTestCase(TestCase):
         # Búsqueda inteligente: el campo q existe y no hay botón Buscar.
         self.assertContains(resp, 'id="q"')
         self.assertNotContains(resp, 'id="searchBtn"')
-

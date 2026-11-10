@@ -1,7 +1,7 @@
 """Pruebas de la Parte 6: mantenedor de Tipo de Atención.
 
-Cubre: permisos por rol (solo superadmin y coordinador), código duplicado sin
-distinguir mayúsculas, reglas de eliminación (tipo con sub atenciones o con
+Cubre: permisos por rol (solo superadmin y coordinador), código automático
+TAT06 (el POST no lo impone), reglas de eliminación (tipo con sub atenciones o con
 atenciones no se elimina; sin relaciones se borra de forma lógica) y
 búsqueda/filtro/exportación.
 """
@@ -66,7 +66,7 @@ class CrudAttentionTypesTestCase(TestCase):
 
     def _post(self, **extra):
         data = {
-            "code": "TAT06", "name": "Nuevo tipo",
+            "name": "Nuevo tipo",
             "description": "", "status": "Activo",
         }
         data.update(extra)
@@ -104,11 +104,13 @@ class CrudAttentionTypesTestCase(TestCase):
     # Código duplicado
     # ---------------------------------------------------------------
 
-    def test_codigo_duplicado_sin_mayusculas(self):
+    def test_codigo_automatico_ignora_post(self):
+        # TAT01 y TAT05 existen: el siguiente correlativo es TAT06.
         self._login("coordinador")
         resp = self.client.post(reverse("attention_types_new"), self._post(code="tat01"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Ya existe un tipo de atención con este código")
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(AttentionType.alive.get(name="Nuevo tipo").code, "TAT06")
+        self.assertEqual(AttentionType.objects.filter(code__iexact="TAT01").count(), 1)
 
     # ---------------------------------------------------------------
     # Reglas de eliminación

@@ -1,8 +1,9 @@
 """Pruebas de la Parte 6: mantenedor de Ítems y metas.
 
 Cubre: permisos por rol (coordinador gestiona, delegado solo ve/exporta,
-funcionario sin acceso ni menú), código duplicado sin distinguir mayúsculas,
-CRUD completo, búsqueda/filtro/exportación y borrado lógico.
+funcionario sin acceso ni menú), código automático ITM001 (un código enviado
+por POST se ignora), CRUD completo, búsqueda/filtro/exportación y borrado
+lógico.
 """
 
 import io
@@ -64,7 +65,7 @@ class CrudItemsTestCase(TestCase):
 
     def _post(self, **extra):
         data = {
-            "code": "ITM09", "name": "Nuevo ítem",
+            "name": "Nuevo ítem",
             "description": "", "status": "Activo",
         }
         data.update(extra)
@@ -107,22 +108,25 @@ class CrudItemsTestCase(TestCase):
     # Código duplicado y CRUD
     # ---------------------------------------------------------------
 
-    def test_codigo_duplicado_sin_mayusculas(self):
+    def test_codigo_automatico_ignora_post(self):
+        # ITM01 e ITM02 existen: el siguiente correlativo es ITM003 (3 dígitos)
+        # aunque el POST intente imponer un código.
         self._login("coordinador")
         resp = self.client.post(reverse("items_new"), self._post(code="itm01"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Ya existe un ítem con este código", status_code=200)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(ProjectItem.alive.get(name="Nuevo ítem").code, "ITM003")
+        self.assertEqual(ProjectItem.objects.filter(code__iexact="ITM01").count(), 1)
 
     def test_crear_consultar_editar(self):
         self._login("coordinador")
         resp = self.client.post(reverse("items_new"), self._post())
         self.assertEqual(resp.status_code, 302)
-        created = ProjectItem.alive.get(code="ITM09")
-        self.assertEqual(created.name, "Nuevo ítem")
+        created = ProjectItem.alive.get(name="Nuevo ítem")
+        self.assertRegex(created.code, r"^ITM\d{3}$")
 
         detail = self.client.get(reverse("items_detail", args=[created.pk]))
         self.assertEqual(detail.status_code, 200)
-        self.assertContains(detail, "Consulta de registro")
+        self.assertContains(detail, "Consulta de ítem")
 
         resp = self.client.post(
             reverse("items_edit", args=[created.pk]),

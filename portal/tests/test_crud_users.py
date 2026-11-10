@@ -120,7 +120,7 @@ class CrudUsersTestCase(TestCase):
 
         detail = self.client.get(reverse("users_detail", args=[created.pk]))
         self.assertEqual(detail.status_code, 200)
-        self.assertContains(detail, "Consulta de registro")
+        self.assertContains(detail, "Consulta de usuario")
         self.assertContains(detail, "disabled")
 
         resp = self.client.post(

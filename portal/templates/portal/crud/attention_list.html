@@ -8,34 +8,40 @@
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / Atenciones</nav>
 <div class="titlebar"><h1>Atenciones</h1>
-  {% if can_create %}
-  <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
-  {% endif %}
+  <div class="titleacts">
+    {% if can_close_weeks %}
+    <a class="btn ghost" href="{{ closures_url }}">{% sgr_icon 'calendar' 18 %}<span>Cierre semanal</span></a>
+    {% endif %}
+    {% if can_create %}
+    <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
+    {% endif %}
+  </div>
 </div>
 
 {% if scope_note %}
 <div class="scope" role="note">{% sgr_icon 'info' 18 %}<span>{{ scope_note }}</span></div>
 {% endif %}
 
-{# Búsqueda, filtro de estado y exportación: un solo formulario GET #}
+{# Búsqueda, filtros y exportación: un solo formulario GET. El último estado #}
+{# usado queda guardado en la sesión; "Limpiar filtros" lo borra (?limpiar=1). #}
 <section class="card toolbar" aria-label="Búsqueda y filtros">
   <form method="get" action="{{ search_url }}" id="toolbarForm" role="search">
     <div class="grow">
       <label for="q">Búsqueda inteligente</label>
       <input class="in" id="q" name="q" type="search"
-              placeholder="Buscar por N°, solicitante, tipo, sub atención, responsable o delegación..."
+              placeholder="Buscar por N°, solicitante, RUT, tipo, sub atención, responsable o delegación..."
               value="{{ query }}" autocomplete="off">
     </div>
     <div class="statebox">
       <label for="estado">Filtrar estado</label>
-      <select class="in" id="estado" name="estado">
+      <select class="in" id="estado" name="estado" data-autosubmit>
         <option value=""{% if not estado %} selected{% endif %}>Todos</option>
         {% for option in status_options %}
         <option value="{{ option.0 }}"{% if estado == option.0 %} selected{% endif %}>{{ option.1 }}</option>
         {% endfor %}
       </select>
     </div>
-      <a class="btn-outline" href="{{ search_url }}" id="clearBtn">Limpiar filtros</a>
+      <a class="btn-outline" href="{{ clear_url }}" id="clearBtn">Limpiar filtros</a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
     {% endif %}
@@ -83,6 +89,15 @@
       </select>
     </div>
     {% endif %}
+    <div class="field">
+      <label for="visita">Requiere visita</label>
+      <select class="in js-autosubmit" id="visita" name="visita">
+        <option value="">Todas</option>
+        {% for option in visit_options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="field field-date">
       <label for="desde">Desde</label>
       <input class="in js-autosubmit" id="desde" name="desde" type="date" value="{{ date_from }}">
@@ -130,7 +145,7 @@
         {% for cell in row.cells %}
         <td>
           {% if cell.kind == 'status' %}
-          <span class="badge {% if cell.text == 'Ingresada' %}b-info{% elif cell.text == 'En gestión' %}b-warn{% elif cell.text == 'Resuelta' %}b-ok{% else %}b-off{% endif %}">{{ cell.text }}</span>
+          <span class="badge {% if cell.text == 'Ingresada' %}b-info{% elif cell.text == 'En gestión' %}b-warn{% elif cell.text == 'Resuelta' %}b-ok{% elif cell.text == 'Sin resolver' %}b-bad{% else %}b-off{% endif %}">{{ cell.text }}</span>
           {% elif cell.kind == 'delegation' %}
             {% for chip in cell.chips %}
             <span class="chip" title="{{ chip.name }}"><svg class="sq" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" fill="{{ chip.color }}"/></svg>{{ chip.code }}</span>
@@ -142,9 +157,13 @@
         {% endfor %}
         <td>
           <div class="acts">
-            <a class="ib v" href="{% url detail_url_name row.pk %}" data-tip="Ver detalle" aria-label="Ver detalle de la atención {{ row.pk }}">{% sgr_icon 'eye' 18 %}</a>
+            <a class="ib v" href="{% url detail_url_name row.pk %}" data-tip="Ver detalle" aria-label="Ver detalle de la atención {{ row.label }}">{% sgr_icon 'eye' 18 %}</a>
             {% if can_edit %}
-            <a class="ib e" href="{% url edit_url_name row.pk %}" data-tip="Editar" aria-label="Editar la atención {{ row.pk }}">{% sgr_icon 'pencil' 18 %}</a>
+            {% if row.locked %}
+            <span class="ib lock" data-tip="Semana cerrada" tabindex="0" aria-label="La atención {{ row.label }} es de una semana cerrada: solo lectura">{% sgr_icon 'lock' 18 %}</span>
+            {% else %}
+            <a class="ib e" href="{% url edit_url_name row.pk %}" data-tip="Editar" aria-label="Editar la atención {{ row.label }}">{% sgr_icon 'pencil' 18 %}</a>
+            {% endif %}
             {% endif %}
           </div>
         </td>
@@ -185,7 +204,7 @@
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>
-  <a class="btn primary" href="{{ search_url }}">Limpiar filtros</a>
+  <a class="btn primary" href="{{ clear_url }}">Limpiar filtros</a>
   {% endif %}
 </div>
 {% endif %}

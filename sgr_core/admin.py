@@ -17,6 +17,11 @@ from .models import (
 )
 
 
+#: Bloque 2A: el código (DEL01, ROL01, ITM001, TAT01, SAT001) lo asigna el
+#: modelo al guardar (``AutoCodeMixin``), así que en el admin es de solo lectura.
+AUTO_CODE_READONLY = ('code', 'created_at', 'updated_at')
+
+
 # ---------- Admin Pro: validación con clean() ----------
 class PeriodForm(forms.ModelForm):
     class Meta:
@@ -41,7 +46,7 @@ class DelegationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'commune')
     search_fields = ('name', 'code', 'commune')
     ordering = ('code', 'name')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
 
 
 class RolePermissionInline(admin.TabularInline):
@@ -56,7 +61,7 @@ class RoleAdmin(admin.ModelAdmin):
     list_filter = ('scope', 'status', 'is_system')
     search_fields = ('name', 'code')
     ordering = ('code',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
     inlines = [RolePermissionInline]
 
 
@@ -106,7 +111,7 @@ class ProjectItemAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('code', 'name')
     ordering = ('code',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
 
 
 @admin.register(AttentionType)
@@ -115,7 +120,7 @@ class AttentionTypeAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('code', 'name')
     ordering = ('code',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
 
 
 @admin.register(AttentionSubtype)
@@ -125,7 +130,7 @@ class AttentionSubtypeAdmin(admin.ModelAdmin):
     search_fields = ('code', 'name')
     list_select_related = ('attention_type',)
     ordering = ('code',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
 
 
 @admin.register(Position)
