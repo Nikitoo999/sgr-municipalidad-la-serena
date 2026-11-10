@@ -1,12 +1,14 @@
 """Configuración del mantenedor de Delegaciones (Parte 4).
 
 Solo la declara: el motor (``portal.crud.views``) hace todo el trabajo.
+Bloque 2A: código automático (DEL01...), orden por columna y filtro propio por
+Comuna.
 """
 
 from operaciones.models import Attention, Employee
 from sgr_core.models import Delegation, InstitutionalGoal
 
-from .config import CELL_STATUS, ColumnSpec, ModuleConfig, register_module
+from .config import CELL_STATUS, ColumnSpec, FilterSpec, ModuleConfig, register_module
 from .forms import DelegationForm
 
 
@@ -39,6 +41,17 @@ def delegation_delete_guard(delegation, request=None):
     return " ".join(blockers)
 
 
+def commune_options(request):
+    """Comunas de las delegaciones vivas (filtro propio "Comuna")."""
+    communes = (
+        Delegation.alive.exclude(commune="")
+        .order_by("commune")
+        .values_list("commune", flat=True)
+        .distinct()
+    )
+    return [(commune, commune) for commune in communes]
+
+
 DELEGATIONS_MODULE = ModuleConfig(
     module_key="delegations",
     slug="delegaciones",
@@ -46,16 +59,24 @@ DELEGATIONS_MODULE = ModuleConfig(
     form_class=DelegationForm,
     list_title="Delegaciones",
     singular_label="Delegación",
+    gender="f",
     columns=(
-        ColumnSpec("code", "Código"),
-        ColumnSpec("name", "Nombre"),
-        ColumnSpec("commune", "Comuna"),
-        ColumnSpec("address", "Dirección"),
-        ColumnSpec("status", "Estado", cell=CELL_STATUS),
+        ColumnSpec("code", "Código", sort_key="codigo", sort_fields=("code",)),
+        ColumnSpec("name", "Nombre", sort_key="nombre", sort_fields=("name",)),
+        ColumnSpec("commune", "Comuna", sort_key="comuna", sort_fields=("commune",)),
+        ColumnSpec("address", "Dirección", sort_key="direccion", sort_fields=("address",)),
+        ColumnSpec("status", "Estado", cell=CELL_STATUS,
+                   sort_key="estado", sort_fields=("status",)),
     ),
     search_fields=("code", "name", "commune", "address"),
+    search_placeholder="Buscar por código, nombre, comuna o dirección...",
     status_field="status",
+    filters=(
+        FilterSpec("comuna", "Comuna", "commune", options=commune_options,
+                   empty_label="Todas"),
+    ),
     ordering=("code",),
+    default_sort="codigo",
     delete_guard=delegation_delete_guard,
 )
 

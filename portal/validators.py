@@ -3,8 +3,12 @@
 RUT chileno: formato y dígito verificador (módulo 11, K = 10). La normalización
 de salida siempre es ``12.345.678-5`` (cuerpo con puntos cada tres desde la
 derecha, guion y dígito verificador en mayúscula).
+
+Bloque 2B (datos obligatorios del vecino): teléfono chileno normalizado como
+``+56912345678`` y nombre completo (nombre y apellido).
 """
 
+import os
 import re
 
 from django.core.exceptions import ValidationError
@@ -73,3 +77,102 @@ def validate_rut(value):
             code="rut_dv",
         )
     return format_rut(body, dv)
+
+
+# --- Datos del vecino (Bloque 2B) ------------------------------------------
+
+#: Caracteres admitidos al escribir un teléfono (dígitos, +, espacios, (), - y .).
+_PHONE_INPUT = re.compile(r"^\+?[\d\s().-]+$")
+
+#: Signos admitidos dentro de un nombre además de letras y espacios.
+_NAME_EXTRA_CHARS = set("'’.-")
+
+
+def normalize_phone(value):
+    """Teléfono chileno normalizado como ``+56`` + 9 dígitos.
+
+    Acepta ``+56 9 1234 5678``, ``9 1234 5678``, ``912345678`` o fijos como
+    ``51 234 5678``. Lanza ``ValidationError`` si no tiene 9 dígitos
+    nacionales.
+    """
+    text = str(value or "").strip()
+    if not text or not _PHONE_INPUT.match(text):
+        raise ValidationError(
+            "Ingresa un teléfono válido, por ejemplo +56 9 1234 5678.",
+            code="telefono_formato",
+        )
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 11 and digits.startswith("56"):
+        digits = digits[2:]
+    if len(digits) != 9:
+        raise ValidationError(
+            "El teléfono debe tener 9 dígitos (con o sin +56), por ejemplo +56 9 1234 5678.",
+            code="telefono_largo",
+        )
+    return f"+56{digits}"
+
+
+def validate_full_name(value, max_length=150):
+    """Nombre completo: al menos nombre y apellido, solo letras y signos de nombre.
+
+    Devuelve el nombre con los espacios normalizados.
+    """
+    text = " ".join(str(value or "").split())
+    if not text:
+        raise ValidationError("Ingresa el nombre completo del vecino.", code="nombre_vacio")
+    if len(text) > max_length:
+        raise ValidationError(
+            f"El nombre no puede superar los {max_length} caracteres.", code="nombre_largo",
+        )
+    if len(text.split(" ")) < 2:
+        raise ValidationError("Ingresa nombre y apellido del vecino.", code="nombre_incompleto")
+    if any(not (char.isalpha() or char == " " or char in _NAME_EXTRA_CHARS) for char in text):
+        raise ValidationError(
+            "El nombre solo puede tener letras, espacios, apóstrofos, puntos y guiones.",
+            code="nombre_caracteres",
+        )
+    return text
+
+
+# --- Archivos subidos (Clase 9: MEDIA) -------------------------------------
+
+#: Imagenes de evidencia: extensiones permitidas y peso maximo (2 MB).
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+IMAGE_MAX_MB = 2
+
+#: Documentos de respaldo: PDF o imagen, peso maximo (5 MB).
+ATTACHMENT_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".webp")
+ATTACHMENT_MAX_MB = 5
+
+
+def _validate_upload(value, extensions, max_mb):
+    """Valida extension y peso de un archivo recien subido.
+
+    Los archivos que ya estan guardados no se revalidan: asi editar otros
+    campos no falla si el archivo ya no existe en disco (otra maquina, media/
+    limpiada) y no se hace una lectura innecesaria del almacenamiento.
+    """
+    if getattr(value, "_committed", False):
+        return
+    extension = os.path.splitext(value.name or "")[1].lower()
+    if extension not in extensions:
+        permitidas = ", ".join(extensions)
+        raise ValidationError(
+            f"Formato no permitido. Formatos válidos: {permitidas}.",
+            code="archivo_extension",
+        )
+    if value.size > max_mb * 1024 * 1024:
+        raise ValidationError(
+            f"El archivo pesa demasiado. El máximo permitido es {max_mb} MB.",
+            code="archivo_tamano",
+        )
+
+
+def validate_image_file(value):
+    """Imagen de evidencia: .jpg, .jpeg, .png o .webp, hasta 2 MB."""
+    _validate_upload(value, IMAGE_EXTENSIONS, IMAGE_MAX_MB)
+
+
+def validate_attachment_file(value):
+    """Documento de respaldo: .pdf o imagen, hasta 5 MB."""
+    _validate_upload(value, ATTACHMENT_EXTENSIONS, ATTACHMENT_MAX_MB)

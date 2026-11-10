@@ -58,6 +58,45 @@ def badge_colors(base_color):
         return INSTITUTIONAL_COLOR, mix_white(INSTITUTIONAL_COLOR, 0.55)
 
 
+def _profile_context(user):
+    """Datos del usuario (y su Employee) para el mini menú y el modal de perfil."""
+    employee = getattr(user, "employee", None)
+    if employee is not None:
+        role_name = employee.role.name if employee.role else "—"
+        scope_label = employee.role.scope_label if employee.role else "—"
+        rut = employee.rut
+        phone = employee.phone or ""
+        address = employee.address or ""
+        base = employee.delegation
+        base_delegation = f"{base.code} | Delegación {base.name}" if base else "—"
+        authorized = [
+            {"code": d.code, "name": d.name, "color": d.color or ""}
+            for d in employee.authorized_delegations.all()
+        ]
+    else:
+        role_name = "Superadministrador" if user.is_superuser else "—"
+        scope_label = "Todas las delegaciones" if user.is_superuser else "—"
+        rut = "—"
+        phone = ""
+        address = ""
+        base_delegation = "—"
+        authorized = []
+    return {
+        "first_name": user.first_name or "",
+        "last_name": user.last_name or "",
+        "full_name": user.get_full_name() or user.username,
+        "username": user.username,
+        "email": user.email or "",
+        "rut": rut,
+        "phone": phone,
+        "address": address,
+        "role_name": role_name,
+        "scope_label": scope_label,
+        "base_delegation": base_delegation,
+        "authorized_delegations": authorized,
+    }
+
+
 def sgr_context(request):
     """Variables comunes del shell (cabecera, menú, delegación activa)."""
     info = access.get_access(request)
@@ -99,6 +138,10 @@ def sgr_context(request):
         display_name = ""
     initials = "".join(w[0] for w in display_name.split()[:2]).upper()
 
+    profile = {}
+    if getattr(request.user, "is_authenticated", False):
+        profile = _profile_context(request.user)
+
     # Mensajes serializados en el servidor: el template los inyecta con
     # ``json_script`` (JSON válido fuera del <script> de ejecución), así el
     # validador del editor no los marca como errores de JavaScript.
@@ -122,5 +165,6 @@ def sgr_context(request):
         "sgr_menu": menu,
         "sgr_display_name": display_name,
         "sgr_initials": initials,
+        "sgr_profile": profile,
         "sgr_messages": flashed,
     }

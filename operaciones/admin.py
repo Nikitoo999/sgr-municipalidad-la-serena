@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
+from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, EmployeeDayOff, EmployeeFeedback, TubeEntry
+
 
 
 def _get_employee(request):
@@ -28,7 +30,7 @@ def _is_usuario(request):
 class EvidenceInline(admin.TabularInline):
     model = Evidence
     extra = 0
-    fields = ('image_url', 'is_validated', 'created_at')
+    fields = ('image_url', 'file', 'is_validated', 'created_at')
     readonly_fields = ('created_at',)
 
 
@@ -77,8 +79,8 @@ def validate_evidences(modeladmin, request, queryset):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('user', 'rut', 'delegation', 'role')
-    list_filter = ('delegation', 'role')
+    list_display = ('user', 'rut', 'delegation', 'role', 'position')
+    list_filter = ('delegation', 'role', 'position')
     search_fields = ('rut', 'user__username', 'user__first_name', 'user__last_name', 'address')
     list_select_related = ('user', 'delegation')
     ordering = ('user__username',)
@@ -246,3 +248,33 @@ class BenefitAdmin(admin.ModelAdmin):
         if _is_usuario(request):
             return False
         return super().has_module_permission(request)
+
+
+@admin.register(EmployeeDayOff)
+class EmployeeDayOffAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'kind', 'start_date', 'end_date', 'business_days')
+    list_filter = ('kind',)
+    search_fields = ('employee__user__username', 'employee__user__first_name', 'employee__user__last_name')
+    list_select_related = ('employee__user',)
+    ordering = ('-start_date',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(EmployeeFeedback)
+class EmployeeFeedbackAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'kind', 'date', 'description', 'registered_by')
+    list_filter = ('kind',)
+    search_fields = ('employee__user__username', 'employee__user__first_name', 'employee__user__last_name', 'description')
+    list_select_related = ('employee__user', 'registered_by')
+    ordering = ('-date',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(TubeEntry)
+class TubeEntryAdmin(admin.ModelAdmin):
+    list_display = ('code', 'title', 'channel', 'delegation', 'responsible', 'status', 'request_date')
+    list_filter = ('channel', 'status', 'delegation', 'origin')
+    search_fields = ('title', 'requester', 'letter_number', 'verification_code')
+    list_select_related = ('delegation', 'responsible__user')
+    ordering = ('-request_date',)
+    readonly_fields = ('verification_code', 'created_at', 'updated_at')

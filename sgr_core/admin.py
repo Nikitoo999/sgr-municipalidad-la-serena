@@ -5,13 +5,21 @@ from .models import (
     AttentionType,
     Delegation,
     Period,
+    Position,
+    PositionItemGoal,
     InstitutionalGoal,
     Achievement,
     MeasurementItem,
     ProjectItem,
     Role,
     RolePermission,
+    CommunityOrganization,
 )
+
+
+#: Bloque 2A: el código (DEL01, ROL01, ITM001, TAT01, SAT001) lo asigna el
+#: modelo al guardar (``AutoCodeMixin``), así que en el admin es de solo lectura.
+AUTO_CODE_READONLY = ('code', 'created_at', 'updated_at')
 
 
 # ---------- Admin Pro: validación con clean() ----------
@@ -38,7 +46,7 @@ class DelegationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'commune')
     search_fields = ('name', 'code', 'commune')
     ordering = ('code', 'name')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
 
 
 class RolePermissionInline(admin.TabularInline):
@@ -53,7 +61,7 @@ class RoleAdmin(admin.ModelAdmin):
     list_filter = ('scope', 'status', 'is_system')
     search_fields = ('name', 'code')
     ordering = ('code',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
     inlines = [RolePermissionInline]
 
 
@@ -103,7 +111,7 @@ class ProjectItemAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('code', 'name')
     ordering = ('code',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
 
 
 @admin.register(AttentionType)
@@ -112,7 +120,7 @@ class AttentionTypeAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('code', 'name')
     ordering = ('code',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = AUTO_CODE_READONLY
 
 
 @admin.register(AttentionSubtype)
@@ -122,4 +130,33 @@ class AttentionSubtypeAdmin(admin.ModelAdmin):
     search_fields = ('code', 'name')
     list_select_related = ('attention_type',)
     ordering = ('code',)
+    readonly_fields = AUTO_CODE_READONLY
+
+
+@admin.register(Position)
+class PositionAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_evaluated', 'status')
+    list_filter = ('status', 'is_evaluated')
+    search_fields = ('code', 'name')
+    ordering = ('code',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(PositionItemGoal)
+class PositionItemGoalAdmin(admin.ModelAdmin):
+    list_display = ('position', 'item', 'period', 'weight', 'target_value')
+    list_filter = ('position', 'period')
+    search_fields = ('position__name', 'item__name')
+    list_select_related = ('position', 'item', 'period')
+    ordering = ('position__code', 'item__code')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(CommunityOrganization)
+class CommunityOrganizationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'delegation', 'active_members', 'verified', 'status')
+    list_filter = ('category', 'delegation', 'verified', 'status')
+    search_fields = ('name', 'registry_number', 'legal_address')
+    list_select_related = ('delegation',)
+    ordering = ('name',)
     readonly_fields = ('created_at', 'updated_at')

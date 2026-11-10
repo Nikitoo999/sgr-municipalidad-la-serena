@@ -20,6 +20,8 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')]
 
 INSTALLED_APPS = [
+    'daphne',
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,6 +66,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# ASGI para tiempo real (Django Channels + Daphne) — Clase 11.
+ASGI_APPLICATION = 'config.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
+
 # Base de datos configurable vía variables de entorno (.env).
 # Por defecto SQLite; para otro motor basta con definir DB_ENGINE y sus parámetros.
 DB_ENGINE = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
@@ -106,6 +117,10 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = []
 
+# Archivos subidos por los usuarios (imagenes y documentos de las atenciones).
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
@@ -119,18 +134,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- Email ---------------------------------------------------------------
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False') == 'True'
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@sgr.municipalidadla-serena.cl')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@sgr.municipalidadla-serena.cl')
 
 # --- Autenticación --------------------------------------------------------
 AUTHENTICATION_BACKENDS = [
     'portal.backends.EmailOrUsernameBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# Recuperación de contraseña: vigencia del código en SEGUNDOS y cantidad máxima
+# de intentos fallidos antes de invalidarlo. Configurables vía .env.
+PASSWORD_RESET_CODE_TTL = int(os.getenv('PASSWORD_RESET_CODE_TTL', '120'))
+PASSWORD_RESET_MAX_ATTEMPTS = int(os.getenv('PASSWORD_RESET_MAX_ATTEMPTS', '5'))
 
 # --- Seguridad (cabeceras y cookies) -------------------------------------
 # X-Frame-Options lo envía XFrameOptionsMiddleware (DENY por defecto).

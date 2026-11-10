@@ -8,8 +8,10 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 > template común y los 6 mantenedores (Delegaciones, Roles, Usuarios, Ítems y metas,
 > Tipo de Atención y Sub Atención) más el módulo de **Atenciones** (ingreso, listado,
 > consulta, edición y exportación), con 4 roles y autorización validada en el servidor.
-> La suite de pruebas cubre esquema, autorización, autenticación, matriz de permisos,
-> alcance por delegación y las vistas del portal (ver `docs/pruebas/`).
+> Incluye **tiempo real** con WebSockets (Django Channels + Daphne): chat por delegación
+> y avisos en vivo de nuevas atenciones. La suite de pruebas cubre esquema, autorización,
+> autenticación, matriz de permisos, alcance por delegación, las vistas del portal y los
+> consumers de tiempo real (ver `docs/pruebas/`).
 
 ---
 
@@ -19,6 +21,7 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 |--------------|--------------------------------|
 | Lenguaje     | Python 3.11 o superior (el entorno de desarrollo actual usa Python 3.14.7) |
 | Framework    | Django 5.2.x (`requirements.txt`: `Django==5.2.17`) |
+| Tiempo real  | Django Channels 4.x + Daphne 4.x (WebSockets); `CHANNEL_LAYERS` con `InMemoryChannelLayer` |
 | Base de datos| MariaDB/MySQL en producción y SQLite por defecto en desarrollo, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/legacy/sgr_municipalidad_laserena_mysql.sql` (MySQL 8, **solo histórico**, ya no refleja el sistema); el driver `mysqlclient` está en `requirements.txt` |
 | Variables de entorno | `python-dotenv` (archivo `.env`) |
 
@@ -26,14 +29,14 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 
 ```
 .
-├── config/          # Configuración global (settings, urls, wsgi/asgi)
+├── config/          # Configuración global (settings, urls, wsgi/asgi con Channels)
 ├── database/        # SQL de referencia (legacy histórico + schema MariaDB)
 │   └── legacy/      # Diseño SQL inicial (ya no refleja el sistema; ver LEEME.md)
 ├── docs/            # Documentación generada (modelo entidad-relación, diseño)
 ├── deploy/          # Plantilla systemd (sgr.service) para producción EC2
 ├── sgr_core/        # Dominio: delegaciones, roles, permisos y catálogos
 ├── operaciones/     # Funcionarios, atenciones, tareas y datos demo (seed_demo)
-├── portal/          # Portal web: login, recuperación, inicio, autorización
+├── portal/          # Portal web: login, recuperación, inicio, autorización, consumers/routing (WebSockets)
 ├── manage.py
 ├── requirements.txt # Dependencias del proyecto
 └── .env.example     # Plantilla de variables de entorno (copiar a .env)
@@ -90,6 +93,11 @@ El portal implementa el flujo de acceso real (ya no hay mockup en el repositorio
   paginación, crear/ver/editar/eliminar (según el rol) y exportación a Excel, con
   autorización validada en el servidor (`portal/access.py` + `portal/crud/`).
 - **Páginas de error** propias (403/404/500) definidas en `config/urls.py`.
+- **Tiempo real (WebSockets)** (`config/asgi.py`, `portal/routing.py`, `portal/consumers.py`):
+  chat de la delegación activa (`ws/chat/<delegacion>/`) y avisos en vivo de nuevas
+  atenciones (`ws/atenciones/<delegacion>/`). Al crear una atención se emite el evento
+  `attention_created` a los grupos `atenciones_<codigo>` y `atenciones_ALL`; el frontend
+  muestra un widget de chat colapsable en la cabecera y un toast de aviso (`sgr.js`).
 
 ## 🗄️ Scripts SQL de referencia
 
@@ -263,7 +271,8 @@ Reglas de jerarquía (aplicadas en `portal/access.py`):
 | `python manage.py migrate` | Aplica migraciones |
 | `python manage.py shell` | Consola interactiva de Django |
 | `python manage.py createsuperuser` | Crea usuario admin |
-| `python manage.py runserver` | Levanta el servidor de desarrollo |
+| `python manage.py runserver` | Levanta el servidor de desarrollo (usa Daphne/ASGI por defecto) |
+| `daphne config.asgi:application --bind 127.0.0.1 --port 8000` | Servidor ASGI de producción (WebSockets) |
 
 ## Base de datos MariaDB (producción)
 
@@ -332,6 +341,7 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
 | Matriz de permisos y alcance por delegación | Operativo (validado en servidor) |
 | Envío de correo con SMTP real | Simulado (backend de consola hasta configurar SMTP) |
 | Pruebas de estrés (Locust) | Operativo / **Ejecutado** (ver `docs/pruebas/pruebas_estres.md`) |
+| Tiempo real (chat y atenciones en vivo) | Operativo (Channels + Daphne, `InMemoryChannelLayer`) |
 | Logo y tipografía oficiales | Operativo (paleta granate #920000, tipografía sin serifas y escudo/imagotipo institucional en `base.html` y `base_auth.html`) |
 
 ---
@@ -371,4 +381,9 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
    sudo systemctl status sgr
    ```
 
-   El servicio corre `gunicorn config.wsgi:application` para que el proceso siga vivo al cerrar la sesión SSH.
+   El servicio corre `daphne config.asgi:application` (servidor ASGI, necesario para los
+   WebSockets de tiempo real) para que el proceso siga vivo al cerrar la sesión SSH.
+
+   > ⚠️ **Tiempo real y escalado:** el `CHANNEL_LAYERS` actual usa `InMemoryChannelLayer`,
+   > válido para un **único proceso** de Daphne. Para escalar a varios workers/instancias,
+   > configura `channels_redis` y apunta `CHANNEL_LAYERS` a Redis.

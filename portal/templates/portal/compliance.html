@@ -1,0 +1,149 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<style>
+  .b-rojo{background:#fdecea;color:#b71c1c}
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }}</nav>
+<div class="titlebar"><h1>{{ module_label }}</h1></div>
+
+<section class="card toolbar" aria-label="Filtro de trimestre">
+<form method="get" role="search" style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+    <div class="statebox">
+    <label for="periodo">Trimestre</label>
+    <select class="in" id="periodo" name="periodo">
+        {% for p in periodos %}
+        <option value="{{ p.pk }}"{% if periodo and p.pk == periodo.pk %} selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+    </select>
+    </div>
+    <button class="btn primary" type="submit">Ver cumplimiento</button>
+    <a class="btn-outline" href="{% url 'tubes' %}">Ver tubos de trabajo</a>
+</form>
+</section>
+
+{% if not periodo %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>Sin trimestres registrados</h2>
+<p>Primero hay que crear un período de medición.</p>
+</div>
+{% elif not filas %}
+<div class="state">
+<div class="ic">{% sgr_icon module_icon 24 %}</div>
+<h2>No hay funcionarios con cargo asignado</h2>
+<p>Asigna un cargo a los funcionarios de la delegación para ver su cumplimiento.</p>
+</div>
+{% else %}
+<p class="meta">Cada ítem cuenta hasta el {{ tope_pct }} %. Solo suman las actividades realizadas con evidencia validada.</p>
+{% for fila in filas %}
+{% with c=fila.cumplimiento %}
+<section class="card" style="margin-bottom:16px">
+<h2>
+    {{ fila.empleado.full_name }}
+    <span class="badge {% if c.semaforo == 'verde' %}b-ok{% elif c.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">
+    {% if c.semaforo == 'verde' %}Verde{% elif c.semaforo == 'amarillo' %}Amarillo{% else %}Rojo{% endif %}
+    </span>
+</h2>
+<p class="meta">
+    {{ fila.empleado.position.name }} · {{ fila.empleado.delegation.name }}
+    · {{ fila.libres }} día{{ fila.libres|pluralize }} libre{{ fila.libres|pluralize }}
+</p>
+<p>
+    <strong>Cumplimiento: {{ c.porcentaje }} %</strong>
+    ({{ c.puntaje_total }} de {{ c.suma_pesos }} puntos) · Avance esperado a hoy: {{ fila.esperado_pct }} %
+</p>
+
+{% if c.items %}
+<div class="tablewrap">
+    <table>
+    <caption class="sr">Cumplimiento de {{ fila.empleado.full_name }} en {{ periodo.name }}</caption>
+    <thead>
+        <tr>
+        <th scope="col">Ítem</th>
+        <th scope="col">Ponderador (%)</th>
+        <th scope="col">Meta</th>
+        <th scope="col">Logrado</th>
+        <th scope="col">Logro (%)</th>
+        <th scope="col">Puntaje</th>
+        <th scope="col">Semáforo</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for it in c.items %}
+        <tr>
+        <td>{{ it.item.name }}</td>
+        <td>{{ it.peso }}</td>
+        <td>{% if it.es_tubo %}{{ it.meta_txt }}{% else %}{{ it.meta }}{% endif %}</td>
+        <td>{% if it.es_tubo %}{{ it.logrado_txt }}{% else %}{{ it.logrado }}{% endif %}</td>
+        <td>{{ it.logro_pct }}</td>
+        <td>{{ it.puntaje }}</td>
+        <td>
+            <span class="badge {% if it.semaforo == 'verde' %}b-ok{% elif it.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">
+            {% if it.semaforo == 'verde' %}Verde{% elif it.semaforo == 'amarillo' %}Amarillo{% else %}Rojo{% endif %}
+            </span>
+        </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    </table>
+</div>
+{% else %}
+<p class="meta">Este cargo no tiene metas cargadas para {{ periodo.name }}.</p>
+{% endif %}
+
+<h3 style="margin-top:18px">Felicitaciones y reclamos</h3>
+<p class="meta">
+    Felicitaciones con respaldo: {{ c.felicitaciones }} (cuentan hasta {{ max_felicitaciones }}, suman {{ c.bonus }} puntos)
+    · Reclamos: {{ c.reclamos }} (restan {{ c.descuento }} puntos)
+</p>
+{% if fila.comentarios %}
+<ul>
+    {% for r in fila.comentarios %}
+    <li>
+    <span class="badge {% if r.kind == 'praise' %}b-ok{% else %}b-rojo{% endif %}">{{ r.get_kind_display }}</span>
+    {{ r.date|date:"d/m/Y" }} · {{ r.description }}
+    {% if r.file %}· <a href="{{ r.file.url }}" target="_blank" rel="noopener">Respaldo</a>
+    {% elif r.kind == 'praise' %}· <em>sin respaldo (no suma)</em>{% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="meta">No hay felicitaciones ni reclamos en este trimestre.</p>
+{% endif %}
+
+{% if can_create %}
+<form method="post" action="{% url 'feedback_create' fila.empleado.pk %}" enctype="multipart/form-data"
+        style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+    {% csrf_token %}
+    <div>
+    <label class="fl" for="tipo-{{ fila.empleado.pk }}">Tipo</label>
+    <select class="in" id="tipo-{{ fila.empleado.pk }}" name="kind">
+        <option value="praise">Felicitación (+{{ puntos_felicitacion }})</option>
+        <option value="complaint">Reclamo (−{{ puntos_reclamo }})</option>
+    </select>
+    </div>
+    <div>
+    <label class="fl" for="fecha-{{ fila.empleado.pk }}">Fecha</label>
+    <input class="in" id="fecha-{{ fila.empleado.pk }}" name="date" type="date" required value="{% now 'Y-m-d' %}">
+    </div>
+    <div>
+    <label class="fl" for="desc-{{ fila.empleado.pk }}">Descripción</label>
+    <input class="in" id="desc-{{ fila.empleado.pk }}" name="description" maxlength="255" required placeholder="Motivo">
+    </div>
+    <div>
+    <label class="fl" for="file-{{ fila.empleado.pk }}">Respaldo formal (obligatorio en felicitaciones)</label>
+    <input class="in" id="file-{{ fila.empleado.pk }}" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp">
+    </div>
+    <button class="btn primary" type="submit">Registrar</button>
+</form>
+{% endif %}
+</section>
+{% endwith %}
+{% endfor %}
+{% endif %}
+{% endblock %}

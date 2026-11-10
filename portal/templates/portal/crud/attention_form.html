@@ -1,14 +1,21 @@
 {% extends 'portal/base.html' %}
 {% load static sgr_icons %}
-{% block title %}Atención{% endblock %}
+{% block title %}{% if is_create %}Ingreso de atención{% elif is_view %}Consulta de atención{% else %}Editar atención{% endif %}{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
 {% endblock %}
 {% block content %}
-<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'attentions' %}">Atenciones</a></nav>
-<div class="titlebar"><h1>{% if is_create %}Ingreso de atención{% elif is_view %}Consulta de atención{% else %}Editar atención{% endif %}</h1></div>
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'attentions' %}">Atenciones</a>{% if attention_number %} / {{ attention_number }}{% endif %}</nav>
+<div class="titlebar"><h1>{% if is_create %}Ingreso de atención{% elif is_view %}Consulta de atención{% else %}Editar atención{% endif %}{% if attention_number %} {{ attention_number }}{% endif %}</h1></div>
 
-<form class="card fgrid" method="post" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}>
+{% if week_closure %}
+<div class="scope scope-lock" role="note">{% sgr_icon 'lock' 18 %}<span>Semana cerrada ({{ week_closure_label }}): esta atención quedó en solo lectura. Las gestiones de seguimiento se registran en la semana en curso.</span></div>
+{% endif %}
+{% if is_create and daily_limit_note %}
+<div class="scope" role="note">{% sgr_icon 'info' 18 %}<span>{{ daily_limit_note }} Si el vecino vuelve por el mismo caso, registra una gestión de seguimiento en su atención: no cuenta como ingreso nuevo.</span></div>
+{% endif %}
+
+<form class="card fgrid" method="post" enctype="multipart/form-data" novalidate id="crudForm"{% if has_errors %} data-has-errors="1"{% endif %}>
   {% csrf_token %}
   <div id="crudFormErrors" aria-live="polite">
     {% for error in form.non_field_errors %}
@@ -16,23 +23,23 @@
     {% endfor %}
   </div>
   <div class="grid">
-    {# Vecino o solicitante: búsqueda al crear; texto fijo al editar/ver #}
-    <div>
-      <label class="fl" for="f_sol">Vecino o solicitante {% if is_create %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
-      {% if is_create %}
-      {{ form.neighbor }}
-      <input class="in" id="f_sol" type="text" placeholder="Buscar por identificador o nombre..." autocomplete="off" aria-required="true" aria-describedby="id_neighbor-e f_sol-h">
+    {# Vecino o solicitante: RUT, nombre y teléfono obligatorios al crear; texto fijo al editar/ver #}
+    {% if is_create %}
+    <div class="full">
+      <label class="fl" for="f_sol">Buscar vecino registrado <span class="help-inline">(opcional)</span></label>
+      <input class="in" id="f_sol" type="text" placeholder="Buscar por RUT (con o sin puntos) o por nombre..." autocomplete="off" aria-describedby="f_sol-h">
       <div class="nb-results" id="f_sol_results" hidden></div>
-      <p class="help" id="f_sol-h">Escribe para buscar y elige un solicitante de la lista.</p>
-      {% else %}
-      <input class="in" id="f_sol" value="{{ neighbor_label }}" readonly disabled>
-      {% endif %}
-      <div id="id_neighbor-e" aria-live="polite">
-        {% for error in form.neighbor.errors %}
-        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
-        {% endfor %}
-      </div>
+      <p class="help" id="f_sol-h">Si el vecino ya está registrado, elígelo para completar sus datos. Si no, ingrésalos abajo: se registra al guardar la atención.</p>
     </div>
+    {% include 'portal/crud/_field.html' with field=form.neighbor_rut %}
+    {% include 'portal/crud/_field.html' with field=form.neighbor_name %}
+    {% include 'portal/crud/_field.html' with field=form.neighbor_phone %}
+    {% else %}
+    <div>
+      <label class="fl" for="f_sol">Vecino o solicitante</label>
+      <input class="in" id="f_sol" value="{{ neighbor_label }}" readonly disabled>
+    </div>
+    {% endif %}
 
     {# Delegación de atención: select (coordinador/superadmin al crear) o fijo #}
     <div>
@@ -72,6 +79,13 @@
       </div>
     </div>
 
+    {# Requiere visita a terreno #}
+    <div>
+      <span class="fl">Visita a terreno</span>
+      <label class="checkrow" for="id_requires_visit">{{ form.requires_visit }}<span>Requiere visita a terreno</span></label>
+      {% if not is_view %}<p class="help">Márcalo si un funcionario debe ir al domicilio o al sector del vecino.</p>{% endif %}
+    </div>
+
     {# Descripción con contador en vivo #}
     <div class="full">
       <label class="fl" for="id_description">Descripción de la atención {% if not is_view %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
@@ -84,7 +98,44 @@
       </div>
     </div>
 
-    {# Estado: editable solo al editar #}
+    {# Imagen de evidencia (opcional, máx. 2 MB) con vista previa #}
+    <div>
+      <label class="fl" for="id_evidence_image">{{ form.evidence_image.label }}</label>
+      {{ form.evidence_image }}
+      <p class="help">Formatos: JPG, PNG o WEBP. Se guarda con el N° de la atención (ATN-0001_...).</p>
+      {% if form.instance.evidence_image %}
+      <div class="media-box">
+        <a href="{{ form.instance.evidence_image.url }}" target="_blank" rel="noopener"><img class="media-thumb" src="{{ form.instance.evidence_image.url }}" alt="Imagen de evidencia actual"></a>
+        <span class="help">Imagen actual{% if not is_view %}. Si eliges otra, la reemplaza{% endif %}.</span>
+      </div>
+      {% endif %}
+      <div class="media-box" id="evidencePreviewBox" hidden>
+        <img class="media-thumb" id="evidencePreview" alt="Vista previa de la imagen seleccionada">
+        <span class="help">Vista previa (aún no guardada).</span>
+      </div>
+      <div id="id_evidence_image-e" aria-live="polite">
+        {% for error in form.evidence_image.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Documento de respaldo (opcional, máx. 5 MB) #}
+    <div>
+      <label class="fl" for="id_attachment">{{ form.attachment.label }}</label>
+      {{ form.attachment }}
+      <p class="help">Formatos: PDF, JPG, PNG o WEBP.</p>
+      {% if form.instance.attachment %}
+      <p class="help"><a href="{{ form.instance.attachment.url }}" target="_blank" rel="noopener">Ver o descargar el documento actual</a></p>
+      {% endif %}
+      <div id="id_attachment-e" aria-live="polite">
+        {% for error in form.attachment.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Estado: editable solo al editar; "Sin resolver" exige motivo #}
     {% if status_in_form %}
     <div>
       <label class="fl" for="id_status">Estado</label>
@@ -95,17 +146,62 @@
         {% endfor %}
       </div>
     </div>
+    <div class="full" id="unresolvedBox" data-unresolved-value="{{ unresolved_value }}">
+      <label class="fl" for="id_unresolved_reason">Motivo de baja (Sin resolver) {% if not is_view %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+      {{ form.unresolved_reason }}
+      {% if not is_view %}<p class="help">Obligatorio al dar de baja la atención como «Sin resolver» (10 a 500 caracteres).</p>{% endif %}
+      <div id="id_unresolved_reason-e" aria-live="polite">
+        {% for error in form.unresolved_reason.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
     {% endif %}
   </div>
 
-  <p class="meta">Responsable: {{ responsible_name }}{% if is_create %} (usuario de sesión){% endif %} | Fecha y hora: {{ attention_date_text }}</p>
+  <p class="meta">Responsable: {{ responsible_name }}{% if is_create %} (usuario de sesión){% endif %} | Fecha y hora: {{ attention_date_text }}{% if score_display %} | Puntaje operativo: {{ score_display }}{% endif %}</p>
   <div class="formfoot">
     <a class="btn ghost" href="{{ cancel_url }}" id="cancelBtn">{% if is_view %}Volver{% else %}Cancelar{% endif %}</a>
     {% if not is_view %}
     <button class="btn primary" type="submit" id="saveBtn">{% if is_create %}Guardar atención{% else %}Guardar cambios{% endif %}</button>
+    {% elif can_edit and not week_closure %}
+    <a class="btn primary" href="{% url 'attentions_edit' object_pk %}">Editar atención</a>
     {% endif %}
   </div>
 </form>
+
+{# Gestiones de seguimiento (máx. 3): no cuentan como atención nueva #}
+{% if not is_create and follow_ups is not None %}
+<section class="card followups" aria-labelledby="fuTitle">
+  <div class="fu-head">
+    <h2 id="fuTitle">Gestiones de seguimiento</h2>
+    <span class="badge b-info">{{ follow_ups|length }} de {{ max_follow_ups }}</span>
+  </div>
+  <p class="help">Una gestión registra lo que se hizo después del ingreso (llamada, visita, derivación o respuesta al vecino). No es una atención nueva: no suma al puntaje operativo ni al tope diario de ingresos.</p>
+  {% if follow_ups %}
+  <ol class="fu-list">
+    {% for item in follow_ups %}
+    <li>
+      <div class="fu-meta"><strong>Gestión {{ item.sequence }}</strong> · {{ item.created_at_display }} · {{ item.performed_by_name }}</div>
+      <p>{{ item.description }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="fu-empty">Aún no hay gestiones registradas.</p>
+  {% endif %}
+  {% if can_add_follow_up %}
+  <form method="post" action="{% url 'attention_follow_up_new' object_pk %}" class="fu-form" id="followUpForm">
+    {% csrf_token %}
+    <label class="fl" for="id_fu_description">Nueva gestión ({{ next_follow_up }} de {{ max_follow_ups }}) <span class="req" aria-hidden="true">*</span></label>
+    <textarea class="in" id="id_fu_description" name="description" rows="3" minlength="10" maxlength="500" required placeholder="Describe la gestión realizada..."></textarea>
+    <div class="formfoot"><button class="btn primary" type="submit">Registrar gestión</button></div>
+  </form>
+  {% elif follow_up_block_reason %}
+  <p class="help fu-blocked">{% sgr_icon 'info' 14 %} {{ follow_up_block_reason }}</p>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 {{ subtype_type_map|json_script:"subtype-type-map" }}

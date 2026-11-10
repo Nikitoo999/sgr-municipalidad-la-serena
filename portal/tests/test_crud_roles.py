@@ -3,7 +3,7 @@
 Cubre: permisos por rol (solo el superadmin entra), matriz guardada con efecto
 inmediato en el acceso, "Ver" obligatorio, sin módulos habilitados, rol del
 sistema no editable ni eliminable, rol con usuarios no eliminable ni
-desactivable, código duplicado sin distinguir mayúsculas, 403/404 con AuditLog,
+desactivable, código automático ROL05 (el POST no lo impone), 403/404 con AuditLog,
 exportación solo con las columnas configuradas y la no-regresión del ancho
 completo de los campos de Delegaciones (formulario base del motor).
 """
@@ -113,7 +113,7 @@ class CrudRolesTestCase(TestCase):
 
         detail = self.client.get(reverse("roles_detail", args=[created.pk]))
         self.assertEqual(detail.status_code, 200)
-        self.assertContains(detail, "Consulta de registro")
+        self.assertContains(detail, "Consulta de rol")
         # Modo consulta: la matriz se renderiza deshabilitada.
         self.assertContains(detail, "disabled")
 
@@ -176,14 +176,15 @@ class CrudRolesTestCase(TestCase):
         self.assertContains(resp, "Habilita al menos un módulo", status_code=200)
         self.assertFalse(Role.alive.filter(code="ROL05").exists())
 
-    def test_codigo_duplicado_sin_distinguir_mayusculas(self):
+    def test_codigo_automatico_no_se_impone_por_post(self):
         self._login("superadmin")
         resp = self.client.post(
             reverse("roles_new"), self._matrix_post(code="rol01")
         )
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Ya existe un rol con este código", status_code=200)
-        # Se guarda en mayúsculas y no duplica el ROL01 existente.
+        self.assertEqual(resp.status_code, 302)
+        # ROL01..ROL04 son los roles base: el nuevo recibe ROL05 y el ROL01
+        # existente no se duplica.
+        self.assertEqual(Role.alive.get(name="Rol de prueba").code, "ROL05")
         self.assertEqual(Role.objects.filter(code__iexact="ROL01").count(), 1)
 
     # ---------------------------------------------------------------

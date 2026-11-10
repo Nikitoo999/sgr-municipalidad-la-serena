@@ -2,9 +2,10 @@
 
 Cubre: alcance por rol en listado/consulta/edición/exportación, el funcionario
 no abre atenciones ajenas por URL (403), POST manipulado rechazado (delegación
-no permitida, tipo inactivo, subtipo de otro tipo, solicitante inexistente,
+no permitida, tipo inactivo, subtipo de otro tipo, RUT del vecino inválido,
 descripción corta), número automático y único, endpoint JSON con sesión y
 permiso, cambio de delegación activa, exportación con filtros y doble envío.
+Las reglas del Bloque 2B tienen su propio archivo (test_atenciones_bloque2b).
 """
 
 import io
@@ -101,7 +102,9 @@ class AttentionsTestCase(TestCase):
 
     def _post_data(self, **extra):
         data = {
-            "neighbor": str(self.vecino.pk),
+            "neighbor_rut": self.vecino.identifier,
+            "neighbor_name": self.vecino.full_name,
+            "neighbor_phone": "+56 9 1111 1111",
             "delegation": str(self.d1.pk),
             "attention_type": str(self.tipo.pk),
             "attention_subtype": str(self.sub.pk),
@@ -237,13 +240,13 @@ class AttentionsTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(Attention.objects.count(), 3)
 
-    def test_post_solicitante_inexistente(self):
+    def test_post_rut_del_vecino_invalido(self):
         self._login("coordinador")
         resp = self.client.post(
-            reverse("attentions_new"), self._post_data(neighbor="999999"),
+            reverse("attentions_new"), self._post_data(neighbor_rut="11.111.111-2"),
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "solicitante")
+        self.assertContains(resp, "dígito verificador")
         self.assertEqual(Attention.objects.count(), 3)
 
     def test_post_descripcion_corta(self):
@@ -331,7 +334,8 @@ class AttentionsTestCase(TestCase):
         self.assertEqual(
             [cell.value for cell in sheet[1]],
             ["N°", "Fecha y hora", "Solicitante", "Tipo", "Sub atención",
-             "Delegación", "Responsable", "Estado"],
+             "Delegación", "Responsable", "Estado", "Requiere visita",
+             "Gestiones", "Puntaje operativo", "Semana cerrada"],
         )
         # Delegación activa DEL01: 2 filas de datos.
         self.assertEqual(sheet.max_row - 1, 2)
