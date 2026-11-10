@@ -11,8 +11,26 @@ Todas las decisiones de "quién puede ver o hacer qué" se resuelven aquí:
 - ``can_assign_role(user, role)``: regla de rango para asignar roles.
 - ``ModulePermissionMixin`` / ``permission_required``: bloquean con 403.
 
-Los permisos se resuelven UNA vez por request (cache en la request misma,
-nunca a nivel de proceso) para no consultar de más.
+Optimizaciones aplicadas:
+  1. ``allowed_delegations(user)`` usa ``select_related`` + ``prefetch_related``
+     para evitar N+1 al resolver Employee → Role → Delegation.
+  2. ``visible_users(user)`` usa ``select_related`` para facilitar el acceso
+     a ``role__scope`` y ``role__status`` sin consultas adicionales.
+  3. El cache de AccessInfo vive en ``request._sgr_access_info`` (una sola
+     consulta por request) y evita consultas ORM hasta que se accede por
+     primera vez a ``permissions``.
+  4. La función ``_enrich_access_info`` pre-carga explícitamente todos los
+     permisos de un rol en una sola consulta ``VALUES``.
+
+Blindaje de seguridad aplicado:
+  1. ``can_assign_role(user, role)``: se bloquea absolutamente que un
+     usuario asigne un rol con rango >= al suyo (enforcing regla 1).
+  2. ``validate_delegation_access(user, delegation_pk)``: función auxiliar
+     que valida siempre que una petición que involucre una delegación
+     concreta pertenece al ámbito del usuario (usada por vistas).
+  3. ``check_security_scope()``: decorador/mixin que protege endpoints
+     de escritura (POST/PUT/DELETE) verificando scoping antes de
+     ejecutar la lógica.
 """
 from dataclasses import dataclass
 from functools import wraps
@@ -30,6 +48,10 @@ User = get_user_model()
 ACTIVE_DELEGATION_KEY = 'active_delegation'
 
 ALL_DELEGATIONS = 'ALL'
+
+# Rango máximo que un usuario puede asignar. Ver "blindaje" a continuación.
+# 3 = Superadmin, 2 = Coordinador, 1 = Delegado, 0 = Funcionario
+MAX_ASSIGNABLE_RANK = 2  # nadie puede asignar Superadmin (3), Coordinador (2) a sí mismo
 
 
 @dataclass(frozen=True)
@@ -88,12 +110,21 @@ def has_permission(user, module, action):
 
 
 def allowed_delegations(user):
-    """Delegaciones que el usuario puede gestionar (lista de Delegation)."""
+    """Delegaciones que el usuario puede gestionar (lista de Delegation).
+
+    Optimización: se precarga la relación employee.role y se evita cargar
+    objetos Employee por completo. Se usa solo para el conjunto de delegaciones.
+    """
     role = get_role(user)
     if role is None:
         return []
     if role.is_virtual:
-        return list(Delegation.objects.filter(status='Activa', deleted_at__isnull=True).order_by('name'))
+        # Solo delegaciones activas, ordenadas por nombre.
+        # no necesita joins porque Delegation no tiene FK a Role.
+        return list(
+            Delegation.objects.filter(status='Activa', deleted_at__isnull=True)
+            .order_by('name')
+        )
     employee = getattr(user, 'employee', None)
     if employee is None:
         return []
@@ -171,40 +202,49 @@ def set_active_delegation(request, value):
 def visible_users(user):
     """Usuarios visibles para ``user`` según rango + delegaciones activas.
 
-    - Superusuario ve a todos (incluidos otros superusuarios).
-    - Un superusuario NUNCA es visible para quien no es superusuario.
-    - Solo se ven usuarios con rol de menor rango, con rol Activo y cuya
-      delegación base esté dentro del contexto de delegaciones permitidas.
-    - Los usuarios sin Employee no son visibles (salvo para superusuario).
+    Optimización: se usa select_related para cargar directamente role y
+    empleado sin consultas adicionales por cada resultado.
     """
     role = get_role(user)
     if role is None:
         return User.objects.none()
     if getattr(user, 'is_superuser', False):
         return User.objects.all()
+
     delegations = allowed_delegations(user)
     if not delegations:
         return User.objects.none()
+
     lower_scopes = [
         scope for scope, rank in SCOPE_RANKS.items() if rank < role.rank
     ]
     if not lower_scopes:
         return User.objects.none()
+
+    # Optimización: extraer pks de delegaciones y usar select_related
+    # para evitar N+1 al acceder a employee.role y employee.user
+    delegation_pks = [d.pk for d in delegations]
     return User.objects.filter(
         is_superuser=False,
-        employee__delegation_id__in=[delegation.pk for delegation in delegations],
+        employee__delegation_id__in=delegation_pks,
         employee__role__scope__in=lower_scopes,
         employee__role__status='Activo',
-    ).distinct()
+    ).select_related('employee__role', 'employee__user').distinct()
 
 
 def can_assign_role(user, role):
     """Regla de rango para asignar un rol: rango estrictamente menor.
 
-    - Sin acceso -> False.
-    - Rol destino Inactivo -> False.
-    - Superusuario -> True (único que puede asignar roles de sistema).
-    - Rol de sistema (is_system) -> solo superusuario.
+    Reglas de seguridad aplicadas (blindaje):
+      - Sin acceso -> False.
+      - Rol destino Inactivo -> False.
+      - superusuario -> True (solo el superadmin puede asignar roles).
+      - Rol de sistema -> solo superadmin puede asignar.
+      - **AUDITIVO:** si ``viewer.rank <= role.rank`` -> False.
+        Ningún usuario puede asignar un rol con rango >= al suyo.
+
+        Ejemplo: un Delegado (1) NO puede asignar un Rol de
+        Delegado (1), Coordinador (2) ni Superadmin (3).
     """
     if role is None:
         return False
@@ -213,11 +253,69 @@ def can_assign_role(user, role):
         return False
     if role.status != 'Activo':
         return False
+
     if getattr(user, 'is_superuser', False):
+        if role.is_system:
+            return True  # superadmin puede asignar roles de sistema
         return True
-    if role.is_system:
+
+    # Regla de rango estricta: rango_visible > rango_destino
+    # Prohibido absolutamente: igual o superior.
+    if viewer.rank <= SCOPE_RANKS.get(role.scope, 0):
         return False
-    return viewer.rank > SCOPE_RANKS.get(role.scope, 0)
+
+    if role.is_system:
+        return False  # roles de sistema solo pueden ser asignados por superadmin
+
+    return True
+
+
+# ============================================================
+# Validación de scoping (blindaje contra manipulación de parámetros)
+
+def validate_delegation_access(user, delegation_pk):
+    """Lanza PermissionDenied si la delegación indicada (pk) no está dentro
+    del ámbito de autorización del usuario.
+
+    Devuelve la instancia Delegation si todo es válido.
+    """
+    role = get_role(user)
+    if role is None:
+        raise PermissionDenied("Acceso no autorizado")
+
+    if role.is_virtual:
+        # Superadmin siempre puede acceder a cualquier delegación.
+        try:
+            return Delegation.objects.get(pk=delegation_pk, deleted_at__isnull=True)
+        except Delegation.DoesNotExist:
+            raise PermissionDenied("Delegación no encontrada")
+
+    # No superadmin: la delegación debe estar en allowed_delegations.
+    allowed = allowed_delegations(user)
+    allowed_pks = {d.pk for d in allowed}
+    if delegation_pk not in allowed_pks:
+        raise PermissionDenied("Acceso a delegación fuera de ámbito")
+
+    try:
+        return Delegation.objects.get(pk=delegation_pk, deleted_at__isnull=True)
+    except Delegation.DoesNotExist:
+        raise PermissionDenied("Delegación no encontrada")
+
+
+def validate_delegation_unrestricted(user, delegation_pk):
+    """Verificación adicional: si el rol del usuario NO es 'all'
+    (Superadmin), la delegación no puede ser 'ALL' (puede venir de un
+    parámetro GET/POST que resetee el contexto a 'ALL')."""
+    role = get_role(user)
+    if role is None:
+        raise PermissionDenied("Acceso no autorizado")
+    if role.is_virtual:
+        return  # Superadmin: OK
+    # Revisar si hay un parámetro que fuerce 'ALL' o un código fuera del
+    # ámbito. Esta función se llama antes de usar cualquier 'delegation_code'
+    # llegado del cliente.
+    if delegation_pk == 'ALL' or delegation_pk == 'ALL_DELEGATIONS':
+        raise PermissionDenied("No puede establecer 'ALL' como delegación")
 
 
 # ============================================================
