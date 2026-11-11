@@ -25,6 +25,7 @@ Bloque 2A (mantenedores):
 """
 
 import re
+from datetime import date, datetime, time, timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -213,7 +214,7 @@ def base_list_keys(config):
     return (
         "q", "estado",
         *(spec.param for spec in config.filters),
-        "orden", "por_pagina", "page",
+        "desde", "hasta", "orden", "por_pagina", "page",
     )
 
 
@@ -313,6 +314,32 @@ def valid_page_size(config, raw):
     return str(value) if value in config.page_size_options else ""
 
 
+def _parse_date(raw):
+    """Fecha ISO (AAAA-MM-DD) o ``None``."""
+    try:
+        return date.fromisoformat(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _day_start(day):
+    return timezone.make_aware(datetime.combine(day, time.min))
+
+
+def _apply_date_range(queryset, desde, hasta):
+    """Filtra ``created_at`` por límites explícitos y compatibles con MariaDB."""
+    if desde:
+        queryset = queryset.filter(created_at__gte=_day_start(date.fromisoformat(desde)))
+    if hasta:
+        try:
+            limit = _day_start(date.fromisoformat(hasta) + timedelta(days=1))
+        except OverflowError:
+            limit = None
+        if limit is not None:
+            queryset = queryset.filter(created_at__lt=limit)
+    return queryset
+
+
 def resolve_filters(request, config, raw):
     """Valores válidos de los filtros propios y sus controles para la plantilla."""
     values, controls = {}, []
@@ -350,6 +377,15 @@ def resolve_list(request, config, raw):
     }
     filter_values, controls = resolve_filters(request, config, raw)
     params.update(filter_values)
+    desde = _parse_date(raw.get("desde"))
+    hasta = _parse_date(raw.get("hasta"))
+    date_error = ""
+    if desde and hasta and desde > hasta:
+        date_error = "La fecha «Desde» no puede ser posterior a «Hasta»: se ignoró el rango."
+        desde = hasta = None
+    params["desde"] = desde.isoformat() if desde else ""
+    params["hasta"] = hasta.isoformat() if hasta else ""
+    params["date_error"] = date_error
     orden = str(raw.get("orden") or "").strip()
     params["orden"] = orden if split_order(orden)[0] in config.sort_map else ""
     params["por_pagina"] = valid_page_size(config, raw.get("por_pagina"))
@@ -358,12 +394,15 @@ def resolve_list(request, config, raw):
 
 
 def listing_queryset(request, config, params):
-    """Alcance + estado + filtros propios + búsqueda + orden (en la BD)."""
+    """Alcance + estado + filtros propios + fechas + búsqueda + orden (en la BD)."""
     queryset = filtered_queryset(request, config, estado=params.get("estado", ""))
     for spec in config.filters:
         value = params.get(spec.param, "")
         if value:
             queryset = spec.filter_queryset(queryset, value)
+    queryset = _apply_date_range(
+        queryset, params.get("desde", ""), params.get("hasta", ""),
+    )
     queryset = apply_search(queryset, config.search_fields, params.get("q", ""))
     return order_queryset(queryset, config, params.get("orden", ""))
 
@@ -527,8 +566,12 @@ class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, Tem
         queryset = listing_queryset(request, config, params)
         context.update(paginate_listing(config, queryset, params, keys))
 
-        filters_active = bool(params["q"] or params["estado"]) or any(
-            params.get(spec.param) for spec in config.filters
+        filters_active = (
+            bool(
+                params["q"] or params["estado"]
+                or params["desde"] or params["hasta"]
+            )
+            or any(params.get(spec.param) for spec in config.filters)
         )
         list_url = reverse(config.module_key)
         context.update(
@@ -538,6 +581,9 @@ class CrudListView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, Tem
                 "columns": config.columns,
                 "query": params["q"],
                 "estado": params["estado"],
+                "date_from": params["desde"],
+                "date_to": params["hasta"],
+                "date_error": params["date_error"],
                 "status_options": config.status_options,
                 "filter_controls": filter_controls,
                 "empty_kind": "results" if filters_active else "records",

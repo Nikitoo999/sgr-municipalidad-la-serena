@@ -57,6 +57,14 @@
       </select>
     </div>
     {% endfor %}
+    <div class="field field-date">
+      <label for="desde">Desde</label>
+      <input class="in" id="desde" name="desde" type="date" value="{{ date_from }}" data-autosubmit>
+    </div>
+    <div class="field field-date">
+      <label for="hasta">Hasta</label>
+      <input class="in" id="hasta" name="hasta" type="date" value="{{ date_to }}" data-autosubmit>
+    </div>
     <div class="field field-size">
       <label for="por_pagina">Filas por página</label>
       <select class="in" id="por_pagina" name="por_pagina" data-autosubmit>
@@ -69,6 +77,10 @@
     {% if current_order %}<input type="hidden" name="orden" value="{{ current_order }}">{% endif %}
   </form>
 </section>
+
+{% if date_error %}
+<p class="filter-warning" role="alert">{{ date_error }}</p>
+{% endif %}
 
 {% if rows %}
 <div class="tablewrap">
