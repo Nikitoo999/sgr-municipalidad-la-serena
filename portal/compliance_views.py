@@ -1,3 +1,7 @@
+from django import forms
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse, reverse_lazy
 """Cumplimiento de la matriz por funcionario, con semáforo (3.6)."""
 from decimal import Decimal
 
@@ -5,32 +9,16 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from operaciones.calculos import TOPE_CUMPLIMIENTO, calcular_cumplimiento, dias_libres
-from sgr_core.models import Period
-
-"""Cumplimiento de la matriz por funcionario: semáforo, felicitaciones y reclamos (3.6)."""
-from decimal import Decimal
-
-from django import forms
-from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404, redirect
-from django.utils import timezone
-from django.views import View
-from django.views.generic import TemplateView
-
-from operaciones.calculos import (
-    MAX_FELICITACIONES, PUNTOS_FELICITACION, PUNTOS_RECLAMO, TOPE_CUMPLIMIENTO,
-    calcular_cumplimiento, dias_libres,
-)
-from operaciones.models import EmployeeFeedback
+from operaciones.calculos import TOPE_CUMPLIMIENTO, calcular_cumplimiento, dias_libres, MAX_FELICITACIONES, PUNTOS_FELICITACION, PUNTOS_RECLAMO
 from sgr_core.models import Period
 
 from . import access
 from .access import ModulePermissionMixin
 from .audit import audit
 from .goals_views import elegir_periodo, funcionarios_del_alcance
+from django.core.exceptions import PermissionDenied
+from django.views import View
+from operaciones.models import EmployeeFeedback
 from .modules import MODULE_ICONS, MODULE_LABELS
 
 DECIMO = Decimal("0.1")

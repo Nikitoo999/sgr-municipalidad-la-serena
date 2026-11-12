@@ -23,7 +23,7 @@ from sgr_core.models import (
     Role,
     RolePermission,
 )
-from sgr_core.roles import ACTIONS, MODULES, SCOPES
+from sgr_core.roles import ACTIONS, MODULES
 
 from ..access import (
     ALL_DELEGATIONS,

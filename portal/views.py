@@ -585,7 +585,7 @@ class PasswordResetConfirmView(TemplateView):
         if not request.session.get('pr_verified'):
             return False
         verified_at = request.session.get('pr_verified_at', 0)
-        if int(time.time()) - verified_at > CODE_EXPIRY_MINUTES * 60:
+        if int(time.time()) - verified_at > _code_ttl_seconds():
             return False
         return True
 

@@ -3,8 +3,12 @@ from django.contrib import admin
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
-from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit
-from .models import Task, Activity, Evidence, Employee, TaskReassignment, Benefit, EmployeeDayOff, EmployeeFeedback, TubeEntry
+from .models import (
+    Task, Activity, Evidence, Employee, TaskReassignment, Benefit,
+    EmployeeDayOff, EmployeeFeedback, TubeEntry,
+)
+
+from portal.access import AdminScopedMixin
 
 
 
@@ -19,7 +23,7 @@ def _is_jefatura(request):
     return emp.role.scope in ("authorized", "own_delegation")
 
 
-def _is_usuario(request):
+def _is_funcionario(request):
     emp = _get_employee(request)
     if emp is None or emp.role_id is None:
         return False
@@ -78,7 +82,7 @@ def validate_evidences(modeladmin, request, queryset):
 
 
 @admin.register(Employee)
-class EmployeeAdmin(admin.ModelAdmin):
+class EmployeeAdmin(AdminScopedMixin, admin.ModelAdmin):
     list_display = ('user', 'rut', 'delegation', 'role', 'position')
     list_filter = ('delegation', 'role', 'position')
     search_fields = ('rut', 'user__username', 'user__first_name', 'user__last_name', 'address')
@@ -86,13 +90,12 @@ class EmployeeAdmin(admin.ModelAdmin):
     ordering = ('user__username',)
     readonly_fields = ('created_at', 'updated_at')
 
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        if request.user.is_superuser:
-            return qs
-        if _is_jefatura(request):
-            return qs.filter(delegation=request.user.employee.delegation).exclude(user__is_superuser=True)
-        return qs.none()
+    def has_module_permission(self, request):
+        if request.user.is_superuser or _is_jefatura(request):
+            return super().has_module_permission(request)
+        if _is_funcionario(request):
+            return False
+        return super().has_module_permission(request)
 
     def save_model(self, request, obj, form, change):
         if not request.user.is_superuser and obj.user_id:
@@ -113,7 +116,7 @@ class EmployeeAdmin(admin.ModelAdmin):
 
 
 @admin.register(Task)
-class TaskAdmin(admin.ModelAdmin):
+class TaskAdmin(AdminScopedMixin, admin.ModelAdmin):
     form = TaskForm
     list_display = ('title', 'goal', 'due_date', 'status', 'assigned_to')
     list_filter = ('status', 'assigned_to')
@@ -123,25 +126,16 @@ class TaskAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     inlines = [ActivityInline]
 
-    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Si es superadministrador, ve todo
-        if request.user.is_superuser:
-            return qs
-        # Si es un funcionario normal, solo ve las tareas de su delegación
-        if hasattr(request.user, 'employee'):
-            qs = qs.filter(goal__delegation=request.user.employee.delegation)
-            # Usuario ve solo sus tareas asignadas; Jefatura ve todas las de su delegación
-            if _is_usuario(request):
-                qs = qs.filter(assigned_to=request.user.employee)
-            return qs
-        # Si no tiene empleado asociado, no ve nada
-        return qs.none()
+    def has_module_permission(self, request):
+        if request.user.is_superuser or _is_jefatura(request):
+            return super().has_module_permission(request)
+        if _is_funcionario(request):
+            return False
+        return super().has_module_permission(request)
 
 
 @admin.register(Activity)
-class ActivityAdmin(admin.ModelAdmin):
+class ActivityAdmin(AdminScopedMixin, admin.ModelAdmin):
     list_display = ('name', 'task', 'execution_date')
     list_filter = ('execution_date',)
     search_fields = ('name', 'task__title')
@@ -150,24 +144,16 @@ class ActivityAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     inlines = [EvidenceInline]
 
-    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Si es superadministrador, ve todo
-        if request.user.is_superuser:
-            return qs
-        # Si es un funcionario normal, solo ve las actividades de su delegación
-        if hasattr(request.user, 'employee'):
-            qs = qs.filter(task__goal__delegation=request.user.employee.delegation)
-            if _is_usuario(request):
-                qs = qs.filter(task__assigned_to=request.user.employee)
-            return qs
-        # Si no tiene empleado asociado, no ve nada
-        return qs.none()
+    def has_module_permission(self, request):
+        if request.user.is_superuser or _is_jefatura(request):
+            return super().has_module_permission(request)
+        if _is_funcionario(request):
+            return False
+        return super().has_module_permission(request)
 
 
 @admin.register(Evidence)
-class EvidenceAdmin(admin.ModelAdmin):
+class EvidenceAdmin(AdminScopedMixin, admin.ModelAdmin):
     list_display = ('activity', 'is_validated', 'created_at')
     list_filter = ('is_validated', 'created_at')
     search_fields = ('activity__name',)
@@ -176,24 +162,16 @@ class EvidenceAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     actions = [validate_evidences]
 
-    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Si es superadministrador, ve todo
-        if request.user.is_superuser:
-            return qs
-        # Si es un funcionario normal, solo ve las evidencias de su delegación
-        if hasattr(request.user, 'employee'):
-            qs = qs.filter(activity__task__goal__delegation=request.user.employee.delegation)
-            if _is_usuario(request):
-                qs = qs.filter(activity__task__assigned_to=request.user.employee)
-            return qs
-        # Si no tiene empleado asociado, no ve nada
-        return qs.none()
+    def has_module_permission(self, request):
+        if request.user.is_superuser or _is_jefatura(request):
+            return super().has_module_permission(request)
+        if _is_funcionario(request):
+            return False
+        return super().has_module_permission(request)
 
 
 @admin.register(TaskReassignment)
-class TaskReassignmentAdmin(admin.ModelAdmin):
+class TaskReassignmentAdmin(AdminScopedMixin, admin.ModelAdmin):
     list_display = ('task', 'original_employee', 'reassigned_employee', 'reason', 'reassigned_at')
     list_filter = ('reason',)
     search_fields = ('task__title', 'original_employee__rut', 'reassigned_employee__rut')
@@ -201,28 +179,16 @@ class TaskReassignmentAdmin(admin.ModelAdmin):
     ordering = ('-reassigned_at',)
     readonly_fields = ('created_at', 'updated_at')
 
-    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Si es superadministrador, ve todo
-        if request.user.is_superuser:
-            return qs
-        # Si es un funcionario normal, solo ve las derivaciones de su delegación
-        if hasattr(request.user, 'employee'):
-            return qs.filter(task__goal__delegation=request.user.employee.delegation)
-        # Si no tiene empleado asociado, no ve nada
-        return qs.none()
-
     def has_module_permission(self, request):
         if request.user.is_superuser or _is_jefatura(request):
             return super().has_module_permission(request)
-        if _is_usuario(request):
+        if _is_funcionario(request):
             return False
         return super().has_module_permission(request)
 
 
 @admin.register(Benefit)
-class BenefitAdmin(admin.ModelAdmin):
+class BenefitAdmin(AdminScopedMixin, admin.ModelAdmin):
     list_display = ('employee', 'benefit_type', 'delivery_area', 'delivered_at', 'delivered')
     list_filter = ('benefit_type', 'delivered', 'delivery_area')
     search_fields = ('employee__rut', 'employee__user__username')
@@ -230,22 +196,10 @@ class BenefitAdmin(admin.ModelAdmin):
     ordering = ('-delivered_at',)
     readonly_fields = ('created_at', 'updated_at')
 
-    # Candado de Seguridad (Scoping): Filtra los datos según el usuario logueado
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Si es superadministrador, ve todo
-        if request.user.is_superuser:
-            return qs
-        # Si es un funcionario normal, solo ve los beneficios de su delegación
-        if hasattr(request.user, 'employee'):
-            return qs.filter(employee__delegation=request.user.employee.delegation)
-        # Si no tiene empleado asociado, no ve nada
-        return qs.none()
-
     def has_module_permission(self, request):
         if request.user.is_superuser or _is_jefatura(request):
             return super().has_module_permission(request)
-        if _is_usuario(request):
+        if _is_funcionario(request):
             return False
         return super().has_module_permission(request)
 

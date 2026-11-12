@@ -37,6 +37,14 @@ _crud_modules = {module.module_key for module in registered_modules()}
 #: Módulos con vista propia (ni CRUD ni placeholder).
 _custom_modules = {"goals", "tasks", "achievements", "reports"}
 
+# Los módulos que NO tienen CRUD ni vista propia pueden tener una vista
+# placeholder (ver lazo al final de este archivo).
+# Nota: los módulos de _placeholder_paths también están en _custom_modules,
+# por lo que el lazo siguiente no genera rutas adicionales. Si en el futuro se
+# añade un módulo sin CRUD ni vista propia, y se desea un placeholder,
+# añádale su clave a _placeholder_paths (o a _custom_modules para eliminarlo).
+_placeholder_keys = set(_placeholder_paths.keys())
+
 urlpatterns = [
     path('', PortalLoginView.as_view(), name='login'),
     path('login/', PortalLoginView.as_view(), name='login'),
@@ -65,13 +73,21 @@ urlpatterns = [
     path('reportes/', ReportsView.as_view(), name='reports'),
 ]
 
+# Generar placeholders para módulos que no tienen CRUD ni vistas propias.
 for _module in MODULE_ORDER:
-    if _module in _crud_modules or _module in _custom_modules or _module not in _placeholder_paths:
+    if _module in _crud_modules:
+        # Ya tiene CRUD: no se genera placeholder (se incluye por portal.crud.urls)
+        continue
+    if _module in _custom_modules:
+        # Ya tiene vista propia: no se genera placeholder
+        continue
+    if _module not in _placeholder_paths:
+        # No tiene path declarado: no se genera placeholder
         continue
     urlpatterns.append(
         path(
             _placeholder_paths[_module],
-            ModulePlaceholderView.as_view(**_placeholder_kwargs(_module)),
+            ModulePlaceholderView.as_view(module=_module),
             name=_module,
         )
     )
