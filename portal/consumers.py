@@ -73,6 +73,9 @@ class DelegationChatConsumer(AsyncJsonWebsocketConsumer):
         message = (content.get('message') or '').strip()
         if not message:
             return
+        msg_type = content.get('type', 'chat')
+        if msg_type != 'chat':
+            return
         user = self.scope.get('user')
         username = user.username if user and user.is_authenticated else 'Anónimo'
 

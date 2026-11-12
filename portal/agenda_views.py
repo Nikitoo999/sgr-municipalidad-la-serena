@@ -10,8 +10,6 @@ from operaciones.models import Activity, Evidence, Task
 from sgr_core.models import ProjectItem
 
 
-from operaciones.models import Activity, Evidence, Task
-
 from . import access
 from .access import ModulePermissionMixin
 from .modules import MODULE_ICONS, MODULE_LABELS

@@ -391,3 +391,20 @@ def permission_required(module, action):
             return view_func(request, *args, **kwargs)
         return wrapper
     return decorator
+
+class AdminScopedMixin:
+    """Mixin para ModelAdmin de Django con scoping por delegación.
+
+    - Superadmin: ve todo.
+    - Jefe/Coordinador (scope authorized/own_delegation): solo registros de su
+      delegación.
+    - Funcionario (scope own_records): no ve nada.
+    """
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'employee'):
+            return qs.filter(employee__delegation=request.user.employee.delegation)
+        return qs.none()
