@@ -74,12 +74,13 @@ urlpatterns = [
 ]
 
 # Generar placeholders para módulos que no tienen CRUD ni vistas propias.
+# Los módulos con CRUD o con vista propia se omiten aquí.
 for _module in MODULE_ORDER:
-    if _module in _crud_modules:
-        # Ya tiene CRUD: no se genera placeholder (se incluye por portal.crud.urls)
-        continue
     if _module in _custom_modules:
         # Ya tiene vista propia: no se genera placeholder
+        continue
+    if _module in _crud_modules:
+        # Ya tiene CRUD: no se genera placeholder (se incluye por portal.crud.urls)
         continue
     if _module not in _placeholder_paths:
         # No tiene path declarado: no se genera placeholder
