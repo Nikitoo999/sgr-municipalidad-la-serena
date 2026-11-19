@@ -70,11 +70,10 @@ class DelegationChatConsumer(AsyncJsonWebsocketConsumer):
                 pass
 
     async def receive_json(self, content, **kwargs):
-        message = (content.get('message') or '').strip()
-        if not message:
-            return
-        msg_type = content.get('type', 'chat')
-        if msg_type != 'chat':
+        # Validar que content es un diccionario antes de acceder a sus claves.
+        # Si el cliente envía null, un string o un JSON que no es objeto,
+        # se ignora silenciosamente sin lanzar AttributeError.
+        if not isinstance(content, dict):
             return
         user = self.scope.get('user')
         username = user.username if user and user.is_authenticated else 'Anónimo'
