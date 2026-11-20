@@ -186,3 +186,84 @@ class EvidenceValidateView(LoginRequiredMixin, ModulePermissionMixin, View):
         )
         messages.success(request, f"Evidencia de {evidencia.activity.task.code} validada.")
         return redirect("tasks")
+
+
+class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
+    """Kanban de solo lectura: agrupa tareas por estado (Pendiente / En Progreso / Completada).
+
+    Reusa tareas_del_alcance(request) para el filtrado de acceso/scoping.
+    """
+
+    template_name = "portal/kanban_tasks.html"
+    module = "tasks"
+    action = "view"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        info = access.get_access(self.request)
+
+        # Reutilizar el filtrado de alcance existente (incluye deleted_at__isnull=True)
+        tareas_qs = (
+            tareas_del_alcance(self.request)
+            .select_related("goal", "assigned_to__user")
+            .prefetch_related(
+                Prefetch(
+                    "activities",
+                    queryset=Activity.objects.filter(deleted_at__isnull=True)
+                    .prefetch_related(
+                        Prefetch(
+                            "evidences",
+                            queryset=Evidence.objects.filter(deleted_at__isnull=True),
+                        )
+                    ),
+                )
+            )
+            .order_by("due_date", "pk")
+        )
+
+        columnas = {
+            "Pendiente": [],
+            "En Progreso": [],
+            "Completada": [],
+        }
+
+        hoy = timezone.localdate()
+        for tarea in tareas_qs:
+            estado = tarea.status
+            if estado not in columnas:
+                columnas[estado] = []
+
+            actividades = list(tarea.activities.all())
+            total_actividades = len(actividades)
+            evidencias_validadas = sum(
+                1
+                for act in actividades
+                for ev in act.evidences.all()
+                if ev.is_validated
+            )
+
+            vencida = (
+                tarea.due_date < hoy
+                and estado not in ("Completada",)
+            )
+
+            columnas[estado].append(
+                {
+                    "tarea": tarea,
+                    "vencida": vencida,
+                    "total_actividades": total_actividades,
+                    "evidencias_validadas": evidencias_validadas,
+                }
+            )
+
+        context.update(
+            {
+                "active_module": "tasks",
+                "module_label": MODULE_LABELS["tasks"],
+                "module_icon": MODULE_ICONS["tasks"],
+                "columnas": columnas,
+                "can_create": info.can("tasks", "create"),
+                "can_edit": info.can("tasks", "edit"),
+            }
+        )
+        return context

@@ -1,7 +1,7 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 from .goals_views import GoalsView
-from .agenda_views import ActivityCreateView, AgendaView, EvidenceCreateView, EvidenceValidateView
+from .agenda_views import ActivityCreateView, AgendaView, EvidenceCreateView, EvidenceValidateView, KanbanView
 from .compliance_views import ComplianceView, FeedbackCreateView
 from .tubes_views import TubeCloseView, TubeCreateView, TubeListView, TubeStatusView
 from .reports_views import ReportsView
@@ -63,6 +63,7 @@ urlpatterns = [
     path('agenda-tareas/actividades/<int:activity_id>/evidencia/', EvidenceCreateView.as_view(), name='evidence_create'),
     path('agenda-tareas/evidencias/<int:evidence_id>/validar/', EvidenceValidateView.as_view(), name='evidence_validate'),
     path('agenda-tareas/<int:task_id>/actividades/nueva/', ActivityCreateView.as_view(), name='activity_create'),
+    path('kanban-tareas/', KanbanView.as_view(), name='kanban_tasks'),
     path('cumplimiento/', ComplianceView.as_view(), name='achievements'),
     path('cumplimiento/<int:employee_id>/comentarios/nuevo/', FeedbackCreateView.as_view(), name='feedback_create'),
     path('cumplimiento/tubos/', TubeListView.as_view(), name='tubes'),

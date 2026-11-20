@@ -1,0 +1,60 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<style>
+  .kanban { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  .kanban-col { min-width: 260px; max-width: 320px; flex: 1; }
+  .kanban-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-weight: 700; }
+  .kanban-col.pendiente .kanban-header { background: #fdecea; color: #b71c1c; }
+  .kanban-col.en-progreso .kanban-header { background: #fff4e5; color: #b26a00; }
+  .kanban-col.completada .kanban-header { background: #e8f5e9; color: #2e7d32; }
+  .kanban-count { margin-left: auto; font-size: 0.9em; opacity: 0.85; }
+  .kanban-card { border: 1px solid #d9d9d9; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+  .kanban-card.vencida { border-left: 4px solid #b71c1c; }
+  .kanban-code { font-family: monospace; font-size: 0.85em; color: #666; margin-bottom: 2px; }
+  .kanban-title { font-weight: 700; margin-bottom: 4px; }
+  .kanban-meta { font-size: 0.85em; color: #555; margin-bottom: 4px; }
+  .kanban-stats { font-size: 0.8em; display: flex; gap: 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; }
+  .kanban-stat { display: flex; align-items: center; gap: 4px; }
+  .empty-state { text-align: center; padding: 24px; color: #888; font-size: 0.9em; }
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }} / Kanban</nav>
+<div class="titlebar"><h1>{{ module_label }} — Kanban</h1></div>
+
+<div class="kanban" role="region" aria-label="Tablero Kanban de tareas">
+  {% for estado, tareas_col in columnas.items %}
+  <div class="kanban-col {{ estado|lower|replace:' ','-' }}">
+    <div class="kanban-header {% if estado == 'Pendiente' %}pendiente{% elif estado == 'En Progreso' %}en-progreso{% else %}completada{% endif %}">
+      <span>{% if estado == 'Pendiente' %}{% sgr_icon 'clock' 16 %}{% elif estado == 'En Progreso' %}{% sgr_icon 'refresh-ccw' 16 %}{% else %}{% sgr_icon 'check' 16 %}{% endif %}</span>
+      <span>{{ estado }}</span>
+      <span class="kanban-count">{{ tareas_col|length }}</span>
+    </div>
+
+    {% if tareas_col %}
+    {% for item in tareas_col %}
+    {% with tarea=item.tarea %}
+    <div class="kanban-card{% if item.vencida %} vencida{% endif %}">
+      <div class="kanban-code">{{ tarea.code }}</div>
+      <div class="kanban-title">{{ tarea.title }}</div>
+      <div class="kanban-meta">
+        {% if tarea.assigned_to %}{{ tarea.assigned_to.full_name }}{% else %}Sin asignar{% endif %}
+        · {{ tarea.due_date|date:"d/m/Y" }}{% if item.vencida %} <span style="color:#b71c1c; font-weight:700;">(vencido)</span>{% endif %}
+      </div>
+      <div class="kanban-stats">
+        <span class="kanban-stat">{% sgr_icon 'layers' 14 %} {{ item.total_actividades }} act.</span>
+        <span class="kanban-stat">{% sgr_icon 'check' 14 %} {{ item.evidencias_validadas }} val.</span>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">Sin tareas en esta columna</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
