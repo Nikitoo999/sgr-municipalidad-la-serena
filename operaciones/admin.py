@@ -8,26 +8,8 @@ from .models import (
     EmployeeDayOff, EmployeeFeedback, TubeEntry,
 )
 
-from portal.access import AdminScopedMixin
+from portal.access import AdminScopedMixin, _is_jefatura, _is_funcionario
 
-
-
-def _get_employee(request):
-    return getattr(request.user, "employee", None)
-
-
-def _is_jefatura(request):
-    emp = _get_employee(request)
-    if emp is None or emp.role_id is None:
-        return False
-    return emp.role.scope in ("authorized", "own_delegation")
-
-
-def _is_funcionario(request):
-    emp = _get_employee(request)
-    if emp is None or emp.role_id is None:
-        return False
-    return emp.role.scope == "own_records"
 
 
 #Admin Pro: Inlines ----------
@@ -90,13 +72,6 @@ class EmployeeAdmin(AdminScopedMixin, admin.ModelAdmin):
     ordering = ('user__username',)
     readonly_fields = ('created_at', 'updated_at')
 
-    def has_module_permission(self, request):
-        if request.user.is_superuser or _is_jefatura(request):
-            return super().has_module_permission(request)
-        if _is_funcionario(request):
-            return False
-        return super().has_module_permission(request)
-
     def save_model(self, request, obj, form, change):
         if not request.user.is_superuser and obj.user_id:
             from django.contrib.auth.models import User
@@ -126,13 +101,6 @@ class TaskAdmin(AdminScopedMixin, admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     inlines = [ActivityInline]
 
-    def has_module_permission(self, request):
-        if request.user.is_superuser or _is_jefatura(request):
-            return super().has_module_permission(request)
-        if _is_funcionario(request):
-            return False
-        return super().has_module_permission(request)
-
 
 @admin.register(Activity)
 class ActivityAdmin(AdminScopedMixin, admin.ModelAdmin):
@@ -143,13 +111,6 @@ class ActivityAdmin(AdminScopedMixin, admin.ModelAdmin):
     ordering = ('-execution_date',)
     readonly_fields = ('created_at', 'updated_at')
     inlines = [EvidenceInline]
-
-    def has_module_permission(self, request):
-        if request.user.is_superuser or _is_jefatura(request):
-            return super().has_module_permission(request)
-        if _is_funcionario(request):
-            return False
-        return super().has_module_permission(request)
 
 
 @admin.register(Evidence)
@@ -162,13 +123,6 @@ class EvidenceAdmin(AdminScopedMixin, admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     actions = [validate_evidences]
 
-    def has_module_permission(self, request):
-        if request.user.is_superuser or _is_jefatura(request):
-            return super().has_module_permission(request)
-        if _is_funcionario(request):
-            return False
-        return super().has_module_permission(request)
-
 
 @admin.register(TaskReassignment)
 class TaskReassignmentAdmin(AdminScopedMixin, admin.ModelAdmin):
@@ -179,13 +133,6 @@ class TaskReassignmentAdmin(AdminScopedMixin, admin.ModelAdmin):
     ordering = ('-reassigned_at',)
     readonly_fields = ('created_at', 'updated_at')
 
-    def has_module_permission(self, request):
-        if request.user.is_superuser or _is_jefatura(request):
-            return super().has_module_permission(request)
-        if _is_funcionario(request):
-            return False
-        return super().has_module_permission(request)
-
 
 @admin.register(Benefit)
 class BenefitAdmin(AdminScopedMixin, admin.ModelAdmin):
@@ -195,13 +142,6 @@ class BenefitAdmin(AdminScopedMixin, admin.ModelAdmin):
     list_select_related = ('employee', 'employee__user', 'delivery_area')
     ordering = ('-delivered_at',)
     readonly_fields = ('created_at', 'updated_at')
-
-    def has_module_permission(self, request):
-        if request.user.is_superuser or _is_jefatura(request):
-            return super().has_module_permission(request)
-        if _is_funcionario(request):
-            return False
-        return super().has_module_permission(request)
 
 
 @admin.register(EmployeeDayOff)
