@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_WINDOW = 10 * 60
-CODE_EXPIRY_MINUTES = 10
 CODE_RESEND_SECONDS = 45
 
 
