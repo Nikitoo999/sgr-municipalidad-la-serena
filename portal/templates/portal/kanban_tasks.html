@@ -19,6 +19,24 @@
   .kanban-stats { font-size: 0.8em; display: flex; gap: 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; }
   .kanban-stat { display: flex; align-items: center; gap: 4px; }
   .empty-state { text-align: center; padding: 24px; color: #888; font-size: 0.9em; }
+  .kanban-estados { display: flex; gap: 6px; margin-top: 8px; }
+  .kanban-estados form { margin: 0; }
+  .kanban-estados button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    font-size: 0.8em;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .kanban-estados button:hover { border-color: #666; background: #f5f5f5; }
+  .kanban-estados button.activo { border-color: #333; background: #e9e9e9; font-weight: 700; }
+  .kanban-estados button svg { display: block; }
   .kanban-filters { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin: 10px 0 14px; padding: 10px 14px; background: #f5f5f5; border: 1px solid #d9d9d9; border-radius: 8px; }
   .kanban-filter-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0; }
   .filter-field { display: flex; flex-direction: column; gap: 4px; }
@@ -88,6 +106,37 @@
         <span class="kanban-stat">{% sgr_icon 'layers' 14 %} {{ item.total_actividades }} act.</span>
         <span class="kanban-stat">{% sgr_icon 'check' 14 %} {{ item.evidencias_validadas }} val.</span>
       </div>
+      {% if can_edit_tasks %}
+      <div class="kanban-estados" aria-label="Cambiar estado de {{ tarea.code }}">
+        <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="Pendiente">
+          {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+          {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+          <button type="submit" title="Marcar como Pendiente"{% if tarea.status == 'Pendiente' %} class="activo"{% endif %} aria-pressed="{% if tarea.status == 'Pendiente' %}true{% else %}false{% endif %}">
+            {% sgr_icon 'clock' 14 %}
+          </button>
+        </form>
+        <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="En Progreso">
+          {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+          {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+          <button type="submit" title="Marcar como En Progreso"{% if tarea.status == 'En Progreso' %} class="activo"{% endif %} aria-pressed="{% if tarea.status == 'En Progreso' %}true{% else %}false{% endif %}">
+            {% sgr_icon 'refresh-ccw' 14 %}
+          </button>
+        </form>
+        <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="Completada">
+          {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+          {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+          <button type="submit" title="Marcar como Completada"{% if tarea.status == 'Completada' %} class="activo"{% endif %} aria-pressed="{% if tarea.status == 'Completada' %}true{% else %}false{% endif %}">
+            {% sgr_icon 'check' 14 %}
+          </button>
+        </form>
+      </div>
+      {% endif %}
     </div>
     {% endwith %}
     {% endfor %}

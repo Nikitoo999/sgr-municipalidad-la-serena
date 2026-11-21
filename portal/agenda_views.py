@@ -3,6 +3,8 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
+from django.utils.http import urlencode
 from django.views import View
 from django.views.generic import TemplateView
 from django.utils import timezone
@@ -335,6 +337,44 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                 "assigned_to_active": assigned_to_active,
                 "goals_choices": goals_choices,
                 "employees_choices": employees_choices,
+                "can_edit_tasks": info.can("tasks", "edit"),
             }
         )
         return context
+
+
+class TaskStatusChangeView(LoginRequiredMixin, ModulePermissionMixin, View):
+    """Cambia el estado de una tarea mediante POST (solo Kanban).
+
+    Requiere permiso tasks.edit. Respeta tareas_del_alcance(request)
+    (deleted_at__isnull=True, scoping por delegación/rol y own_records).
+    """
+
+    module = "tasks"
+    action = "edit"
+
+    def post(self, request, task_id):
+        tarea = get_object_or_404(tareas_del_alcance(request), pk=task_id)
+
+        validos = dict(Task._meta.get_field("status").choices)
+        status = request.POST.get("status", "").strip()
+        if status not in validos:
+            # Estado inválido: no alterar la BD, redirigir limpio.
+            return self._redirect_kanban(request)
+
+        tarea.status = status
+        tarea.save()
+
+        return self._redirect_kanban(request)
+
+    def _redirect_kanban(self, request):
+        """Redirige al Kanban preservando los filtros goal y assigned_to."""
+        params = {}
+        for key in ("goal", "assigned_to"):
+            valor = request.GET.get(key) or request.POST.get(key)
+            if valor:
+                params[key] = valor
+        url = reverse("kanban_tasks")
+        if params:
+            url = f"{url}?{urlencode(params)}"
+        return redirect(url)

@@ -57,6 +57,12 @@ class KanbanViewTests(TestCase):
             "luis_kanban", "10.000.103-3", cls.d2, cls.roles["ROL04"],
             first_name="Luis", last_name="Rojas",
         )
+        # Delegado en d1; tiene tasks.view, tasks.create y tasks.edit.
+        cls.delegado = make_employee(
+            "delegado_kanban", "10.000.104-4", cls.d1, cls.roles["ROL03"],
+            first_name="Carmen", last_name="Soto",
+        )
+        cls.delegado.authorized_delegations.set([cls.d1])
 
         # Tareas en d1 (meta g1).
         cls.t1 = Task.objects.create(
@@ -232,3 +238,89 @@ class KanbanViewTests(TestCase):
         self.set_active(None)
         resp = self.client.get(reverse("kanban_tasks"), {"assigned_to": "basura"})
         self.assertEqual(resp.status_code, 200)
+
+    # --- cambio de estado (POST) ----------------------------------------
+    def _post_cambiar_estado(self, task_id, status, username="supadmin_kanban",
+                             delegation=None, **params):
+        self.login(username)
+        if delegation is not None:
+            self.set_active(delegation)
+        if params:
+            return self.client.post(
+                reverse("kanban_task_status_change", args=[task_id]),
+                {"status": status, **params},
+            )
+        return self.client.post(
+            reverse("kanban_task_status_change", args=[task_id]),
+            {"status": status},
+        )
+
+    def test_cambiar_estado_exitoso_con_permiso(self):
+        resp = self._post_cambiar_estado(self.t1.pk, "Completada", delegation=None)
+        self.assertEqual(resp.status_code, 302)
+        self.t1.refresh_from_db()
+        self.assertEqual(self.t1.status, "Completada")
+
+    def test_cambiar_estado_sin_permiso_es_403(self):
+        # Coordinador solo tiene tasks.view, no tasks.edit.
+        resp = self._post_cambiar_estado(self.t1.pk, "Completada",
+                                         username="coord_kanban", delegation=None)
+        self.assertEqual(resp.status_code, 403)
+        self.t1.refresh_from_db()
+        self.assertEqual(self.t1.status, "Pendiente")
+
+    def test_cambiar_estado_funcionario_sin_permiso_es_403(self):
+        # Funcionario own_records solo tiene tasks.view y tasks.create, no edit.
+        resp = self._post_cambiar_estado(self.t1.pk, "Completada",
+                                         username="ana_kanban", delegation=self.d1)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_cambiar_estado_exitoso_con_delegado_en_su_delegacion(self):
+        # Delegado con tasks.edit puede editar tareas de su delegación activa.
+        resp = self._post_cambiar_estado(self.t1.pk, "En Progreso",
+                                         username="delegado_kanban", delegation=self.d1)
+        self.assertEqual(resp.status_code, 302)
+        self.t1.refresh_from_db()
+        self.assertEqual(self.t1.status, "En Progreso")
+
+    def test_cambiar_estado_fuera_de_alcance_es_404(self):
+        # Delegado con delegación activa d1 no puede editar tarea de d2.
+        resp = self._post_cambiar_estado(self.t4.pk, "Completada",
+                                         username="delegado_kanban", delegation=self.d1)
+        self.assertEqual(resp.status_code, 404)
+        self.t4.refresh_from_db()
+        self.assertEqual(self.t4.status, "Pendiente")
+
+    def test_cambiar_estado_tarea_soft_deleted_es_404(self):
+        self.set_active(None)
+        resp = self._post_cambiar_estado(self.t5.pk, "Completada")
+        self.assertEqual(resp.status_code, 404)
+        self.t5.refresh_from_db()
+        self.assertEqual(self.t5.status, "Pendiente")
+
+    def test_estado_invalido_no_altera_bd(self):
+        self.set_active(None)
+        resp = self._post_cambiar_estado(self.t1.pk, "EstadoInexistente")
+        self.assertEqual(resp.status_code, 302)
+        self.t1.refresh_from_db()
+        self.assertEqual(self.t1.status, "Pendiente")
+
+    def test_redireccion_preserva_filtros_goal_y_assigned_to(self):
+        self.login()
+        self.set_active(None)
+        resp = self.client.post(
+            reverse("kanban_task_status_change", args=[self.t1.pk]),
+            {"status": "Completada", "goal": self.g1.pk, "assigned_to": self.ana.pk},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(f"goal={self.g1.pk}", resp.url)
+        self.assertIn(f"assigned_to={self.ana.pk}", resp.url)
+        self.t1.refresh_from_db()
+        self.assertEqual(self.t1.status, "Completada")
+
+    def test_own_records_solo_sus_propias_tareas(self):
+        # Ana (own_records, d1) intenta editar t3 (sin asignar, d1): sin permiso edit → 403.
+        self.set_active(self.d1)
+        resp = self._post_cambiar_estado(self.t3.pk, "En Progreso", username="ana_kanban")
+        self.assertEqual(resp.status_code, 403)
+
