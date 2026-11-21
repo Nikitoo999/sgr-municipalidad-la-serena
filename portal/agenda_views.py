@@ -294,17 +294,17 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         active = access.get_active_delegation(self.request)
         goals_choices = (
             InstitutionalGoal.objects.filter(deleted_at__isnull=True)
-            .filter(task__deleted_at__isnull=True)
-            .filter(task__goal__isnull=False)
+            .filter(tasks__deleted_at__isnull=True)
+            .filter(tasks__goal__isnull=False)
             .distinct()
-            .order_by("code")
+            .order_by("name")
         )
         if active is not None and active != access.ALL_DELEGATIONS:
             goals_choices = goals_choices.filter(delegation_id=active.pk)
 
         employees_choices = (
             Employee.objects.filter(deleted_at__isnull=True, user__is_active=True)
-            .filter(task__deleted_at__isnull=True)
+            .filter(assigned_tasks__deleted_at__isnull=True)
             .distinct()
             .order_by("user__first_name", "user__last_name")
         )

@@ -53,3 +53,18 @@ def sgr_icon(name, size=18):
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         f"{paths}</svg>"
     )
+
+
+@register.filter
+def replace(value, arg):
+    """Filtro ``replace`` ausente en Django built-ins.
+
+    Uso: ``{{ valor|replace:'viejo,nuevo' }}``. Reemplaza ``viejo`` por
+    ``nuevo`` en ``valor``. Si no hay coma, devuelve el valor intacto.
+    """
+    if value is None:
+        return ""
+    partes = str(arg).split(",")
+    if len(partes) == 2:
+        return str(value).replace(partes[0], partes[1])
+    return str(value)

@@ -67,7 +67,7 @@
 
 <div class="kanban" role="region" aria-label="Tablero Kanban de tareas">
   {% for estado, tareas_col in columnas.items %}
-  <div class="kanban-col {{ estado|lower|replace:' ','-' }}">
+  <div class="kanban-col {{ estado|lower|replace:' ,-' }}">
     <div class="kanban-header {% if estado == 'Pendiente' %}pendiente{% elif estado == 'En Progreso' %}en-progreso{% else %}completada{% endif %}">
       <span>{% if estado == 'Pendiente' %}{% sgr_icon 'clock' 16 %}{% elif estado == 'En Progreso' %}{% sgr_icon 'refresh-ccw' 16 %}{% else %}{% sgr_icon 'check' 16 %}{% endif %}</span>
       <span>{{ estado }}</span>
