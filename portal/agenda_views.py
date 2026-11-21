@@ -3,6 +3,7 @@ from collections import defaultdict
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -517,6 +518,128 @@ class PendingTransferView(LoginRequiredMixin, ModulePermissionMixin, TemplateVie
                 "pendientes_count": pendientes_count,
                 "en_progreso_count": en_progreso_count,
                 "sgr_can_view_tasks": info.can("tasks", "view"),
+                "sgr_can_edit_tasks": info.can("tasks", "edit"),
+                "destination_goals": InstitutionalGoal.objects.filter(
+                    deleted_at__isnull=True,
+                    period__deleted_at__isnull=True,
+                    period__status="En curso",
+                ).order_by("delegation__code", "name"),
             }
         )
         return context
+
+
+class PendingTransferExecuteView(LoginRequiredMixin, ModulePermissionMixin, View):
+    """Ejecuta el traspaso de una tarea pendiente a una nueva meta institucional.
+
+    Requiere permiso tasks.edit. Clona la tarea origen en la meta destino
+    dentro de un período "En curso", sin alterar la tarea origen.
+    """
+
+    module = "tasks"
+    action = "edit"
+
+    def post(self, request, task_id):
+        tarea = get_object_or_404(tareas_del_alcance(request), pk=task_id)
+
+        # Validar estado origen
+        if tarea.status not in ("Pendiente", "En Progreso"):
+            messages.error(
+                request, f"La tarea '{tarea.title}' no está en estado traspasable."
+            )
+            return redirect("pending_transfer")
+
+        # Validar que la meta origen pertenece a un período cerrado
+        if (
+            not tarea.goal
+            or tarea.goal.deleted_at is not None
+            or tarea.goal.period.deleted_at is not None
+            or tarea.goal.period.status != "Cerrado"
+        ):
+            messages.error(
+                request,
+                "La tarea origen debe pertenecer a una meta de un período cerrado.",
+            )
+            return redirect("pending_transfer")
+
+        # Leer y validar meta destino
+        goal_id = request.POST.get("goal_id", "").strip()
+        if not goal_id or not goal_id.isdigit():
+            messages.error(request, "Debe seleccionar una meta destino válida.")
+            return redirect("pending_transfer")
+
+        try:
+            target_goal = InstitutionalGoal.objects.get(
+                pk=int(goal_id),
+                deleted_at__isnull=True,
+                period__deleted_at__isnull=True,
+                period__status="En curso",
+            )
+        except InstitutionalGoal.DoesNotExist:
+            messages.error(
+                request,
+                "La meta destino no existe, no está activa o no pertenece a un período en curso.",
+            )
+            return redirect("pending_transfer")
+
+        # Validar que la meta destino sea de la misma delegación de la meta origen
+        if target_goal.delegation_id != tarea.goal.delegation_id:
+            messages.error(
+                request,
+                "La meta destino debe pertenecer a la misma delegación de la tarea origen.",
+            )
+            return redirect("pending_transfer")
+
+        # Validar alcance de delegación del usuario
+        active = access.get_active_delegation(request)
+        if active is not None and active != access.ALL_DELEGATIONS:
+            if target_goal.delegation_id != active.pk:
+                messages.error(
+                    request,
+                    "No tiene alcance sobre la delegación de la meta destino.",
+                )
+                return redirect("pending_transfer")
+
+        # Prevenir duplicados: misma title en la misma meta destino
+        if Task.objects.filter(
+            goal=target_goal,
+            title=tarea.title,
+            deleted_at__isnull=True,
+        ).exists():
+            messages.warning(
+                request,
+                f"Ya existe una tarea '{tarea.title}' en la meta '{target_goal.name}'. No se creó duplicado.",
+            )
+            return redirect("pending_transfer")
+
+        # Calcular due_date
+        today = timezone.localdate()
+        period_end = target_goal.period.end_date
+        period_start = target_goal.period.start_date
+        if tarea.due_date and period_start <= tarea.due_date <= period_end:
+            new_due_date = tarea.due_date
+        else:
+            new_due_date = period_end
+
+        # Ejecutar clonación atómicamente
+        try:
+            with transaction.atomic():
+                nueva = Task.objects.create(
+                    goal=target_goal,
+                    title=tarea.title,
+                    description=tarea.description,
+                    due_date=new_due_date,
+                    status="Pendiente",
+                    assigned_to=tarea.assigned_to,
+                )
+        except Exception:
+            messages.error(
+                request, "Ocurrió un error al crear la tarea. Intente nuevamente."
+            )
+            return redirect("pending_transfer")
+
+        messages.success(
+            request,
+            f"Tarea '{nueva.title}' traspasada a la meta '{target_goal.name}' (código {nueva.code}).",
+        )
+        return redirect("pending_transfer")

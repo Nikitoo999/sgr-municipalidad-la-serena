@@ -8,6 +8,7 @@ from .agenda_views import (
     EvidenceValidateView,
     KanbanView,
     OrganigramView,
+    PendingTransferExecuteView,
     PendingTransferView,
     TaskStatusChangeView,
 )
@@ -80,6 +81,11 @@ urlpatterns = [
     ),
     path('organigrama/', OrganigramView.as_view(), name='organigrama'),
     path('pendientes-traspaso/', PendingTransferView.as_view(), name='pending_transfer'),
+    path(
+        'pendientes-traspaso/<int:task_id>/traspasar/',
+        PendingTransferExecuteView.as_view(),
+        name='pending_transfer_execute',
+    ),
     path('cumplimiento/', ComplianceView.as_view(), name='achievements'),
     path('cumplimiento/<int:employee_id>/comentarios/nuevo/', FeedbackCreateView.as_view(), name='feedback_create'),
     path('cumplimiento/tubos/', TubeListView.as_view(), name='tubes'),

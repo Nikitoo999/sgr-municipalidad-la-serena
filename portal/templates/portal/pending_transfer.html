@@ -26,6 +26,11 @@
   .resp-cell { font-size: 0.85em; color: #333; }
   .resp-cell .resp-name { font-weight: 700; }
   .resp-cell .resp-none { color: #999; font-style: italic; }
+  .transfer-form { display: inline-flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .transfer-form select { padding: 4px 10px; font-size: 0.85em; border: 1px solid #bbb; border-radius: 4px; background: #fff; }
+  .transfer-form button { padding: 4px 12px; font-size: 0.85em; cursor: pointer; border: 1px solid #333; border-radius: 4px; background: #333; color: #fff; }
+  .transfer-form button:hover { background: #555; }
+  .transfer-cell { white-space: nowrap; }
 </style>
 {% endblock %}
 {% block content %}
@@ -79,6 +84,7 @@
           <th style="width: 14%;">Estado</th>
           <th style="width: 14%;">Responsable</th>
           <th style="width: 14%;">Plazo</th>
+          <th style="width: 14%;">Trasladar a</th>
         </tr>
       </thead>
       <tbody>
@@ -109,15 +115,37 @@
             {% endif %}
           </td>
           <td>{{ tarea.due_date|date:"d/m/Y" }}</td>
+          <td class="transfer-cell">
+            {% if can_edit_tasks %}
+            <form method="post" action="{% url 'pending_transfer_execute' tarea.pk %}" class="transfer-form">
+              {% csrf_token %}
+              <select name="goal_id" id="id_goal_{{ tarea.pk }}">
+                <option value="">-- Meta destino --</option>
+                {% for g in destination_goals %}
+                <option value="{{ g.pk }}">{{ g.delegation.code }} · {{ g.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" title="Trasladar tarea">{% sgr_icon 'out' 14 %}</button>
+            </form>
+            {% else %}
+            <span style="color:#999; font-size:0.8em;">—</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
+  {% if can_edit_tasks and total_pendientes > 0 %}
+  <p class="empty-state" style="margin-top:16px; text-align: center; color: #666; font-size: 0.85em;">
+    {% sgr_icon 'info' 14 %} Seleccione una meta destino en período "En curso" para traspasar la tarea. La tarea origen se conserva como historial.
+  </p>
+  {% else %}
   <p class="empty-state" style="margin-top:16px; text-align: center; color: #666; font-size: 0.85em;">
     {% sgr_icon 'info' 14 %} Vista de solo lectura: ninguna tarea se modifica desde esta pantalla.
   </p>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}
