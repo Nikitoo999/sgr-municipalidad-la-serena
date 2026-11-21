@@ -63,6 +63,9 @@
       {% for item in sgr_menu %}
       <a href="{% url item.url_name %}"{% if active_module == item.key %} aria-current="page"{% endif %}>{% sgr_icon item.icon 18 %}<span>{{ item.label }}</span></a>
       {% endfor %}
+      {% if sgr_can_view_tasks %}
+      <a href="{% url 'kanban_tasks' %}"{% if request.resolver_match.url_name == 'kanban_tasks' %} aria-current="page"{% endif %}>{% sgr_icon 'layers' 16 %}<span>Kanban</span></a>
+      {% endif %}
     </nav>
   </aside>
   <main id="main" tabindex="-1">

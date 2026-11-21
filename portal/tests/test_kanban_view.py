@@ -324,3 +324,35 @@ class KanbanViewTests(TestCase):
         resp = self._post_cambiar_estado(self.t3.pk, "En Progreso", username="ana_kanban")
         self.assertEqual(resp.status_code, 403)
 
+    # --- enlace de navegación --------------------------------------------
+    def test_usuario_con_tasks_view_ve_enlace_kanban(self):
+        self.login()
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"/kanban-tareas/", resp.content)
+
+    def test_usuario_sin_tasks_view_no_ve_enlace_kanban(self):
+        # Usuario autenticado sin Employee -> sin rol -> sin tareas.view.
+        sin_emp = User.objects.create_user(
+            username="sin_emp_nav", password=DEMO_PASSWORD,
+        )
+        self.client.login(username="sin_emp_nav", password=DEMO_PASSWORD)
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"/kanban-tareas/", resp.content)
+
+    def test_enlace_kanban_activo_cuando_esta_en_kanban(self):
+        self.login()
+        resp = self.client.get(reverse("kanban_tasks"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'href="/kanban-tareas/" aria-current="page"', resp.content)
+
+    def test_enlace_kanban_no_activo_fuera_de_kanban(self):
+        self.login()
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'href="/kanban-tareas/"', resp.content)
+        self.assertNotIn(
+            b'href="/kanban-tareas/" aria-current="page"', resp.content
+        )
+
