@@ -163,6 +163,7 @@ def sgr_context(request):
         "sgr_badge_dm": dm,
         "sgr_can_switch_delegation": can_switch,
         "sgr_can_view_tasks": info.can("tasks", "view"),
+        "sgr_can_view_users": info.can("users", "view"),
         "sgr_menu": menu,
         "sgr_display_name": display_name,
         "sgr_initials": initials,

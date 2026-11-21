@@ -181,3 +181,32 @@ class OrganigramViewTests(TestCase):
             reverse("organigrama"), {"delegation": "abc"}
         )
         self.assertEqual(resp.status_code, 200)
+
+    # --- enlace de navegación --------------------------------------------
+    def test_usuario_con_users_view_ve_enlace_organigrama(self):
+        self.login()
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"/organigrama/", resp.content)
+
+    def test_usuario_sin_users_view_no_ve_enlace_organigrama(self):
+        # Funcionaria (own_records) no tiene users.view.
+        self.login("ana_org")
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"/organigrama/", resp.content)
+
+    def test_enlace_organigrama_activo_cuando_esta_en_organigrama(self):
+        self.login()
+        resp = self.client.get(reverse("organigrama"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'href="/organigrama/" aria-current="page"', resp.content)
+
+    def test_enlace_organigrama_no_activo_fuera_de_organigrama(self):
+        self.login()
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'href="/organigrama/"', resp.content)
+        self.assertNotIn(
+            b'href="/organigrama/" aria-current="page"', resp.content
+        )

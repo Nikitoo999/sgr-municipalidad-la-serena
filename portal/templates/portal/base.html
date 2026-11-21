@@ -66,6 +66,9 @@
       {% if sgr_can_view_tasks %}
       <a href="{% url 'kanban_tasks' %}"{% if request.resolver_match.url_name == 'kanban_tasks' %} aria-current="page"{% endif %}>{% sgr_icon 'layers' 16 %}<span>Kanban</span></a>
       {% endif %}
+      {% if sgr_can_view_users %}
+      <a href="{% url 'organigrama' %}"{% if request.resolver_match.url_name == 'organigrama' %} aria-current="page"{% endif %}>{% sgr_icon 'users' 16 %}<span>Organigrama</span></a>
+      {% endif %}
     </nav>
   </aside>
   <main id="main" tabindex="-1">
