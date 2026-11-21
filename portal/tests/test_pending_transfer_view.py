@@ -212,3 +212,38 @@ class PendingTransferViewTests(TestCase):
         self.assertEqual(resp.context["total_pendientes"], 3)
         self.assertEqual(resp.context["pendientes_count"], 2)
         self.assertEqual(resp.context["en_progreso_count"], 1)
+
+    # --- enlace de navegación --------------------------------------------
+    def test_usuario_con_tasks_view_ve_enlace_pendientes(self):
+        self.login()
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"/pendientes-traspaso/", resp.content)
+
+    def test_usuario_sin_tasks_view_no_ve_enlace_pendientes(self):
+        # Funcionaria (own_records) tiene tasks.view, así que usa superadmin
+        # sin Employee para verificar sin permiso.
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        sin_emp = User.objects.create_user(
+            username="sin_emp_pt2", password=DEMO_PASSWORD,
+        )
+        self.client.login(username="sin_emp_pt2", password=DEMO_PASSWORD)
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"/pendientes-traspaso/", resp.content)
+
+    def test_enlace_pendientes_activo_cuando_esta_en_pendientes(self):
+        self.login()
+        resp = self.client.get(reverse("pending_transfer"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'href="/pendientes-traspaso/" aria-current="page"', resp.content)
+
+    def test_enlace_pendientes_no_activo_fuera_de_pendientes(self):
+        self.login()
+        resp = self.client.get(reverse("home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'href="/pendientes-traspaso/"', resp.content)
+        self.assertNotIn(
+            b'href="/pendientes-traspaso/" aria-current="page"', resp.content
+        )
