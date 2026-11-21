@@ -6,8 +6,8 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views import View
 from django.views.generic import TemplateView
 from django.utils import timezone
-from operaciones.models import Activity, Evidence, Task
-from sgr_core.models import ProjectItem
+from operaciones.models import Activity, Employee, Evidence, Task
+from sgr_core.models import InstitutionalGoal, ProjectItem
 
 
 from . import access
@@ -192,6 +192,9 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
     """Kanban de solo lectura: agrupa tareas por estado (Pendiente / En Progreso / Completada).
 
     Reusa tareas_del_alcance(request) para el filtrado de acceso/scoping.
+    Soporta parámetros GET opcionales:
+      - goal: ID de InstitutionalGoal para filtrar por meta institucional.
+      - assigned_to: ID numérico de Employee o 'unassigned' para assigned_to__isnull=True.
     """
 
     template_name = "portal/kanban_tasks.html"
@@ -202,24 +205,55 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         info = access.get_access(self.request)
 
-        # Reutilizar el filtrado de alcance existente (incluye deleted_at__isnull=True)
-        tareas_qs = (
-            tareas_del_alcance(self.request)
-            .select_related("goal", "assigned_to__user")
-            .prefetch_related(
-                Prefetch(
-                    "activities",
-                    queryset=Activity.objects.filter(deleted_at__isnull=True)
-                    .prefetch_related(
-                        Prefetch(
-                            "evidences",
-                            queryset=Evidence.objects.filter(deleted_at__isnull=True),
-                        )
+        # Filtrar por parámetros GET (siempre sobre el base de tareas_del_alcance)
+        goal_id = self.request.GET.get("goal")
+        assigned_to = self.request.GET.get("assigned_to")
+
+        # Filtrar por meta institucional (solo si goal es un número entero válido)
+        if goal_id and goal_id.isdigit():
+            tareas_qs = (
+                tareas_del_alcance(self.request)
+                .filter(goal_id=goal_id)
+                .select_related("goal", "assigned_to__user")
+                .prefetch_related(
+                    Prefetch(
+                        "activities",
+                        queryset=Activity.objects.filter(deleted_at__isnull=True)
+                        .prefetch_related(
+                            Prefetch(
+                                "evidences",
+                                queryset=Evidence.objects.filter(deleted_at__isnull=True),
+                            )
+                        ),
                     ),
                 )
+                .order_by("due_date", "pk")
             )
-            .order_by("due_date", "pk")
-        )
+        else:
+            # Sin goal: base sin filtrar por meta
+            tareas_qs = (
+                tareas_del_alcance(self.request)
+                .select_related("goal", "assigned_to__user")
+                .prefetch_related(
+                    Prefetch(
+                        "activities",
+                        queryset=Activity.objects.filter(deleted_at__isnull=True)
+                        .prefetch_related(
+                            Prefetch(
+                                "evidences",
+                                queryset=Evidence.objects.filter(deleted_at__isnull=True),
+                            )
+                        ),
+                    ),
+                )
+                .order_by("due_date", "pk")
+            )
+
+        # Filtrar por responsable (assigned_to)
+        if assigned_to and assigned_to != "unassigned" and assigned_to.isdigit():
+            tareas_qs = tareas_qs.filter(assigned_to_id=assigned_to)
+        elif assigned_to == "unassigned":
+            tareas_qs = tareas_qs.filter(assigned_to__isnull=True)
 
         columnas = {
             "Pendiente": [],
@@ -256,14 +290,51 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                 }
             )
 
+        # Opciones de filtro acotadas al alcance (metas y responsables de las tareas visibles)
+        active = access.get_active_delegation(self.request)
+        goals_choices = (
+            InstitutionalGoal.objects.filter(deleted_at__isnull=True)
+            .filter(task__deleted_at__isnull=True)
+            .filter(task__goal__isnull=False)
+            .distinct()
+            .order_by("code")
+        )
+        if active is not None and active != access.ALL_DELEGATIONS:
+            goals_choices = goals_choices.filter(delegation_id=active.pk)
+
+        employees_choices = (
+            Employee.objects.filter(deleted_at__isnull=True, user__is_active=True)
+            .filter(task__deleted_at__isnull=True)
+            .distinct()
+            .order_by("user__first_name", "user__last_name")
+        )
+        if active is not None and active != access.ALL_DELEGATIONS:
+            employees_choices = employees_choices.filter(delegation_id=active.pk)
+
+        # Validar que los valores activos sean realmente válidos para el contexto
+        goal_active = None
+        if goal_id and goal_id.isdigit():
+            if goals_choices.filter(pk=goal_id).exists():
+                goal_active = goal_id
+
+        assigned_to_active = None
+        if assigned_to == "unassigned":
+            assigned_to_active = "unassigned"
+        elif assigned_to and assigned_to.isdigit():
+            if employees_choices.filter(pk=assigned_to).exists():
+                assigned_to_active = assigned_to
+
         context.update(
             {
                 "active_module": "tasks",
                 "module_label": MODULE_LABELS["tasks"],
                 "module_icon": MODULE_ICONS["tasks"],
                 "columnas": columnas,
-                "can_create": info.can("tasks", "create"),
-                "can_edit": info.can("tasks", "edit"),
+                # Contexto para el formulario de filtrado
+                "goal_active": goal_active,
+                "assigned_to_active": assigned_to_active,
+                "goals_choices": goals_choices,
+                "employees_choices": employees_choices,
             }
         )
         return context

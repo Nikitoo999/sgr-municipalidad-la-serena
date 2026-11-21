@@ -19,11 +19,51 @@
   .kanban-stats { font-size: 0.8em; display: flex; gap: 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; }
   .kanban-stat { display: flex; align-items: center; gap: 4px; }
   .empty-state { text-align: center; padding: 24px; color: #888; font-size: 0.9em; }
+  .kanban-filters { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin: 10px 0 14px; padding: 10px 14px; background: #f5f5f5; border: 1px solid #d9d9d9; border-radius: 8px; }
+  .kanban-filter-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0; }
+  .filter-field { display: flex; flex-direction: column; gap: 4px; }
+  .filter-field label { font-size: 0.85em; font-weight: 700; color: #333; display: flex; align-items: center; gap: 6px; }
+  .filter-field select { padding: 6px 10px; font-size: 0.9em; border: 1px solid #bbb; border-radius: 6px; background: #fff; min-width: 170px; }
+  .filter-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+  .filter-actions button { padding: 6px 14px; font-size: 0.9em; cursor: pointer; border: 1px solid #333; border-radius: 6px; background: #333; color: #fff; }
+  .filter-actions button:hover { background: #555; }
+  .filter-clear { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.85em; color: #666; text-decoration: none; border: 1px dashed #bbb; border-radius: 6px; background: #fff; }
+  .filter-clear:hover { border-color: #999; color: #333; background: #fafafa; }
 </style>
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }} / Kanban</nav>
 <div class="titlebar"><h1>{{ module_label }} — Kanban</h1></div>
+
+<section class="kanban-filters" aria-label="Filtros del tablero Kanban">
+  <form method="get" action="" class="kanban-filter-form">
+    <div class="filter-field">
+      <label for="id_goal">{% sgr_icon 'goal' 16 %} Meta institucional</label>
+      <select name="goal" id="id_goal">
+        <option value="">Todas las metas</option>
+        {% for goal in goals_choices %}
+          <option value="{{ goal.pk }}"{% if goal_active == goal.pk|stringformat:"s" %} selected{% endif %}>{{ goal.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="id_assigned_to">{% sgr_icon 'users' 16 %} Responsable</label>
+      <select name="assigned_to" id="id_assigned_to">
+        <option value="">Todos los responsables</option>
+        <option value="unassigned"{% if assigned_to_active == "unassigned" %} selected{% endif %}>Sin asignar</option>
+        {% for emp in employees_choices %}
+          <option value="{{ emp.pk }}"{% if assigned_to_active == emp.pk|stringformat:"s" %} selected{% endif %}>{{ emp.user.get_full_name|default:emp.user.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit">{% sgr_icon 'search' 16 %} Aplicar filtros</button>
+      {% if goal_active or assigned_to_active %}
+        <a href="?" class="filter-clear">{% sgr_icon 'x' 16 %} Limpiar filtros</a>
+      {% endif %}
+    </div>
+  </form>
+</section>
 
 <div class="kanban" role="region" aria-label="Tablero Kanban de tareas">
   {% for estado, tareas_col in columnas.items %}
