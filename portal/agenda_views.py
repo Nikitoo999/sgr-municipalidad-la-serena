@@ -453,3 +453,70 @@ class OrganigramView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
             }
         )
         return context
+
+
+class PendingTransferView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
+    """Previsualización en solo lectura de tareas pendientes a traspasar trimestralmente.
+
+    Requiere permiso tasks.view. Muestra tareas con status Pendiente o En Progreso
+    cuya meta pertenece a un período Cerrado, dentro del alcance del usuario.
+    No ejecuta mutaciones ni formularios POST.
+    """
+
+    module = "tasks"
+    action = "view"
+    template_name = "portal/pending_transfer.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        info = access.get_access(self.request)
+
+        # Parte de tareas_del_alcance (respeta deleted_at__isnull=True y scoping por
+        # delegación activa y rol/own_records)
+        qs = tareas_del_alcance(self.request)
+
+        # Solo tareas no completadas, con meta y período válidos y período cerrado
+        qs = (
+            qs.filter(status__in=["Pendiente", "En Progreso"])
+            .filter(goal__deleted_at__isnull=True)
+            .filter(goal__period__deleted_at__isnull=True)
+            .filter(goal__period__status="Cerrado")
+            .select_related(
+                "goal",
+                "goal__period",
+                "goal__delegation",
+                "assigned_to",
+                "assigned_to__user",
+            )
+            .prefetch_related(
+                Prefetch(
+                    "activities",
+                    queryset=Activity.objects.filter(deleted_at__isnull=True)
+                    .prefetch_related(
+                        Prefetch(
+                            "evidences",
+                            queryset=Evidence.objects.filter(deleted_at__isnull=True),
+                        )
+                    ),
+                )
+            )
+            .order_by("goal__delegation__code", "goal__name", "due_date", "pk")
+        )
+
+        total_pendientes = qs.count()
+        pendientes_count = qs.filter(status="Pendiente").count()
+        en_progreso_count = qs.filter(status="En Progreso").count()
+
+        context.update(
+            {
+                "active_module": "tasks",
+                "module_label": MODULE_LABELS["tasks"],
+                "module_icon": MODULE_ICONS["tasks"],
+                "pending_tasks": qs,
+                "total_pendientes": total_pendientes,
+                "pendientes_count": pendientes_count,
+                "en_progreso_count": en_progreso_count,
+                "sgr_can_view_tasks": info.can("tasks", "view"),
+            }
+        )
+        return context

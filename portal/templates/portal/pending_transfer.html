@@ -1,0 +1,123 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }} – Pendientes a traspasar{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<style>
+  .pending-transfer { max-width: 1000px; margin: 0 auto; }
+  .pending-summary { display: flex; gap: 16px; margin-bottom: 20px; padding: 12px 16px; background: #f5f5f5; border: 1px solid #d9d9d9; border-radius: 8px; }
+  .pending-stat { display: flex; align-items: center; gap: 8px; }
+  .pending-stat .stat-ic { color: #920000; }
+  .pending-stat strong { font-size: 1.1em; color: #333; }
+  .pending-stat span { font-size: 0.85em; color: #666; }
+  .table-wrap { overflow-x: auto; }
+  table.pending-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9d9d9; border-radius: 6px; }
+  table.pending-table th { text-align: left; padding: 10px 12px; font-size: 0.85em; font-weight: 700; color: #555; border-bottom: 1px solid #e8e8e8; background: #fafafa; }
+  table.pending-table td { padding: 10px 12px; font-size: 0.9em; color: #333; border-bottom: 1px solid #f0f0f0; }
+  table.pending-table tr:last-child td { border-bottom: none; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; }
+  .badge-pendiente { background: #fff4e5; color: #b26a00; border: 1px solid #ffe0a0; }
+  .badge-en-progreso { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+  .periodo-cerrado { color: #b71c1c; font-size: 0.8em; font-weight: 700; }
+  .empty-state { text-align: center; padding: 40px; color: #888; font-size: 0.95em; }
+  .meta-cell { font-size: 0.85em; color: #333; }
+  .meta-cell .meta-name { font-weight: 700; }
+  .meta-cell .meta-periodo { color: #666; font-size: 0.75em; }
+  .resp-cell { font-size: 0.85em; color: #333; }
+  .resp-cell .resp-name { font-weight: 700; }
+  .resp-cell .resp-none { color: #999; font-style: italic; }
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Agenda de tareas / Pendientes a traspasar</nav>
+<div class="titlebar"><h1>{{ module_label }} — Pendientes a traspasar</h1></div>
+
+{% if not sgr_can_view_tasks %}
+<div class="empty-state">
+  {% sgr_icon 'lock' 32 %}
+  <p style="margin-top:8px;">No tiene permiso para ver este módulo.</p>
+</div>
+{% elif total_pendientes == 0 %}
+<div class="empty-state">
+  {% sgr_icon 'check' 32 %}
+  <p style="margin-top:8px;">No hay tareas pendientes a traspasar en el alcance actual.</p>
+</div>
+{% else %}
+
+<div class="pending-transfer">
+  <div class="pending-summary">
+    <div class="pending-stat">
+      <span class="stat-ic">{% sgr_icon 'layers' 16 %}</span>
+      <div>
+        <strong>{{ total_pendientes }}</strong>
+        <span>tareas pendientes a traspasar</span>
+      </div>
+    </div>
+    <div class="pending-stat">
+      <span class="stat-ic">{% sgr_icon 'calendar' 16 %}</span>
+      <div>
+        <strong>{{ pendientes_count }}</strong>
+        <span>Pendiente</span>
+      </div>
+    </div>
+    <div class="pending-stat">
+      <span class="stat-ic">{% sgr_icon 'layers' 16 %}</span>
+      <div>
+        <strong>{{ en_progreso_count }}</strong>
+        <span>En Progreso</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="pending-table" aria-label="Tareas pendientes a traspasar">
+      <thead>
+        <tr>
+          <th style="width: 22%;">Meta institucional</th>
+          <th style="width: 16%;">Período / Trimestre</th>
+          <th style="width: 20%;">Título de la tarea</th>
+          <th style="width: 14%;">Estado</th>
+          <th style="width: 14%;">Responsable</th>
+          <th style="width: 14%;">Plazo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tarea in pending_tasks %}
+        <tr>
+          <td class="meta-cell">
+            <span class="meta-ic">{% sgr_icon 'goal' 14 %}</span>
+            <span class="meta-name">{{ tarea.goal.name }}</span>
+            <br><span class="meta-periodo">{{ tarea.goal.delegation.code }} · {{ tarea.goal.period.name }}</span>
+          </td>
+          <td>
+            <span class="periodo-cerrado">{% sgr_icon 'calendar' 14 %} {{ tarea.goal.period.name }} (T{{ tarea.goal.period.quarter }}) · Cerrado</span>
+          </td>
+          <td>{{ tarea.title }}</td>
+          <td>
+            {% if tarea.status == "Pendiente" %}
+            <span class="badge badge-pendiente">{% sgr_icon 'calendar' 14 %} Pendiente</span>
+            {% elif tarea.status == "En Progreso" %}
+            <span class="badge badge-en-progreso">{% sgr_icon 'layers' 14 %} En Progreso</span>
+            {% endif %}
+          </td>
+          <td class="resp-cell">
+            {% if tarea.assigned_to %}
+            <span class="resp-ic">{% sgr_icon 'users' 14 %}</span>
+            <span class="resp-name">{{ tarea.assigned_to.user.get_full_name|default:tarea.assigned_to.user.username }}</span>
+            {% else %}
+            <span class="resp-none">Sin asignar</span>
+            {% endif %}
+          </td>
+          <td>{{ tarea.due_date|date:"d/m/Y" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p class="empty-state" style="margin-top:16px; text-align: center; color: #666; font-size: 0.85em;">
+    {% sgr_icon 'info' 14 %} Vista de solo lectura: ninguna tarea se modifica desde esta pantalla.
+  </p>
+</div>
+{% endif %}
+{% endblock %}
