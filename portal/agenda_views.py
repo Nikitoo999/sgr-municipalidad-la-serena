@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -9,7 +11,7 @@ from django.views import View
 from django.views.generic import TemplateView
 from django.utils import timezone
 from operaciones.models import Activity, Employee, Evidence, Task
-from sgr_core.models import InstitutionalGoal, ProjectItem
+from sgr_core.models import Delegation, InstitutionalGoal, ProjectItem
 
 
 from . import access
@@ -378,3 +380,76 @@ class TaskStatusChangeView(LoginRequiredMixin, ModulePermissionMixin, View):
         if params:
             url = f"{url}?{urlencode(params)}"
         return redirect(url)
+
+
+class OrganigramView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
+    """Vista de solo lectura del organigrama de empleados por delegación y cargo.
+
+    Requiere permiso users.view. Agrupa empleados por delegación activa y posición.
+    """
+
+    module = "users"
+    action = "view"
+    template_name = "portal/organigrama.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        info = access.get_access(self.request)
+        active = access.get_active_delegation(self.request)
+        role = info.role
+
+        # Base de empleados visibles (sin borrados lógicos y con cuenta activa)
+        qs = Employee.objects.filter(
+            deleted_at__isnull=True, user__is_active=True
+        ).select_related("user", "delegation", "position", "role")
+
+        # Scoping por delegación activa
+        if active is not None and active != access.ALL_DELEGATIONS:
+            qs = qs.filter(delegation_id=active.pk)
+
+        # Scoping por rol own_records: solo el propio empleado
+        if role is not None and role.scope == "own_records":
+            qs = qs.filter(user_id=self.request.user.pk)
+
+        # Filtro GET opcional 'delegation' (solo cuando la delegación activa es ALL)
+        delegation_filter = self.request.GET.get("delegation")
+        if delegation_filter and active == access.ALL_DELEGATIONS:
+            try:
+                delegation_filter_int = int(delegation_filter)
+                qs = qs.filter(delegation_id=delegation_filter_int)
+            except (ValueError, TypeError):
+                pass
+
+        # Agrupación: por delegación (código), posición, luego nombre
+        # Usamos defaultdict para anidar: delegación -> posición -> lista de empleados
+        organigrama = defaultdict(lambda: defaultdict(list))
+        for emp in qs.order_by(
+            "delegation__code",
+            "position__code",
+            "user__first_name",
+            "user__last_name",
+        ):
+            de_key = emp.delegation.code if emp.delegation else "Sin delegación"
+            pos_key = emp.position.code if emp.position else "Sin cargo"
+            organigrama[de_key][pos_key].append(
+                {
+                    "employee": emp,
+                    "full_name": emp.user.get_full_name() or emp.user.username,
+                    "rank": emp.role.rank if emp.role else 0,
+                    "scope": emp.role.scope if emp.role else "—",
+                }
+            )
+
+        context.update(
+            {
+                "active_module": "users",
+                "module_label": MODULE_LABELS["users"],
+                "module_icon": MODULE_ICONS["users"],
+                "organigrama": dict(sorted(organigrama.items())),
+                "all_delegations": Delegation.objects.filter(
+                    status="Activa", deleted_at__isnull=True
+                ).order_by("code"),
+                "sgr_can_view_users": info.can("users", "view"),
+            }
+        )
+        return context

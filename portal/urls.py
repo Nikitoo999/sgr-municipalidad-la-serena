@@ -7,6 +7,7 @@ from .agenda_views import (
     EvidenceCreateView,
     EvidenceValidateView,
     KanbanView,
+    OrganigramView,
     TaskStatusChangeView,
 )
 from .compliance_views import ComplianceView, FeedbackCreateView
@@ -76,6 +77,7 @@ urlpatterns = [
         TaskStatusChangeView.as_view(),
         name='kanban_task_status_change',
     ),
+    path('organigrama/', OrganigramView.as_view(), name='organigrama'),
     path('cumplimiento/', ComplianceView.as_view(), name='achievements'),
     path('cumplimiento/<int:employee_id>/comentarios/nuevo/', FeedbackCreateView.as_view(), name='feedback_create'),
     path('cumplimiento/tubos/', TubeListView.as_view(), name='tubes'),
