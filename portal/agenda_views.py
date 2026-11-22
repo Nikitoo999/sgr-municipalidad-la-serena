@@ -202,7 +202,7 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
       - assigned_to: ID numérico de Employee o 'unassigned' para assigned_to__isnull=True.
     """
 
-    template_name = "portal/kanban_tasks.html"
+    template_name = "portal/kanban.html"
     module = "tasks"
     action = "view"
 
@@ -329,6 +329,11 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
             if employees_choices.filter(pk=assigned_to).exists():
                 assigned_to_active = assigned_to
 
+        view_mode = self.request.GET.get("view", "kanban")
+        if view_mode not in ("kanban", "tabla"):
+            view_mode = "kanban"
+        total_tareas = sum(len(items) for items in columnas.values())
+
         context.update(
             {
                 "active_module": "tasks",
@@ -340,6 +345,8 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                 "assigned_to_active": assigned_to_active,
                 "goals_choices": goals_choices,
                 "employees_choices": employees_choices,
+                "view_mode": view_mode,
+                "total_tareas": total_tareas,
                 "can_edit_tasks": info.can("tasks", "edit"),
             }
         )
@@ -373,7 +380,7 @@ class TaskStatusChangeView(LoginRequiredMixin, ModulePermissionMixin, View):
     def _redirect_kanban(self, request):
         """Redirige al Kanban preservando los filtros goal y assigned_to."""
         params = {}
-        for key in ("goal", "assigned_to"):
+        for key in ("goal", "assigned_to", "view"):
             valor = request.GET.get(key) or request.POST.get(key)
             if valor:
                 params[key] = valor

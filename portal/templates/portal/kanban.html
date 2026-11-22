@@ -1,0 +1,652 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }} — Kanban{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<style>
+  /* ==================== Kanban — columnas lado a lado ==================== */
+  .kanban-board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+    width: 100%;
+  }
+  @media (max-width: 900px) {
+    .kanban-board {
+      grid-template-columns: 1fr;
+    }
+  }
+  .kanban-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: #eceff3;
+    border: 1px solid var(--line, #dde1e6);
+    border-radius: 10px;
+    padding: 12px;
+    border-top-width: 3px;
+    border-top-style: solid;
+  }
+  .kanban-col.pendiente { border-top-color: var(--bad, #9b1c1c); }
+  .kanban-col.en-progreso { border-top-color: var(--warn, #7a4f00); }
+  .kanban-col.completada { border-top-color: var(--ok, #17663b); }
+  .kanban-col-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 0 8px 0;
+    border-bottom: 1px solid var(--line, #dde1e6);
+    margin-bottom: 8px;
+  }
+  .kanban-col-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--ink, #1f2328);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kanban-col-title svg { width: 16px; height: 16px; flex: none; }
+  .kanban-col-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    border-radius: 13px;
+    border: 1px solid var(--line, #dde1e6);
+    background: #fff;
+    color: var(--ink, #1f2328);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 0 8px;
+    flex: none;
+  }
+  .kanban-col-divider {
+    border: 0;
+    border-top: 1px solid var(--line, #dde1e6);
+    margin: 0;
+    display: block;
+  }
+  .kanban-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    max-height: calc(100vh - 320px);
+    overflow-y: auto;
+  }
+  .empty-state {
+    color: var(--muted, #5b6370);
+    font-size: 12.5px;
+    text-align: center;
+    padding: 10px 0;
+    display: block;
+  }
+  .kanban-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid var(--line, #dde1e6);
+    border-radius: 8px;
+    padding: 12px 14px;
+    border-left-width: 4px;
+    border-left-style: solid;
+    box-sizing: border-box;
+  }
+  .kanban-card.pendiente { border-left-color: var(--bad, #9b1c1c); }
+  .kanban-card.en-progreso { border-left-color: var(--warn, #7a4f00); }
+  .kanban-card.completada { border-left-color: var(--ok, #17663b); }
+  .kanban-card.vencida { border-left-color: var(--bad, #9b1c1c); }
+  .kanban-card:focus-visible {
+    outline: 2px solid var(--muni, #920000);
+    outline-offset: 2px;
+  }
+  .kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .kanban-card.kanban-dragging { opacity: 0.6; cursor: grabbing; }
+  .kanban-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .kanban-code {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--muted, #5b6370);
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .kanban-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    flex: none;
+  }
+  .kanban-pill.pendiente { background: var(--bad-bg, #fbe4e4); color: var(--bad, #9b1c1c); border-color: var(--bad, #9b1c1c); }
+  .kanban-pill.en-progreso { background: var(--warn-bg, #fcf0d0); color: var(--warn, #7a4f00); border-color: var(--warn, #7a4f00); }
+  .kanban-pill.completada { background: var(--ok-bg, #e3f3ea); color: var(--ok, #17663b); border-color: var(--ok, #17663b); }
+  .kanban-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink, #1f2328);
+    margin: 0;
+    word-break: break-word;
+  }
+  .kanban-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .kanban-meta .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--muted, #5b6370);
+  }
+  .kanban-meta .meta-item svg { width: 16px; height: 16px; flex: none; display: block; }
+  .kanban-due-vencida { font-weight: 700; color: var(--bad, #9b1c1c); }
+  .kanban-card-divider {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin: 8px 0 0;
+    padding-top: 4px;
+    display: block;
+  }
+  .kanban-actions {
+    display: inline-flex;
+    border: 1px solid var(--line, #dde1e6);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .kanban-actions button {
+    border: 0;
+    background: transparent;
+    padding: 0 10px;
+    height: 28px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1;
+    color: var(--muted, #5b6370);
+  }
+  .kanban-actions button svg { width: 14px; height: 14px; flex: none; display: block; }
+  .kanban-actions button:focus-visible {
+    outline: 2px solid var(--muni, #920000);
+    outline-offset: 2px;
+    background: #fff;
+  }
+  .kanban-actions button.pendiente { border: 1px solid var(--bad, #9b1c1c); color: var(--bad, #9b1c1c); }
+  .kanban-actions button.en-progreso { border: 1px solid var(--warn, #7a4f00); color: var(--warn, #7a4f00); }
+  .kanban-actions button.completada { border: 1px solid var(--ok, #17663b); color: var(--ok, #17663b); }
+  .kanban-actions button.activo.pendiente { background: var(--bad, #9b1c1c); color: #fff; }
+  .kanban-actions button.activo.en-progreso { background: var(--warn, #7a4f00); color: #fff; }
+  .kanban-actions button.activo.completada { background: var(--ok, #17663b); color: #fff; }
+  .kanban-col.kanban-drop-target {
+    border: 3px dashed var(--muni, #920000) !important;
+    background: var(--muni-tint, #fbeaea);
+    border-radius: 10px;
+  }
+  /* ==================== Vista Tabla (conservada) ==================== */
+  .kanban-table { margin-top: 14px; }
+  .table-wrap {
+    background: #fff;
+    border: 1px solid var(--line, #dde1e6);
+    border-radius: 10px;
+    overflow-x: auto;
+    margin-bottom: 14px;
+  }
+  .table-wrap table { width: 100%; border-collapse: collapse; }
+  .table-wrap th {
+    background: #eceef1;
+    text-align: left;
+    font-weight: 700;
+    padding: 11px 14px;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--muted, #5b6370);
+  }
+  .table-wrap td {
+    padding: 10px 14px;
+    border-top: 1px solid var(--line, #dde1e6);
+    vertical-align: middle;
+    font-size: 14px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge.pendiente { background: #fdecea; color: #b71c1c; }
+  .badge.en-progreso { background: #fff4e5; color: #b26a00; }
+  .badge.completada { background: #e8f5e9; color: #2e7d32; }
+  .table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .table-actions button {
+    padding: 4px 10px;
+    font-size: 0.8em;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1;
+  }
+  .table-actions button.pendiente { border-color: #b71c1c; color: #b71c1c; }
+  .table-actions button.en-progreso { border-color: #b26a00; color: #b26a00; }
+  .table-actions button.completada { border-color: #2e7d32; color: #2e7d32; }
+  .table-actions button.activo { border-color: #333; background: #e9e9e9; font-weight: 700; }
+  .table-actions button.activo.pendiente { background: #fdecea; }
+  .table-actions button.activo.en-progreso { background: #fff4e5; }
+  .table-actions button.activo.completada { background: #e8f5e9; }
+  .view-mode {
+    display: inline-flex;
+    gap: 2px;
+    border: 1px solid var(--line, #dde1e6);
+    border-radius: 8px;
+    background: #fff;
+    padding: 2px;
+  }
+  .view-mode button {
+    border: 0;
+    background: transparent;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted, #5b6370);
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .view-mode button.active { background: var(--muni, #920000); color: #fff; }
+  .view-mode button:hover { color: var(--ink, #1f2328); }
+  .view-mode button svg { display: block; }
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Kanban</nav>
+<div class="titlebar" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+  <h1>{{ module_label }} — Kanban</h1>
+</div>
+
+<section class="card" aria-label="Filtros del tablero Kanban">
+  <form method="get" action="" id="kanbanToolbarForm" role="search">
+    <div class="kanban-toolbar-row" style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
+      <div class="field" style="display:flex; flex-direction:column; min-width:0;">
+        <label for="id_goal">Meta institucional</label>
+        <select class="in" name="goal" id="id_goal">
+          <option value="">Todas las metas</option>
+          {% for goal in goals_choices %}
+            <option value="{{ goal.pk }}"{% if goal_active == goal.pk|stringformat:"s" %} selected{% endif %}>{{ goal.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" style="display:flex; flex-direction:column; min-width:0;">
+        <label for="id_assigned_to">Responsable</label>
+        <select class="in" name="assigned_to" id="id_assigned_to">
+          <option value="">Todos los responsables</option>
+          <option value="unassigned"{% if assigned_to_active == "unassigned" %} selected{% endif %}>Sin asignar</option>
+          {% for emp in employees_choices %}
+            <option value="{{ emp.pk }}"{% if assigned_to_active == emp.pk|stringformat:"s" %} selected{% endif %}>{{ emp.user.get_full_name|default:emp.user.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <input type="hidden" name="view" id="id_view" value="{{ view_mode }}">
+      <div class="view-mode" role="radiogroup" aria-label="Vista del tablero" style="margin-left:auto;">
+        <button type="button" class="{% if view_mode == 'kanban' %}active{% endif %}" onclick="document.getElementById('id_view').value='kanban'; document.getElementById('kanbanToolbarForm').submit();" aria-pressed="{% if view_mode == 'kanban' %}true{% else %}false{% endif %}">
+          {% sgr_icon 'layers' 16 %}<span>Kanban</span>
+        </button>
+        <button type="button" class="{% if view_mode == 'tabla' %}active{% endif %}" onclick="document.getElementById('id_view').value='tabla'; document.getElementById('kanbanToolbarForm').submit();" aria-pressed="{% if view_mode == 'tabla' %}true{% else %}false{% endif %}">
+          {% sgr_icon 'clip' 16 %}<span>Tabla</span>
+        </button>
+      </div>
+      <button type="submit" class="btn primary">{% sgr_icon 'search' 16 %}<span>Aplicar filtros</span></button>
+      {% if goal_active or assigned_to_active %}
+        <a href="{% url 'kanban_tasks' %}?view={{ view_mode }}" class="btn ghost">{% sgr_icon 'x' 16 %}<span>Limpiar filtros</span></a>
+      {% endif %}
+      <div class="kanban-summary" style="margin-left:14px; font-size:13px; color:var(--muted, #5b6370); white-space:nowrap;" aria-label="Resumen de tareas">Total: {{ total_tareas }} · Completadas: {{ columnas.Completada|length }}</div>
+    </div>
+  </form>
+</section>
+
+{% if view_mode == 'tabla' %}
+<div class="kanban-table" data-edit="{% if can_edit_tasks %}1{% else %}0{% endif %}">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Código</th>
+          <th scope="col">Tarea</th>
+          <th scope="col">Meta institucional</th>
+          <th scope="col">Responsable</th>
+          <th scope="col">Vencimiento</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for estado, tareas_col in columnas.items %}
+        {% for item in tareas_col %}
+        {% with tarea=item.tarea %}
+        <tr class="{% if tarea.status == 'Pendiente' %}pendiente{% elif tarea.status == 'En Progreso' %}en-progreso{% else %}completada{% endif %}{% if item.vencida %} vencida{% endif %}" data-task-id="{{ tarea.pk }}" data-status="{{ tarea.status }}" data-url="{% url 'kanban_task_status_change' tarea.pk %}">
+          <td class="kanban-code">{{ tarea.code }}</td>
+          <td>{{ tarea.title }}</td>
+          <td>{{ tarea.goal.name }}</td>
+          <td>{% if tarea.assigned_to %}{{ tarea.assigned_to.full_name }}{% else %}Sin asignar{% endif %}</td>
+          <td>{{ tarea.due_date|date:"d/m/Y" }}{% if item.vencida %} <span class="kanban-due-vencida"> (vencido)</span>{% endif %}</td>
+          <td>
+            <span class="badge {% if tarea.status == 'Pendiente' %}pendiente{% elif tarea.status == 'En Progreso' %}en-progreso{% else %}completada{% endif %}">
+              {% if tarea.status == 'Pendiente' %}{% sgr_icon 'alert' 14 %}{% elif tarea.status == 'En Progreso' %}{% sgr_icon 'layers' 14 %}{% else %}{% sgr_icon 'check' 14 %}{% endif %}
+              <span>{{ tarea.status }}</span>
+            </span>
+          </td>
+          <td>
+            {% if can_edit_tasks %}
+            <div class="table-actions">
+              <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="Pendiente">
+                {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+                {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+                <button type="submit" data-status="Pendiente" class="pendiente{% if tarea.status == 'Pendiente' %} activo{% endif %}" title="Marcar como Pendiente" aria-pressed="{% if tarea.status == 'Pendiente' %}true{% else %}false{% endif %}">
+                  {% sgr_icon 'alert' 14 %}<span class="estado-tx">Pendiente</span>
+                </button>
+              </form>
+              <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="En Progreso">
+                {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+                {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+                <button type="submit" data-status="En Progreso" class="en-progreso{% if tarea.status == 'En Progreso' %} activo{% endif %}" title="Marcar como En Progreso" aria-pressed="{% if tarea.status == 'En Progreso' %}true{% else %}false{% endif %}">
+                  {% sgr_icon 'layers' 14 %}<span class="estado-tx">En Progreso</span>
+                </button>
+              </form>
+              <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="Completada">
+                {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+                {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+                <button type="submit" data-status="Completada" class="completada{% if tarea.status == 'Completada' %} activo{% endif %}" title="Marcar como Completada" aria-pressed="{% if tarea.status == 'Completada' %}true{% else %}false{% endif %}">
+                  {% sgr_icon 'check' 14 %}<span class="estado-tx">Completada</span>
+                </button>
+              </form>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_tareas == 0 %}
+  <div class="empty-state">Sin tareas para mostrar</div>
+  {% endif %}
+</div>
+{% else %}
+<div class="kanban-board" role="region" aria-label="Tablero Kanban de tareas" data-edit="{% if can_edit_tasks %}1{% else %}0{% endif %}">
+  {% for estado, tareas_col in columnas.items %}
+  <section class="kanban-col {{ estado|lower|replace:' ,-' }}" data-status="{{ estado }}" aria-labelledby="col-{{ estado|lower|replace:' ,-' }}">
+    <div class="kanban-col-head" id="col-{{ estado|lower|replace:' ,-' }}">
+      <h2 class="kanban-col-title">
+        {% if estado == 'Pendiente' %}{% sgr_icon 'alert' 16 %}{% elif estado == 'En Progreso' %}{% sgr_icon 'layers' 16 %}{% else %}{% sgr_icon 'check' 16 %}{% endif %} {{ estado }}
+      </h2>
+      <span class="kanban-col-count" aria-label="{{ tareas_col|length }} tareas">{{ tareas_col|length }}</span>
+    </div>
+    <hr class="kanban-col-divider" aria-hidden="true">
+    <div class="kanban-cards" aria-label="Tareas {{ estado }}">
+      {% if tareas_col %}
+      {% for item in tareas_col %}
+      {% with tarea=item.tarea %}
+      <article class="kanban-card{% if tarea.status == 'Pendiente' %} pendiente{% elif tarea.status == 'En Progreso' %} en-progreso{% else %} completada{% endif %}{% if item.vencida %} vencida{% endif %}" data-task-id="{{ tarea.pk }}" data-status="{{ tarea.status }}" data-url="{% url 'kanban_task_status_change' tarea.pk %}" aria-label="Mover {{ tarea.code }}" tabindex="0">
+        <div class="kanban-card-head">
+          <div class="kanban-code">{{ tarea.code }}</div>
+          <span class="kanban-pill{% if tarea.status == 'Pendiente' %} pendiente{% elif tarea.status == 'En Progreso' %} en-progreso{% else %} completada{% endif %}">
+            {% if tarea.status == 'Pendiente' %}{% sgr_icon 'alert' 14 %}{% elif tarea.status == 'En Progreso' %}{% sgr_icon 'layers' 14 %}{% else %}{% sgr_icon 'check' 14 %}{% endif %}
+            <span>{{ tarea.status }}</span>
+          </span>
+        </div>
+        <div class="kanban-title">{{ tarea.title }}</div>
+        <div class="kanban-meta">
+          <span class="meta-item">{% sgr_icon 'goal' 16 %}<span>{{ tarea.goal.name }}</span></span>
+          <span class="meta-item">{% sgr_icon 'users' 16 %}<span>{% if tarea.assigned_to %}{{ tarea.assigned_to.full_name }}{% else %}<em>Sin asignar</em>{% endif %}</span></span>
+          <span class="meta-item">{% sgr_icon 'calendar' 16 %}<span>{{ tarea.due_date|date:"d/m/Y" }}{% if item.vencida %} <span class="kanban-due-vencida"> (vencido)</span>{% endif %}</span></span>
+        </div>
+        <hr class="kanban-card-divider" aria-hidden="true">
+        {% if can_edit_tasks %}
+        <div class="kanban-actions" aria-label="Cambiar estado de {{ tarea.code }}">
+          <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="Pendiente">
+            {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+            {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+            <button type="submit" data-status="Pendiente" class="pendiente{% if tarea.status == 'Pendiente' %} activo{% endif %}" title="Marcar como Pendiente" aria-pressed="{% if tarea.status == 'Pendiente' %}true{% else %}false{% endif %}" aria-label="Marcar {{ tarea.code }} como Pendiente">
+              {% sgr_icon 'alert' 14 %}<span>Pendiente</span>
+            </button>
+          </form>
+          <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="En Progreso">
+            {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+            {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+            <button type="submit" data-status="En Progreso" class="en-progreso{% if tarea.status == 'En Progreso' %} activo{% endif %}" title="Marcar como En Progreso" aria-pressed="{% if tarea.status == 'En Progreso' %}true{% else %}false{% endif %}" aria-label="Marcar {{ tarea.code }} como En Progreso">
+              {% sgr_icon 'layers' 14 %}<span>En Progreso</span>
+            </button>
+          </form>
+          <form method="post" action="{% url 'kanban_task_status_change' tarea.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="Completada">
+            {% if goal_active %}<input type="hidden" name="goal" value="{{ goal_active }}">{% endif %}
+            {% if assigned_to_active %}<input type="hidden" name="assigned_to" value="{{ assigned_to_active }}">{% endif %}
+            <button type="submit" data-status="Completada" class="completada{% if tarea.status == 'Completada' %} activo{% endif %}" title="Marcar como Completada" aria-pressed="{% if tarea.status == 'Completada' %}true{% else %}false{% endif %}" aria-label="Marcar {{ tarea.code }} como Completada">
+              {% sgr_icon 'check' 14 %}<span>Completada</span>
+            </button>
+          </form>
+        </div>
+        {% endif %}
+      </article>
+      {% endwith %}
+      {% endfor %}
+      {% endif %}
+      <div class="empty-state" hidden>Sin tareas</div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    'use strict';
+    var board = document.querySelector('.kanban-board');
+
+    function csrfToken() {
+      var m = document.cookie.match('(?:^|;\\s*)csrftoken=([^;]*)');
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    function statusClass(status) {
+      return status === 'Pendiente' ? 'pendiente' : status === 'En Progreso' ? 'en-progreso' : 'completada';
+    }
+    function applyColorClasses(el, status) {
+      el.classList.remove('pendiente', 'en-progreso', 'completada');
+      el.classList.add(statusClass(status));
+    }
+    function syncButtons(card) {
+      var status = card.getAttribute('data-status');
+      card.querySelectorAll('.kanban-actions button').forEach(function (btn) {
+        var active = btn.getAttribute('data-status') === status;
+        btn.classList.toggle('activo', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+    function cardsContainer(col) { return col.querySelector('.kanban-cards'); }
+    function countCards(col) { return cardsContainer(col).querySelectorAll(':scope > .kanban-card').length; }
+    function updateCount(col) {
+      var el = col.querySelector('.kanban-col-count');
+      if (el) el.textContent = countCards(col);
+      var empty = col.querySelector('.empty-state');
+      if (empty) empty.hidden = countCards(col) === 0;
+    }
+    function applyMove(card, col, newStatus) {
+      cardsContainer(col).appendChild(card);
+      card.setAttribute('data-status', newStatus);
+      applyColorClasses(card, newStatus);
+      card.classList.remove('kanban-dragging');
+      card.style.opacity = '';
+      card.style.touchAction = '';
+      updateCount(originCol);
+      updateCount(col);
+      syncButtons(card);
+    }
+    function revertMove(card, col) {
+      cardsContainer(col).appendChild(card);
+      applyColorClasses(card, card.getAttribute('data-status'));
+      card.classList.remove('kanban-dragging');
+      card.style.opacity = '';
+      card.style.touchAction = '';
+      updateCount(col);
+      syncButtons(card);
+    }
+
+    var draggedCard = null;
+    var originCol = null;
+    var clone = null;
+
+    if (board && board.getAttribute('data-edit') === '1') {
+      board.querySelectorAll('.kanban-card').forEach(function (card) {
+        card.addEventListener('pointerdown', function (e) {
+          if (e.button !== 0) return;
+          draggedCard = card;
+          originCol = card.closest('.kanban-col');
+          var rect = card.getBoundingClientRect();
+          card.style.touchAction = 'none';
+          card.style.opacity = '0.6';
+
+          clone = card.cloneNode(true);
+          clone.style.position = 'fixed';
+          clone.style.left = rect.left + 'px';
+          clone.style.top = rect.top + 'px';
+          clone.style.width = rect.width + 'px';
+          clone.style.height = rect.height + 'px';
+          clone.style.boxSizing = 'border-box';
+          clone.style.zIndex = '1000';
+          clone.style.opacity = '0.95';
+          clone.style.pointerEvents = 'none';
+          clone.style.borderRadius = '6px';
+          clone.style.boxShadow = '0 8px 24px rgba(0,0,0,.18)';
+          applyColorClasses(clone, card.getAttribute('data-status'));
+          document.body.appendChild(clone);
+
+          card.setPointerCapture(e.pointerId);
+        }, false);
+      });
+      document.addEventListener('pointermove', function (e) {
+        if (!draggedCard || !clone) return;
+        e.preventDefault();
+        clone.style.left = (e.clientX - clone.offsetWidth / 2) + 'px';
+        clone.style.top = (e.clientY - clone.offsetHeight / 2) + 'px';
+        var target = document.elementFromPoint(e.clientX, e.clientY);
+        var targetCol = target ? target.closest('.kanban-col[data-status]') : null;
+        document.querySelectorAll('.kanban-col.kanban-drop-target').forEach(function (c) {
+          c.classList.remove('kanban-drop-target');
+        });
+        if (targetCol && targetCol !== originCol) {
+          targetCol.classList.add('kanban-drop-target');
+        }
+      }, false);
+
+      function endDrag(e) {
+        if (!draggedCard || !clone) return;
+        var target = document.elementFromPoint(e.clientX, e.clientY);
+        var targetCol = target ? target.closest('.kanban-col[data-status]') : null;
+        var newStatus = targetCol ? targetCol.getAttribute('data-status') : null;
+        clone.remove();
+        clone = null;
+        draggedCard.style.opacity = '';
+        draggedCard.style.touchAction = '';
+        document.querySelectorAll('.kanban-col.kanban-drop-target').forEach(function (c) {
+          c.classList.remove('kanban-drop-target');
+        });
+        if (newStatus && newStatus !== originCol.getAttribute('data-status')) {
+          var formData = new URLSearchParams();
+          formData.set('status', newStatus);
+          fetch(draggedCard.getAttribute('data-url'), {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': csrfToken(),
+              'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: formData.toString()
+          }).then(function (response) {
+            if (response.ok) {
+              applyMove(draggedCard, targetCol, newStatus);
+            } else {
+              revertMove(draggedCard, originCol);
+              Swal.fire({
+                icon: 'error', title: 'No se pudo cambiar el estado',
+                text: 'El servidor rechazó el movimiento y la tarea volvió a su columna.',
+                timer: 3000, showConfirmButton: false, toast: true, position: 'top'
+              });
+            }
+          }).catch(function () {
+            revertMove(draggedCard, originCol);
+            Swal.fire({
+              icon: 'error', title: 'No se pudo cambiar el estado',
+              text: 'Error de conexión. Intente nuevamente.',
+              timer: 3000, showConfirmButton: false, toast: true, position: 'top'
+            });
+          });
+        }
+        draggedCard = null;
+        originCol = null;
+      }
+
+      document.addEventListener('pointerup', endDrag, false);
+      document.addEventListener('pointercancel', function () {
+        if (!draggedCard) return;
+        if (clone) clone.remove();
+        clone = null;
+        if (draggedCard) {
+          draggedCard.style.opacity = '';
+          draggedCard.style.touchAction = '';
+        }
+        document.querySelectorAll('.kanban-col.kanban-drop-target').forEach(function (c) {
+          c.classList.remove('kanban-drop-target');
+        });
+        draggedCard = null;
+        originCol = null;
+      }, false);
+    }
+  })();
+</script>
+{% endblock %}

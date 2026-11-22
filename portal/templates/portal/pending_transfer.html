@@ -116,7 +116,7 @@
           </td>
           <td>{{ tarea.due_date|date:"d/m/Y" }}</td>
           <td class="transfer-cell">
-            {% if can_edit_tasks %}
+            {% if sgr_can_edit_tasks %}
             <form method="post" action="{% url 'pending_transfer_execute' tarea.pk %}" class="transfer-form">
               {% csrf_token %}
               <select name="goal_id" id="id_goal_{{ tarea.pk }}">
@@ -137,7 +137,7 @@
     </table>
   </div>
 
-  {% if can_edit_tasks and total_pendientes > 0 %}
+  {% if sgr_can_edit_tasks and total_pendientes > 0 %}
   <p class="empty-state" style="margin-top:16px; text-align: center; color: #666; font-size: 0.85em;">
     {% sgr_icon 'info' 14 %} Seleccione una meta destino en período "En curso" para traspasar la tarea. La tarea origen se conserva como historial.
   </p>
