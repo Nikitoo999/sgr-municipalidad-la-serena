@@ -122,22 +122,27 @@
     frame.title = title || 'Formulario';
     var loading = backdrop.querySelector('.smodal-loading');
     frame.addEventListener('load', function () {
+      var loadedUrl = '';
+      try { loadedUrl = frame.contentWindow.location.href; } catch (err) { return; }
+      // El navegador puede disparar "load" con la página vacía inicial: se ignora.
+      if (!loadedUrl || loadedUrl === 'about:blank') return;
       loading.hidden = true;
       try {
         // Si la página no quedó en modo modal (p. ej., la sesión expiró y se
-        // redirigió al login), se abre a pantalla completa.
+        // redirigió al login), se abre esa página a pantalla completa.
         var doc = frame.contentDocument;
         if (doc && doc.body && !doc.body.classList.contains('embed') &&
             !doc.getElementById('sgr-modal-redirect')) {
-          window.location.href = frame.contentWindow.location.href.replace(/([?&])modal=1&?/, '$1').replace(/[?&]$/, '');
+          window.location.href = loadedUrl.replace(/([?&])modal=1&?/, '$1').replace(/[?&]$/, '');
         }
       } catch (err) { /* otro origen: no debería ocurrir */ }
     });
+    // La dirección se asigna antes de insertar el iframe en la página.
+    frame.src = withModalParam(href);
     backdrop.querySelector('.smodal-close').addEventListener('click', function () { closeFrameModal(false); });
     document.body.appendChild(backdrop);
     document.body.classList.add('smodal-open');
     current = { backdrop: backdrop, frame: frame, dirty: false, opener: opener };
-    frame.src = withModalParam(href);
     backdrop.querySelector('.smodal-close').focus();
   }
 
