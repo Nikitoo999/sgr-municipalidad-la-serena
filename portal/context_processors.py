@@ -65,6 +65,7 @@ def _profile_context(user):
         role_name = employee.role.name if employee.role else "—"
         scope_label = employee.role.scope_label if employee.role else "—"
         rut = employee.rut
+        photo_url = employee.photo.url if employee.photo else ""
         phone = employee.phone or ""
         address = employee.address or ""
         base = employee.delegation
@@ -77,6 +78,7 @@ def _profile_context(user):
         role_name = "Superadministrador" if user.is_superuser else "—"
         scope_label = "Todas las delegaciones" if user.is_superuser else "—"
         rut = "—"
+        photo_url = ""
         phone = ""
         address = ""
         base_delegation = "—"
@@ -94,7 +96,21 @@ def _profile_context(user):
         "scope_label": scope_label,
         "base_delegation": base_delegation,
         "authorized_delegations": authorized,
+        "photo_url": photo_url,
+        "has_employee": employee is not None,
     }
+
+
+def _badge_count(request):
+    """Contador de la campana; nunca rompe la página si algo falla."""
+    if request.GET.get("modal") == "1":
+        return 0
+    try:
+        from .alerts import badge_count
+
+        return badge_count(request)
+    except Exception:  # pragma: no cover - la campana es informativa
+        return 0
 
 
 def sgr_context(request):
@@ -154,6 +170,8 @@ def sgr_context(request):
     return {
         # Página abierta dentro de la ventana emergente (portal.modal).
         "sgr_embed": request.GET.get("modal") == "1",
+        # Avisos sin leer + alertas rápidas sin revisar (campana de la barra).
+        "sgr_badge_count": _badge_count(request),
         "sgr_access": info,
         "sgr_role": info.role,
         "sgr_allowed_delegations": allowed,

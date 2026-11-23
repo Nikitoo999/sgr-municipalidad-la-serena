@@ -52,7 +52,8 @@ class CatalogSchemaTests(TestCase):
             AttentionType.objects.count(),
             AttentionSubtype.objects.count(),
         )
-        self.assertEqual(conteos, (7, 5, 8))
+        # 7 ítems ITM del seed + 22 ítems MTX de la matriz (seed_metas_cargos).
+        self.assertEqual(conteos, (29, 5, 8))
         call_command("seed_demo", verbosity=0)
         self.assertEqual(
             (

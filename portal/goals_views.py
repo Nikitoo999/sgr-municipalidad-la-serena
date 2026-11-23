@@ -24,6 +24,11 @@ def elegir_periodo(request, periodos):
         for periodo in periodos:
             if periodo.pk == int(pedido):
                 return periodo
+    from operaciones.calculos import periodo_vigente
+
+    vigente = periodo_vigente()
+    if vigente is not None and vigente in periodos:
+        return vigente
     for periodo in periodos:
         if periodo.status == "En curso":
             return periodo

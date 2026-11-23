@@ -18,6 +18,8 @@ MODULES = (
     ('achievements', 'Cumplimiento'),
     ('reports', 'Reportes'),
     ('organizations', 'Organizaciones comunitarias'),
+    ('periods', 'Períodos y cierre de trimestre'),
+    ('positions', 'Cargos y metas'),
 )
 
 ACTIONS = (
@@ -91,6 +93,8 @@ BASE_ROLES = (
             'reports': ('view',),
             'attentions': STD_ACTIONS,
             'organizations': STD_ACTIONS,
+            'periods': ('view',),
+            'positions': ('view', 'export'),
         },
     },
     {
@@ -108,6 +112,8 @@ BASE_ROLES = (
             'reports': ('view',),
             'attentions': STD_ACTIONS,
             'organizations': STD_ACTIONS,
+            'periods': ('view',),
+            'positions': ('view',),
         },
     },
     {

@@ -1,0 +1,71 @@
+{% extends 'portal/crud/form.html' %}
+{% load sgr_icons %}
+{% block after_form %}
+{% if not is_create and form.instance.pk %}
+{% with org=form.instance %}
+<style>
+  .oc-chart{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:14px 0}
+  .oc-node{min-width:200px;max-width:260px;flex:1;border:1px solid var(--line);border-top:4px solid var(--muni);border-radius:10px;padding:12px 14px;background:#fff}
+  .oc-node.empty{border-top-color:#c6ccd4;background:#f8f9fb}
+  .oc-role{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .oc-name{font-weight:700;margin-top:4px}
+  .oc-meta{font-size:13px;color:var(--muted)}
+  .oc-forms{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:10px}
+  .oc-forms form{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px;align-content:start}
+</style>
+<section class="card" aria-labelledby="ocTitle" style="margin-top:16px">
+  <h2 id="ocTitle">Organigrama · {{ org.name }}</h2>
+  <p class="help">Directiva vigente: cargos base (Presidente/a, Secretario/a, Tesorero/a) y cargos creados. Sus integrantes se pueden elegir al ingresar una atención como «Directivo de organización». En la demo usa datos ficticios.</p>
+  <div class="oc-chart">
+    {% for m in org.directiva %}
+    <div class="oc-node">
+      <div class="oc-role">{{ m.role.name }}</div>
+      <div class="oc-name">{{ m.full_name }}</div>
+      <div class="oc-meta">{% if m.phone %}{{ m.phone }}{% else %}Sin teléfono{% endif %}{% if m.rut %} · {{ m.rut }}{% endif %}</div>
+      {% if can_edit %}
+      <form method="post" action="{% url 'organization_member_remove' org.pk m.pk %}" style="margin-top:8px">
+        {% csrf_token %}
+        <button class="btn ghost btn-sm" type="submit">Dejar vacante</button>
+      </form>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="oc-node empty"><div class="oc-role">Sin directiva registrada</div><div class="oc-meta">Asigna el primer integrante abajo.</div></div>
+    {% endfor %}
+  </div>
+  {% if can_edit or can_create %}
+  <div class="oc-forms">
+    {% if can_edit %}
+    <form method="post" action="{% url 'organization_member_save' org.pk %}">
+      {% csrf_token %}
+      <h3 style="font-size:15px;margin:0">Asignar / actualizar integrante</h3>
+      <label class="fl" for="oc-role">Cargo directivo <span class="req" aria-hidden="true">*</span></label>
+      <select class="in" id="oc-role" name="role" required>
+        {% for r in org.roles_directivos %}<option value="{{ r.pk }}">{{ r.name }}</option>{% endfor %}
+      </select>
+      <label class="fl" for="oc-name">Nombre completo <span class="req" aria-hidden="true">*</span></label>
+      <input class="in" id="oc-name" name="full_name" maxlength="150" required placeholder="Ej.: Patricia Soto">
+      <label class="fl" for="oc-rut">RUT</label>
+      <input class="in" id="oc-rut" name="rut" maxlength="12" placeholder="14.552.890-3">
+      <label class="fl" for="oc-phone">Teléfono</label>
+      <input class="in" id="oc-phone" name="phone" maxlength="20" inputmode="tel" placeholder="+56 9 8412 3310">
+      <p class="help">Si el cargo ya tiene integrante, se reemplazan sus datos (queda en la auditoría).</p>
+      <div><button class="btn primary" type="submit">Guardar en organigrama</button></div>
+    </form>
+    {% endif %}
+    {% if can_create %}
+    <form method="post" action="{% url 'directive_role_create' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <h3 style="font-size:15px;margin:0">Crear cargo directivo</h3>
+      <label class="fl" for="oc-newrole">Nombre del cargo</label>
+      <input class="in" id="oc-newrole" name="name" maxlength="60" required placeholder="Vicepresidente/a, Encargado/a de Medio Ambiente...">
+      <div><button class="btn soft" type="submit">{% sgr_icon 'plus' 16 %} Crear cargo</button></div>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endwith %}
+{% endif %}
+{% endblock %}

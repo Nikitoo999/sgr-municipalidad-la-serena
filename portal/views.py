@@ -284,6 +284,8 @@ class ProfileView(LoginRequiredMixin, TemplateView):
             return self._update_contact(request, is_ajax=is_ajax)
         if action == 'change_password':
             return self._change_password(request, is_ajax=is_ajax)
+        if action in ('update_photo', 'remove_photo'):
+            return self._update_photo(request, remove=action == 'remove_photo')
         if is_ajax:
             return JsonResponse({'ok': False, 'errors': {'action': 'Acción no válida.'}}, status=400)
         return redirect('profile')
@@ -322,6 +324,55 @@ class ProfileView(LoginRequiredMixin, TemplateView):
         if data['scope'] == 'Todas las delegaciones':
             data['authorized_text'] = 'Todas las delegaciones'
         return data
+
+    def _update_photo(self, request, remove=False):
+        """Foto de perfil (preview "Mi Perfil y Ajuste de Foto").
+
+        El encuadre (zoom y arrastre) se hace en el navegador, que envía un
+        recorte cuadrado; aquí se valida como cualquier imagen (máx. 2 MB,
+        JPG/PNG/WEBP). Quitar la foto borra el archivo anterior.
+        """
+        from django.core.exceptions import ValidationError
+
+        from .validators import validate_image_file
+
+        employee = getattr(request.user, 'employee', None)
+        if employee is None:
+            messages.error(request, 'Tu cuenta no tiene ficha de funcionario para guardar una foto.')
+            return redirect(request.POST.get('next') or 'home')
+        if remove:
+            if employee.photo:
+                employee.photo.delete(save=False)
+            employee.photo = None
+            employee.save(update_fields=['photo', 'updated_at'])
+            messages.success(request, 'Foto de perfil quitada.')
+            return redirect(self._safe_next(request))
+        archivo = request.FILES.get('photo')
+        if archivo is None:
+            messages.error(request, 'Elige una imagen para tu foto de perfil.')
+            return redirect(self._safe_next(request))
+        try:
+            validate_image_file(archivo)
+        except ValidationError as exc:
+            messages.error(request, ' '.join(exc.messages))
+            return redirect(self._safe_next(request))
+        if employee.photo:
+            employee.photo.delete(save=False)
+        employee.photo = archivo
+        employee.save(update_fields=['photo', 'updated_at'])
+        messages.success(request, 'Foto de perfil actualizada.')
+        return redirect(self._safe_next(request))
+
+    @staticmethod
+    def _safe_next(request):
+        from django.utils.http import url_has_allowed_host_and_scheme
+
+        destino = request.POST.get('next') or ''
+        if destino and url_has_allowed_host_and_scheme(
+            destino, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+        ):
+            return destino
+        return 'home'
 
     def _update_contact(self, request, is_ajax=False):
         user = request.user
@@ -490,6 +541,12 @@ class PasswordResetResendView(TemplateView):
     La espera mínima de 45 s la impone el servidor usando last_sent_at real
     del último código. Responde de forma equivalente exista o no la cuenta.
     """
+
+    def get(self, request, *args, **kwargs):
+        # El reenvío solo se hace por POST. Abrir la URL directamente (o
+        # recargarla) daba error 500 porque la vista no tiene plantilla:
+        # se devuelve al paso de verificación.
+        return redirect('password_reset_verify')
 
     def post(self, request, *args, **kwargs):
         email = request.session.get('pr_email')

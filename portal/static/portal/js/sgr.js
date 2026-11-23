@@ -226,11 +226,31 @@
     });
   });
 
+  // Cambio de delegación activa: si hay un formulario con cambios sin
+  // guardar, se pide confirmación (requisito de la segunda evaluación).
   var ctx = document.getElementById('ctxSel');
   if (ctx) {
+    var previousCtx = ctx.value;
     ctx.addEventListener('change', function () {
       var form = document.getElementById('ctxForm');
-      if (form) form.submit();
+      if (!form) return;
+      var dirty = document.querySelector('form[data-dirty="1"]');
+      if (!dirty || !window.Swal) { form.submit(); return; }
+      Swal.fire({
+        icon: 'warning',
+        title: '¿Cambiar de delegación?',
+        text: 'Hay cambios sin guardar en el formulario: se perderán al cambiar de delegación.',
+        showCancelButton: true,
+        confirmButtonText: 'Cambiar y descartar',
+        cancelButtonText: 'Seguir editando',
+        confirmButtonColor: '#920000'
+      }).then(function (result) {
+        if (result.isConfirmed) {
+          form.submit();
+        } else {
+          ctx.value = previousCtx;
+        }
+      });
     });
   }
 

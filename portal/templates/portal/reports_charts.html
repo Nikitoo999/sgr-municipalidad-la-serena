@@ -1,0 +1,73 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Gráficos y ritmo{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
+<style>
+  .chart{width:100%;max-width:720px;height:auto;display:block}
+  .chart .grid{stroke:var(--line);stroke-width:1}
+  .chart .esperado{fill:none;stroke:#1b4f8a;stroke-width:2;stroke-dasharray:6 5}
+  .chart .real{fill:none;stroke:var(--muni);stroke-width:3}
+  .chart text{font-size:12px;fill:var(--muted)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:6px}
+  .legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:6px}
+  .bars{display:grid;gap:8px}
+  .bar-row{display:grid;grid-template-columns:minmax(140px,260px) 1fr 70px;gap:10px;align-items:center;font-size:14px}
+  .bar-track{height:14px;background:var(--off-bg);border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;background:var(--muni);border-radius:999px}
+  .bar-fill.ok{background:var(--ok)} .bar-fill.mid{background:#c98a10}
+  .bar-fill.received{background:#3d4450} .bar-fill.pending{background:var(--muni)} .bar-fill.in_progress{background:#a26a00}
+  .bar-fill.done{background:var(--ok)} .bar-fill.not_applicable{background:#9aa1ab}
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'reports' %}">{{ module_label }}</a> / Gráficos y ritmo</nav>
+<div class="titlebar"><h1>Gráficos y ritmo del período{% if ritmo %} · {{ ritmo.periodo.name }}{% endif %}</h1></div>
+
+{% if not ritmo %}
+<div class="state"><div class="ic">{% sgr_icon 'chart' 24 %}</div><h2>No hay un período vigente</h2><p>Crea el trimestre en «Períodos de medición».</p></div>
+{% else %}
+<section class="card" aria-labelledby="g1">
+  <h2 id="g1">Ritmo acumulado: avance real vs. esperado (%)</h2>
+  <p class="meta">{% if ritmo.alcance == 'personal' %}Tu avance{% else %}Avance del equipo visible{% endif %} · día hábil {{ ritmo.dia_actual }} de {{ ritmo.dias_totales }}. Solo cuentan registros con validación aprobada.</p>
+  {% if serie %}
+  <svg class="chart" viewBox="0 0 {{ serie.ancho }} {{ serie.alto }}" role="img" aria-label="Avance real acumulado {{ serie.real_final }} % frente a la línea esperada">
+    <line class="grid" x1="{{ serie.margen }}" y1="{{ serie.y_100|stringformat:'.1f' }}" x2="{{ serie.ancho|add:'-32' }}" y2="{{ serie.y_100|stringformat:'.1f' }}"></line>
+    <text x="4" y="{{ serie.y_100|stringformat:'.1f' }}">100%</text>
+    <line class="grid" x1="{{ serie.margen }}" y1="{{ serie.alto|add:'-32' }}" x2="{{ serie.ancho|add:'-32' }}" y2="{{ serie.alto|add:'-32' }}"></line>
+    <text x="10" y="{{ serie.alto|add:'-28' }}">0%</text>
+    <polyline class="esperado" points="{{ serie.puntos_esperado }}"></polyline>
+    {% if serie.puntos_real %}<polyline class="real" points="{{ serie.puntos_real }}"></polyline>{% endif %}
+  </svg>
+  <div class="legend"><span><i style="background:var(--muni)"></i>Avance real ({{ serie.real_final }} %)</span><span><i style="background:#1b4f8a"></i>Esperado (lineal en días hábiles)</span></div>
+  {% else %}
+  <p class="meta">Sin metas cuantitativas en tu alcance para dibujar la curva.</p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="g2" style="margin-top:14px">
+  <h2 id="g2">Cumplimiento por ítem {% if ritmo.alcance == 'equipo' %}(promedio del equipo){% endif %}</h2>
+  {% if items %}
+  <div class="bars">
+    {% for it in items %}
+    <div class="bar-row"><span>{{ it.nombre }}</span><div class="bar-track" role="img" aria-label="{{ it.nombre }}: {{ it.pct }} %"><div class="bar-fill {% if it.pct >= 100 %}ok{% elif it.pct >= 60 %}mid{% endif %}" style="width:{{ it.ancho|stringformat:'.1f' }}%"></div></div><strong>{{ it.pct }} %</strong></div>
+    {% endfor %}
+  </div>
+  <p class="meta" style="margin-top:8px">Escala hasta 120 %: sobre ese tope un ítem ya no suma (nuevo requerimiento, punto 7).</p>
+  {% else %}
+  <p class="meta">Sin ítems con metas en tu alcance.</p>
+  {% endif %}
+</section>
+
+{% if tubos %}
+<section class="card" aria-labelledby="g3" style="margin-top:14px">
+  <h2 id="g3">Estado de tubos y compromisos</h2>
+  <div class="bars">
+    {% for t in tubos %}
+    <div class="bar-row"><span>{{ t.etiqueta }}</span><div class="bar-track" role="img" aria-label="{{ t.etiqueta }}: {{ t.valor }}"><div class="bar-fill {{ t.css }}" style="width:{{ t.ancho|stringformat:'.1f' }}%"></div></div><strong>{{ t.valor }}</strong></div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Cierre de trimestre{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'periods' %}">Períodos de medición</a> / Cierre de trimestre</nav>
+<div class="titlebar"><h1>Cierre de trimestre y traspaso con prioridad</h1></div>
+
+<section class="card" aria-labelledby="ruleTitle">
+  <h2 id="ruleTitle">Regla de término de trimestre</h2>
+  <p>Al cerrar un trimestre, las solicitudes del tubo (Ingresado, Pendiente o En proceso) y las atenciones abiertas (Ingresada o En gestión) pasan al trimestre siguiente marcadas como <span class="badge b-prio">PRIORITARIO</span> y generan un aviso en la barra superior y en Inicio. El período queda cerrado y no se modifica salvo reapertura con motivo, que queda en la auditoría (RN-013).</p>
+  {% if not can_manage %}<p class="meta">Cerrar o reabrir un trimestre corresponde al superadministrador. Aquí ves los pendientes de tu alcance.</p>{% endif %}
+</section>
+
+{% if not seleccionado %}
+<div class="state"><div class="ic">{% sgr_icon 'calendar' 24 %}</div><h2>No hay períodos abiertos</h2><p>Crea el próximo trimestre en «Períodos de medición».</p></div>
+{% else %}
+<section class="card" style="margin-top:14px" aria-labelledby="selTitle">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div class="statebox">
+      <label for="periodo" id="selTitle">Trimestre a cerrar</label>
+      <select class="in" id="periodo" name="periodo">
+        {% for p in abiertos %}<option value="{{ p.pk }}"{% if p.pk == seleccionado.pk %} selected{% endif %}>{{ p.name }} ({{ p.start_date|date:"d/m/Y" }} al {{ p.end_date|date:"d/m/Y" }})</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn soft" type="submit">Ver pendientes</button>
+  </form>
+  <p class="meta" style="margin-top:10px">
+    {% if termino_vencido %}El período terminó el {{ seleccionado.end_date|date:"d/m/Y" }}: corresponde cerrarlo.{% else %}El período sigue vigente hasta el {{ seleccionado.end_date|date:"d/m/Y" }}.{% endif %}
+    Pendientes {% if is_all_scope %}de todas las delegaciones{% else %}de tu alcance{% endif %}: {{ tubos|length }} solicitud{{ tubos|length|pluralize:"es" }} del tubo y {{ atenciones|length }} atenci{{ atenciones|length|pluralize:"ón,ones" }}.
+    Las tareas de la agenda se traspasan desde <a href="{% url 'pending_transfer' %}">Pendientes a traspasar</a>.
+  </p>
+
+  <div class="tablewrap">
+  <table>
+    <caption class="sr">Pendientes que pasarán con prioridad</caption>
+    <thead><tr><th scope="col">Origen</th><th scope="col">Código</th><th scope="col">Descripción / compromiso</th><th scope="col">Delegación</th><th scope="col">Estado actual</th><th scope="col">Prioridad</th></tr></thead>
+    <tbody>
+    {% for t in tubos %}
+    <tr><td>Tubo</td><td>{{ t.code }}</td><td>{{ t.title }}</td><td>{{ t.delegation.code }}</td><td>{{ t.get_status_display }}</td>
+      <td>{% if t.priority %}<span class="badge b-prio">PRIORITARIO</span>{% else %}<span class="meta">Pasará con prioridad</span>{% endif %}</td></tr>
+    {% endfor %}
+    {% for a in atenciones %}
+    <tr><td>Atención</td><td>{{ a.number }}</td><td>{{ a.neighbor.full_name }} · {{ a.description|truncatechars:70 }}</td><td>{{ a.delegation.code }}</td><td>{{ a.get_status_display }}</td>
+      <td>{% if a.priority %}<span class="badge b-prio">PRIORITARIO</span>{% else %}<span class="meta">Pasará con prioridad</span>{% endif %}</td></tr>
+    {% endfor %}
+    {% if not tubos and not atenciones %}<tr><td colspan="6" class="meta">No hay pendientes: el trimestre se puede cerrar limpio.</td></tr>{% endif %}
+    </tbody>
+  </table>
+  </div>
+
+  {% if can_manage %}
+  <form method="post" style="display:grid;gap:10px;margin-top:14px;max-width:640px" data-no-disable="1" id="closeForm">
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="cerrar">
+    <input type="hidden" name="periodo" value="{{ seleccionado.pk }}">
+    <label class="fl" for="destino">Siguiente trimestre (destino)</label>
+    <select class="in" id="destino" name="destino">
+      {% for d in destinos %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
+      {% if siguiente_nuevo %}<option value="nuevo">Crear «{{ siguiente_nuevo }}»</option>{% endif %}
+    </select>
+    <label class="checkrow"><input type="checkbox" name="confirmar" value="1" required><span>Revisé los pendientes y entiendo que {{ seleccionado.name }} quedará cerrado.</span></label>
+    <div><button class="btn primary" type="submit">{% sgr_icon 'lock' 16 %} Cerrar trimestre y traspasar pendientes con prioridad</button></div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if cerrados %}
+<section class="card" style="margin-top:14px" aria-labelledby="reTitle">
+  <h2 id="reTitle">Períodos cerrados</h2>
+  <ul>{% for p in cerrados %}<li>{{ p.name }} <span class="meta">({{ p.start_date|date:"d/m/Y" }} al {{ p.end_date|date:"d/m/Y" }})</span></li>{% endfor %}</ul>
+  {% if can_manage %}
+  <form method="post" style="display:grid;gap:8px;max-width:640px">
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="reabrir">
+    <label class="fl" for="re-periodo">Reabrir un período (excepcional)</label>
+    <select class="in" id="re-periodo" name="periodo">{% for p in cerrados %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select>
+    <label class="fl" for="re-motivo">Motivo de la reapertura</label>
+    <input class="in" id="re-motivo" name="motivo" maxlength="300" required placeholder="Autorización y razón (queda en la auditoría)">
+    <div><button class="btn ghost" type="submit">Reabrir período</button></div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

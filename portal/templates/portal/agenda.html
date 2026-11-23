@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{{ module_label }}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }}</nav>
@@ -42,6 +42,24 @@
     · Responsable: {% if tarea.assigned_to %}{{ tarea.assigned_to.full_name }}{% else %}Sin responsable{% endif %}
 </p>
 {% if tarea.description %}<p>{{ tarea.description }}</p>{% endif %}
+{% if tarea.reasignaciones %}
+<p class="meta">Reasignaciones: {% for r in tarea.reasignaciones %}{{ r.reassigned_at|date:"d/m/Y" }} {{ r.original_employee.full_name }} → {{ r.reassigned_employee.full_name }} ({{ r.get_reason_display }}){% if r.notes %}: {{ r.notes }}{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+{% endif %}
+{% if can_edit and tarea.candidatos %}
+<details style="margin:6px 0 10px">
+  <summary>Reasignar tarea (continuidad operativa)</summary>
+  <form method="post" action="{% url 'task_reassign' tarea.pk %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
+    {% csrf_token %}
+    <div><label class="fl" for="ra-emp-{{ tarea.pk }}">Nuevo responsable</label>
+      <select class="in" id="ra-emp-{{ tarea.pk }}" name="employee" required><option value="">Elige un funcionario</option>{% for e in tarea.candidatos %}<option value="{{ e.pk }}">{{ e.full_name }}</option>{% endfor %}</select></div>
+    <div><label class="fl" for="ra-reason-{{ tarea.pk }}">Motivo</label>
+      <select class="in" id="ra-reason-{{ tarea.pk }}" name="reason" required><option value="vacation">Vacaciones</option><option value="absence">Ausencia</option><option value="other">Otro</option></select></div>
+    <div><label class="fl" for="ra-notes-{{ tarea.pk }}">Observación</label>
+      <input class="in" id="ra-notes-{{ tarea.pk }}" name="notes" maxlength="500" placeholder="Opcional"></div>
+    <button class="btn soft" type="submit">Reasignar</button>
+  </form>
+</details>
+{% endif %}
 
 {% with actividades=tarea.activities.all %}
 {% if actividades %}
@@ -68,6 +86,12 @@
             {% else %}
             <span class="meta">Sin ítem (otra gestión)</span>
             {% endif %}
+            <br>
+            {% if act.contact_name or act.contact_phone %}
+            <span class="meta">Contacto: {{ act.contact_name|default:"—" }} · {{ act.contact_phone|default:"sin teléfono" }}</span>
+            {% elif act.item and act.item.requires_contact %}
+            <span class="meta"><em>Sin nombre ni teléfono del usuario: no suma</em></span>
+            {% endif %}
         </td>
         <td>{{ act.execution_date|date:"d/m/Y" }}</td>
         <td><span class="badge {% if act.status == 'Realizada' %}b-ok{% else %}b-warn{% endif %}">{{ act.status }}</span></td>
@@ -76,13 +100,19 @@
             {% if ev.file %}
             <a href="{{ ev.file.url }}" target="_blank" rel="noopener">Archivo {{ forloop.counter }}</a>
             {% endif %}
-            <span class="badge {% if ev.is_validated %}b-ok{% else %}b-warn{% endif %}">{% if ev.is_validated %}Validada{% else %}Sin validar{% endif %}</span>
-            {% if ev.is_validated and ev.validated_by %}
+            <span class="badge {% if ev.is_validated %}b-ok{% elif ev.review_status == 'rejected' %}b-bad{% else %}b-warn{% endif %}">{% if ev.is_validated %}Validada{% elif ev.review_status == 'rejected' %}Rechazada{% elif ev.review_status == 'correction' %}Corrección solicitada{% else %}Sin validar{% endif %}</span>
+            {% if ev.validated_by %}
             <span class="meta">por {{ ev.validated_by.get_full_name|default:ev.validated_by.username }} el {{ ev.validated_at|date:"d/m/Y H:i" }}</span>
-            {% elif can_edit %}
-            <form method="post" action="{% url 'evidence_validate' ev.pk %}" style="display:inline">
+            {% endif %}
+            {% if ev.review_notes %}<br><span class="meta">Observación: {{ ev.review_notes }}</span>{% endif %}
+            {% if can_edit and not ev.is_validated %}
+            <form method="post" action="{% url 'evidence_validate' ev.pk %}" data-no-disable="1"
+                  style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px">
                 {% csrf_token %}
-                <button class="btn soft" type="submit">Validar</button>
+                <input class="in" name="notes" maxlength="500" placeholder="Observación (al rechazar)" style="max-width:220px" aria-label="Observación de la revisión">
+                <button class="btn primary btn-sm" type="submit" name="decision" value="approved">Validar</button>
+                <button class="btn soft btn-sm" type="submit" name="decision" value="correction">Corrección</button>
+                <button class="btn ghost btn-sm" type="submit" name="decision" value="rejected">Rechazar</button>
             </form>
             {% endif %}
             <br>
@@ -122,6 +152,14 @@
     <div>
     <label class="fl" for="fecha-{{ tarea.pk }}">Fecha de ejecución</label>
     <input class="in" id="fecha-{{ tarea.pk }}" name="execution_date" type="date" required>
+    </div>
+    <div>
+    <label class="fl" for="cn-{{ tarea.pk }}">Nombre del usuario o contacto</label>
+    <input class="in" id="cn-{{ tarea.pk }}" name="contact_name" maxlength="150" placeholder="Vecino/a atendido/a">
+    </div>
+    <div>
+    <label class="fl" for="cp-{{ tarea.pk }}">Teléfono</label>
+    <input class="in" id="cp-{{ tarea.pk }}" name="contact_phone" maxlength="20" inputmode="tel" placeholder="+56 9 1234 5678">
     </div>
     <div>
     <label class="fl" for="item-{{ tarea.pk }}">Ítem de la matriz</label>

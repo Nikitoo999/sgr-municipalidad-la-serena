@@ -4,12 +4,32 @@ from decimal import Decimal, ROUND_HALF_UP
 from itertools import chain
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from operaciones.models import Activity, Attention, EmployeeFeedback, TubeEntry
-from sgr_core.models import PositionItemGoal
+from sgr_core.models import Period, PositionItemGoal
 
 CENTESIMOS = Decimal("0.01")
+
+
+def periodo_vigente(hoy=None):
+    """Trimestre de medición vigente.
+
+    Es el período (no borrado) cuyo rango contiene ``hoy``; si hay varios, el
+    "En curso" más reciente. Si ninguno contiene la fecha, el "En curso" más
+    reciente y, en último caso, el más reciente. Todas las pantallas usan esta
+    regla para no mostrar trimestres distintos según el módulo.
+    """
+    hoy = hoy or date.today()
+    vivos = Period.objects.filter(deleted_at__isnull=True)
+    en_fecha = vivos.filter(start_date__lte=hoy, end_date__gte=hoy)
+    return (
+        en_fecha.filter(status="En curso").order_by("-start_date", "-pk").first()
+        or en_fecha.order_by("-start_date", "-pk").first()
+        or vivos.filter(status="En curso").order_by("-start_date", "-pk").first()
+        or vivos.order_by("-start_date", "-pk").first()
+    )
 
 
 def dias_habiles(desde, hasta):
@@ -89,10 +109,11 @@ def semaforo(razon, esperado):
     return "rojo"
 
 
-def logrado_por_item(employee, period):
-    """Actividades que suman por ítem: realizadas, con evidencia validada, dentro del trimestre.
+def _actividades_que_suman(employee, period):
+    """(fecha, item_id, orden) de actividades realizadas con evidencia aprobada.
 
-    Cada día cuenta a lo más MAX_ACTIVIDADES_POR_DIA actividades.
+    Punto 2 del nuevo requerimiento: si el ítem es de cara al usuario
+    (``requires_contact``), la actividad debe traer nombre y teléfono.
     """
     filas = (
         Activity.objects.filter(
@@ -106,15 +127,69 @@ def logrado_por_item(employee, period):
             evidences__deleted_at__isnull=True,
         )
         .order_by("execution_date", "pk")
-        .values_list("pk", "execution_date", "item_id")
+        .values_list("pk", "execution_date", "item_id", "item__requires_contact",
+                     "contact_name", "contact_phone")
         .distinct()
     )
-    por_dia, logrado = defaultdict(int), defaultdict(int)
-    for _pk, dia, item_id in filas:
+    for pk, dia, item_id, exige_contacto, nombre, telefono in filas:
+        if exige_contacto and not ((nombre or "").strip() and (telefono or "").strip()):
+            continue
+        yield dia, item_id, (0, pk)
+
+
+def _atenciones_que_suman(employee, period):
+    """(fecha, item_id, orden) de atenciones que aportan a la matriz.
+
+    Deben: tener ítem, contar para el puntaje (no preparatoria, no gestión
+    interna, no ingreso propio ni del Delegado), validación aprobada (RN-009)
+    y nombre y teléfono del solicitante (punto 2).
+    """
+    inicio = timezone.make_aware(datetime.combine(period.start_date, time.min))
+    fin = timezone.make_aware(datetime.combine(period.end_date + timedelta(days=1), time.min))
+    filas = (
+        Attention.objects.filter(
+            deleted_at__isnull=True,
+            responsible_id=employee.user_id,
+            item__isnull=False,
+            counts_for_score=True,
+            validation_status="approved",
+            created_at__gte=inicio, created_at__lt=fin,
+        )
+        .exclude(neighbor__phone="").exclude(neighbor__full_name="")
+        .order_by("created_at", "pk")
+        .values_list("pk", "created_at", "item_id")
+    )
+    for pk, momento, item_id in filas:
+        yield timezone.localtime(momento).date(), item_id, (1, pk)
+
+
+def logrado_por_item(employee, period):
+    """Registros que suman por ítem dentro del trimestre.
+
+    Suman las actividades de la agenda realizadas con evidencia aprobada y las
+    atenciones aprobadas (ver ``_actividades_que_suman`` y
+    ``_atenciones_que_suman``). Cada día cuenta a lo más
+    MAX_ACTIVIDADES_POR_DIA registros entre ambos (punto 3).
+    """
+    logrado = defaultdict(int)
+    for _dia, item_id in registros_contados(employee, period):
+        logrado[item_id] += 1
+    return dict(logrado)
+
+
+def registros_contados(employee, period):
+    """(fecha, item_id) de cada registro que suma, ya aplicado el tope diario."""
+    registros = sorted(
+        chain(_actividades_que_suman(employee, period), _atenciones_que_suman(employee, period)),
+        key=lambda fila: (fila[0], fila[2]),
+    )
+    por_dia = defaultdict(int)
+    contados = []
+    for dia, item_id, _orden in registros:
         if por_dia[dia] < MAX_ACTIVIDADES_POR_DIA:
             por_dia[dia] += 1
-            logrado[item_id] += 1
-    return dict(logrado)
+            contados.append((dia, item_id))
+    return contados
 
 
 def dias_efectivos(employee, period, hasta=None):
@@ -164,9 +239,9 @@ def razon_tubo(employee, period):
     del solicitante no tiene puntuación (sigue contando como solicitud).
     """
     filas = list(
-        TubeEntry.objects.filter(
-            responsible=employee, deleted_at__isnull=True,
-            request_date__range=(period.start_date, period.end_date),
+        TubeEntry.objects.filter(responsible=employee, deleted_at__isnull=True).filter(
+            # Del trimestre o traspasadas a él con prioridad al cerrar el anterior.
+            Q(request_date__range=(period.start_date, period.end_date)) | Q(carried_to_period=period)
         ).exclude(status=TubeEntry.Status.NOT_APPLICABLE)
         .values_list("status", "requester", "contact_phone")
     )
@@ -297,3 +372,67 @@ def dias_sobre_el_limite(employee, period):
         dia for dia, cantidad in ingresos_por_dia(employee, period).items()
         if cantidad > MAX_ACTIVIDADES_POR_DIA
     )
+
+# --- Resumen de delegación (RF-029/RF-030, diapositivas 18 y 19) -----------------
+
+
+def actividad_reciente(employee, period, hoy):
+    """Último ingreso, días desde él, cantidad de ingresos y promedio diario.
+
+    Ingresos = atenciones y actividades registradas por el funcionario en el
+    trimestre (hasta hoy). El promedio se calcula sobre los días hábiles
+    efectivos transcurridos (sin días libres).
+    """
+    ingresos = ingresos_por_dia(employee, period, hoy)
+    total = sum(ingresos.values())
+    ultimo = max(ingresos) if ingresos else None
+    dias = dias_efectivos(employee, period, hoy)
+    return {
+        "ultimo": ultimo,
+        "dias_desde_ultimo": (hoy - ultimo).days if ultimo else None,
+        "total": total,
+        "promedio": (Decimal(total) / Decimal(dias)).quantize(CENTESIMOS) if dias else Decimal("0.00"),
+    }
+
+
+def resumen_equipo(filas):
+    """Puntaje del equipo e ítems a reforzar (correo, puntos 7 y 10).
+
+    ``filas`` son dicts con ``empleado`` y ``cumplimiento`` (de
+    ``calcular_cumplimiento``). Solo cuentan los cargos que se evalúan en la
+    matriz (no el Delegado). El semáforo del equipo compara el promedio con el
+    avance esperado promedio, con la misma regla que el individual.
+    """
+    evaluados = [
+        f for f in filas
+        if f["empleado"].position_id and f["empleado"].position.is_evaluated
+        and f["cumplimiento"]["items"]
+    ]
+    if not evaluados:
+        return None
+    n = Decimal(len(evaluados))
+    promedio = sum(f["cumplimiento"]["porcentaje"] for f in evaluados) / n
+    esperado = sum(f["cumplimiento"]["esperado"] for f in evaluados) / n
+    conteo = Counter(f["cumplimiento"]["semaforo"] for f in evaluados)
+    por_item = defaultdict(list)
+    for f in evaluados:
+        for it in f["cumplimiento"]["items"]:
+            por_item[it["item"]].append(min(it["razon"], TOPE_CUMPLIMIENTO))
+    items = sorted(
+        (
+            {"item": item, "logro_pct": (sum(v) / Decimal(len(v)) * 100).quantize(Decimal("0.1")),
+             "funcionarios": len(v)}
+            for item, v in por_item.items()
+        ),
+        key=lambda x: x["logro_pct"],
+    )
+    return {
+        "evaluados": len(evaluados),
+        "porcentaje": promedio.quantize(CENTESIMOS),
+        "esperado_pct": (esperado * 100).quantize(Decimal("0.1")),
+        "semaforo": semaforo(promedio / 100, esperado),
+        "verdes": conteo.get("verde", 0),
+        "amarillos": conteo.get("amarillo", 0),
+        "rojos": conteo.get("rojo", 0),
+        "items_a_reforzar": items[:5],
+    }

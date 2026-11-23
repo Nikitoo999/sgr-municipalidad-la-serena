@@ -241,6 +241,13 @@ python manage.py createsuperuser   # (opcional) usuario para el panel admin
 > `seed_demo` es **idempotente**: se puede volver a ejecutar sin duplicar datos.
 > Crea los 4 roles base, 6 delegaciones, vecinos, tipos/subtipos de atención,
 > 14 atenciones de ejemplo y los **usuarios demo de acceso** (ver tabla más abajo).
+> También carga los cargos del descriptor de funciones, los ítems y metas por
+> cargo del trimestre (`seed_cargos` y `seed_metas_cargos`), asigna cargo a los
+> funcionarios demo y crea una organización ficticia con su directiva.
+
+Base de organizaciones comunitarias (opcional): copia la planilla municipal a
+`data/base_datos_JJVV_sin_verificar.xlsx` (la carpeta `data/` no se versiona) y ejecuta
+`python manage.py seed_organizaciones`.
 
 ### 5. Ejecutar
 
@@ -283,6 +290,16 @@ También se crean `admin_demo`, `limitado_demo` y `jefatura_centro` (cuentas del
 | `/tipos-atencion/` (mismas subrutas) | `attention_types` | superadmin, coordinador |
 | `/sub-atenciones/` (mismas subrutas) | `attention_subtypes` | superadmin, coordinador |
 | `/atenciones/` (mismas subrutas + `solicitantes/`) | `attentions` | superadmin, coordinador, delegado, funcionario |
+| `/atenciones/<pk>/validar/` | `attention_review` | delegado o superior (POST) |
+| `/atenciones/funcionario-por-rut/` | `attention_rut_check` | quien ingresa atenciones |
+| `/organizaciones/` (mismas subrutas + `<pk>/directiva/`) | `organizations` | superadmin, coordinador, delegado (funcionario solo ver) |
+| `/cargos/` (mismas subrutas + `<pk>/metas/`) | `positions` | superadmin edita; coordinador y delegado consultan |
+| `/periodos/` (mismas subrutas + `cierre/`) | `periods` | superadmin cierra/reabre; coordinador y delegado consultan |
+| `/cumplimiento/tubos/<pk>/` (+ `reprogramar/`, `reasignar/`, `comentarios/nuevo/`) | `tube_detail` | según permiso de Cumplimiento |
+| `/agenda-tareas/<pk>/reasignar/` | `task_reassign` | delegado o superior (POST) |
+| `/avisos/` | `notices` | autenticado |
+| `/auditoria/` | `audit_log` | superadmin |
+| `/reportes/graficos/` | `reports_charts` | según permiso de Reportes |
 | `/admin/` | — | staff |
 
 ### Matriz de permisos por rol
@@ -298,6 +315,9 @@ También se crean `admin_demo`, `limitado_demo` y `jefatura_centro` (cuentas del
 | Tipo de Atención | V·C·E·X·Eliminar | V·C·E·X | ✗ | ✗ |
 | Sub Atención | V·C·E·X·Eliminar | V·C·E·X | ✗ | ✗ |
 | Atenciones | V·C·E·X·Eliminar | V·C·E·X | V·C·E·X | V·C·X |
+| Organizaciones comunitarias | V·C·E·X·Eliminar | V·C·E·X | V·C·E·X | V |
+| Cargos y metas | V·C·E·X·Eliminar | V·X | V | ✗ |
+| Períodos y cierre | V·C·E·X·Eliminar | V | V | ✗ |
 
 Reglas de jerarquía (aplicadas en `portal/access.py`):
 
@@ -387,7 +407,17 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
 | Matriz de permisos y alcance por delegación | Operativo (validado en servidor) |
 | Envío de correo con SMTP real | Simulado (backend de consola hasta configurar SMTP) |
 | Pruebas de estrés (Locust) | Operativo / **Ejecutado** (ver `docs/pruebas/pruebas_estres.md`) |
-| Tiempo real (chat y atenciones en vivo) | Operativo (Channels + Daphne, `InMemoryChannelLayer`) |
+| Tiempo real (chat y atenciones en vivo) | Operativo (Channels + Daphne, `channels_redis`: requiere Redis en `REDIS_URL`) |
+| Ingreso de atención en ventana emergente ("Nuevo ...") | Operativo |
+| Funcionario como civil / gestión interna | Operativo (detección por RUT, sin bloqueo) |
+| Atención "Persona o Directivo" con organigrama de la organización | Operativo |
+| Validación del punto de atenciones y evidencias (aprobar / rechazar / corrección) | Operativo |
+| Matriz: atenciones y actividades validadas suman al ítem del cargo | Operativo |
+| Tubo: tablero de 4 columnas, historial, plazos, reprogramación, reasignación | Operativo |
+| Cierre de trimestre con traspaso prioritario y avisos | Operativo |
+| Cargos, metas y ponderadores (suma 100 %) y períodos en el portal | Operativo |
+| Resumen de delegación, alertas operativas, ritmo y gráficos | Operativo |
+| Auditoría con valor anterior y nuevo | Operativo |
 | Logo y tipografía oficiales | Operativo (paleta granate #920000, tipografía sin serifas y escudo/imagotipo institucional en `base.html` y `base_auth.html`) |
 
 ---

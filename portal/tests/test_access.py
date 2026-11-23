@@ -587,11 +587,19 @@ class LegacyRoleDataMigrationTests(TransactionTestCase):
         executor = MigrationExecutor(connection)
         executor.migrate(self.migrate_to)
 
-        # 3) Verificación con los modelos reales.
-        self.assertEqual(Employee.objects.get(user=boss_u).role.code, 'ROL03')
-        self.assertEqual(Employee.objects.get(user=user_u).role.code, 'ROL04')
+        # 3) Verificación con el modelo histórico del estado destino: el modelo
+        #    actual puede tener columnas posteriores (p. ej. ``photo``) que aún
+        #    no existen en la base migrada hasta 0010.
+        new_apps = executor.loader.project_state(self.migrate_to).apps
+        NewEmployee = new_apps.get_model('operaciones', 'Employee')
+
+        def role_code(user):
+            return NewEmployee.objects.filter(user_id=user.pk).values_list('role__code', flat=True).get()
+
+        self.assertEqual(role_code(boss_u), 'ROL03')
+        self.assertEqual(role_code(user_u), 'ROL04')
         # Valor desconocido: mapeo defensivo a funcionario.
-        self.assertEqual(Employee.objects.get(user=otro_u).role.code, 'ROL04')
+        self.assertEqual(role_code(otro_u), 'ROL04')
 
         # Los roles base existen (los crea la migración de datos de sgr_core).
         codes = set(Role.objects.filter(
@@ -602,5 +610,5 @@ class LegacyRoleDataMigrationTests(TransactionTestCase):
         # Re-ejecutar hacia adelante no cambia nada (idempotente).
         executor = MigrationExecutor(connection)
         executor.migrate(self.migrate_to)
-        self.assertEqual(Employee.objects.get(user=boss_u).role.code, 'ROL03')
-        self.assertEqual(Employee.objects.get(user=user_u).role.code, 'ROL04')
+        self.assertEqual(role_code(boss_u), 'ROL03')
+        self.assertEqual(role_code(user_u), 'ROL04')

@@ -183,6 +183,32 @@ class Period(BaseModel):
     def __str__(self):
         return f"{self.name} (T{self.quarter})"
 
+    @property
+    def start_display(self):
+        return self.start_date.strftime("%d-%m-%Y") if self.start_date else "—"
+
+    @property
+    def end_display(self):
+        return self.end_date.strftime("%d-%m-%Y") if self.end_date else "—"
+
+    @property
+    def quarter_display(self):
+        return f"T{self.quarter} {self.start_date.year}" if self.start_date else f"T{self.quarter}"
+
+    @property
+    def business_days(self):
+        """Días computables: hábiles de lunes a viernes (RF-005)."""
+        from datetime import timedelta
+
+        if not (self.start_date and self.end_date):
+            return 0
+        total, dia = 0, self.start_date
+        while dia <= self.end_date:
+            if dia.weekday() < 5:
+                total += 1
+            dia += timedelta(days=1)
+        return total
+
 class InstitutionalGoal(BaseModel):
     name = models.CharField(max_length=100, verbose_name="Meta Institucional")
     description = models.TextField(blank=True, null=True, verbose_name="Descripción")
@@ -235,6 +261,14 @@ class ProjectItem(AutoCodeMixin, BaseModel):
     code = models.CharField(max_length=8, unique=True, verbose_name="Código")
     name = models.CharField(max_length=100, verbose_name="Nombre del ítem")
     description = models.TextField(blank=True, default="", verbose_name="Descripción")
+    requires_contact = models.BooleanField(
+        default=True, verbose_name="Exige nombre y teléfono del usuario",
+        help_text=(
+            "Nuevo requerimiento, punto 2: las actividades y solicitudes de cara al "
+            "usuario sin nombre y teléfono no suman. Desmárcalo en ítems internos "
+            "(informes, inventarios, reuniones de equipo)."
+        ),
+    )
     status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
 
     class Meta:
@@ -280,6 +314,14 @@ class AttentionSubtype(AutoCodeMixin, BaseModel):
         AttentionType, on_delete=models.RESTRICT,
         related_name="subtypes", verbose_name="Tipo de atención",
     )
+    item = models.ForeignKey(
+        "ProjectItem", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="suggested_for_subtypes", verbose_name="Ítem sugerido de la matriz",
+        help_text=(
+            "Ítem que se propone al ingresar una atención de esta sub atención. "
+            "Solo se usa si el cargo del funcionario mide ese ítem."
+        ),
+    )
     scores = models.BooleanField(
         default=True, verbose_name="Suma puntaje",
         help_text=(
@@ -322,6 +364,10 @@ class Position(BaseModel):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    @property
+    def evaluated_display(self):
+        return "Sí" if self.is_evaluated else "No"
 
 
 class PositionItemGoal(BaseModel):
@@ -403,5 +449,69 @@ class CommunityOrganization(BaseModel):
     def members_display(self):
         return "—" if self.active_members is None else self.active_members
 
+    @property
+    def directiva(self):
+        """Integrantes vigentes de la directiva (organigrama), por cargo."""
+        return self.members.filter(deleted_at__isnull=True).select_related("role").order_by(
+            "role__order", "role__name",
+        )
+
+    @property
+    def roles_directivos(self):
+        """Cargos directivos activos (para asignar integrantes)."""
+        return DirectiveRole.objects.filter(deleted_at__isnull=True, status="Activo")
+
     def __str__(self):
         return self.name
+
+
+class DirectiveRole(BaseModel):
+    """Cargo de la directiva de una organización (Presidente/a, Secretario/a...).
+
+    Los cargos base se cargan con una migración; se pueden crear otros
+    (Vicepresidente/a, Encargado/a de Medio Ambiente...).
+    """
+
+    name = models.CharField(max_length=60, verbose_name="Cargo directivo")
+    is_base = models.BooleanField(default=False, verbose_name="Cargo base")
+    order = models.PositiveSmallIntegerField(default=100, verbose_name="Orden en el organigrama")
+    status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
+
+    class Meta:
+        verbose_name = "Cargo directivo"
+        verbose_name_plural = "Cargos directivos"
+        db_table = "cargo_directivo"
+        ordering = ["order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class OrganizationMember(BaseModel):
+    """Integrante de la directiva de una organización (organigrama).
+
+    Una organización tiene a lo más un integrante vigente por cargo: asignar
+    el cargo de nuevo reemplaza al anterior (que queda con borrado lógico).
+    Los datos personales son de contacto; en la demo deben ser ficticios.
+    """
+
+    organization = models.ForeignKey(
+        CommunityOrganization, on_delete=models.CASCADE,
+        related_name="members", verbose_name="Organización",
+    )
+    role = models.ForeignKey(
+        DirectiveRole, on_delete=models.RESTRICT,
+        related_name="members", verbose_name="Cargo directivo",
+    )
+    full_name = models.CharField(max_length=150, verbose_name="Nombre completo")
+    rut = models.CharField(max_length=12, blank=True, default="", verbose_name="RUT")
+    phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Teléfono")
+
+    class Meta:
+        verbose_name = "Integrante de directiva"
+        verbose_name_plural = "Integrantes de directiva"
+        db_table = "integrante_organizacion"
+        ordering = ["role__order", "role__name"]
+
+    def __str__(self):
+        return f"{self.role.name}: {self.full_name}"

@@ -10,6 +10,38 @@
   <div class="stat"><strong>{{ stat_in_progress }}</strong><span>Atenciones en gestión</span></div>
   <div class="stat"><strong>{{ stat_third_value }}</strong><span>{{ stat_third_label }}</span></div>
 </div>
+{% if ritmo %}
+{% if kpis.prioritarios %}
+<div class="scope" role="note" style="margin-top:14px">{% sgr_icon 'alert' 18 %}<span><strong>Compromisos traspasados con prioridad:</strong> {{ kpis.prioritarios }} abiertos de un trimestre anterior. Revísalos primero{% if kpis.tubos_activos is not None %} en <a href="{% url 'tubes' %}?prio=1">Tubos de trabajo</a>{% endif %}.</span></div>
+{% endif %}
+<section class="card" aria-labelledby="ritmoTitle" style="margin-top:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+    <h2 id="ritmoTitle" style="margin:0">Ritmo del período · {{ ritmo.periodo.name }}</h2>
+    <a class="btn soft btn-sm" href="{% url 'reports_charts' %}">Ver gráficos y ritmo</a>
+  </div>
+  <div class="stats" style="margin-top:12px">
+    {% if kpis.atenciones is not None %}<div class="stat"><strong>{{ kpis.atenciones }}</strong><span>Atenciones en el período</span></div>{% endif %}
+    {% if kpis.tubos_activos is not None %}<div class="stat"><strong>{{ kpis.tubos_activos }}</strong><span>Tubos activos (Ingresado / Pendiente / En proceso)</span></div>{% endif %}
+    <div class="stat"><strong>{{ kpis.prioritarios }}</strong><span>Compromisos prioritarios por traspaso</span></div>
+    {% if not ritmo.sin_datos %}<div class="stat"><strong>{{ ritmo.real_pct }} %</strong><span>Cumplimiento {% if ritmo.alcance == 'equipo' %}del equipo {% endif %}vs. {{ ritmo.esperado_pct }} % esperado</span></div>{% endif %}
+  </div>
+  <p style="margin-top:12px">Día hábil <strong>{{ ritmo.dia_actual }}</strong> de {{ ritmo.dias_totales }} del trimestre · quedan {{ ritmo.quedan }} días hábiles.
+    {% if not ritmo.sin_datos %}
+    <span class="badge {% if ritmo.semaforo == 'verde' %}b-ok{% elif ritmo.semaforo == 'amarillo' %}b-warn{% else %}b-bad{% endif %}">{% if ritmo.semaforo == 'verde' %}En ritmo (verde){% elif ritmo.semaforo == 'amarillo' %}Atención (amarillo){% else %}Bajo el ritmo (rojo){% endif %}</span>
+    {% endif %}
+  </p>
+  {% if ritmo.sin_datos %}
+  <p class="meta">{% if ritmo.alcance == 'personal' or ritmo.alcance == 'equipo' %}No hay metas cargadas para este trimestre en tu alcance.{% else %}Tu perfil no tiene metas personales en la matriz.{% endif %}</p>
+  {% else %}
+  <div class="ritmo-track" role="img" aria-label="Avance real {{ ritmo.real_pct }} %, esperado hoy {{ ritmo.esperado_pct }} %">
+    <div class="ritmo-fill" style="width:{{ ritmo.barra_real|stringformat:'s' }}%"></div>
+    <div class="ritmo-mark" style="left:{{ ritmo.barra_esperada|stringformat:'s' }}%"></div>
+  </div>
+  <p class="meta">Avance real: {{ ritmo.real_pct }} % · Línea esperada hoy (marca azul): {{ ritmo.esperado_pct }} %
+    {% if ritmo.ritmo_sugerido is not None %}· Ritmo sugerido para cerrar al 100 %: <strong>{{ ritmo.ritmo_sugerido }}</strong> registros por día hábil{% endif %}</p>
+  {% endif %}
+</section>
+{% endif %}
 <h2 class="sec">Accesos de tu perfil</h2>
 <div class="mgrid">
   {% for item in cards %}

@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{{ page_action }}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url config.module_key %}">{{ config.list_title }}</a> / {{ page_action }}</nav>
@@ -57,6 +57,7 @@
     {% endif %}
   </div>
 </form>
+{% block after_form %}{% endblock %}
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'portal/js/crud.js' %}"></script>

@@ -1,0 +1,75 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Avisos y alertas{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
+<style>
+  .al-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  .al-item{border:1px solid var(--line);border-left:4px solid var(--info);border-radius:10px;padding:10px 14px;background:#fff;display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+  .al-item.alta{border-left-color:var(--bad)}
+  .al-item.media{border-left-color:#c98a10}
+  .al-item.leido{opacity:.75}
+  .al-head{font-weight:700}
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Avisos y alertas</nav>
+<div class="titlebar"><h1>Avisos y alertas</h1></div>
+
+<section class="card" aria-labelledby="avTitle">
+  <div class="fu-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+    <h2 id="avTitle">Avisos de traspaso de trimestre {% if no_leidos %}<span class="badge b-prio">{{ no_leidos }} sin leer</span>{% endif %}</h2>
+    {% if no_leidos %}
+    <form method="post" action="{% url 'notices_mark_read' %}">{% csrf_token %}<button class="btn soft" type="submit">Marcar leídos</button></form>
+    {% endif %}
+  </div>
+  {% if avisos %}
+  <ul class="al-list">
+    {% for a in avisos %}
+    <li class="al-item {% if a.leido %}leido{% else %}alta{% endif %}">
+      <div>
+        <div class="al-head">{% if not a.leido %}<span class="badge b-prio">Nuevo</span> {% endif %}{{ a.title }}</div>
+        <div>{{ a.text }}</div>
+        <div class="meta">{{ a.created_at|date:"d/m/Y H:i" }}{% if a.delegation %} · {{ a.delegation.code }}{% else %} · Todas las delegaciones{% endif %}</div>
+      </div>
+      {% if a.url %}<a class="btn ghost btn-sm" href="{{ a.url }}">Revisar</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="meta">Aún no se han registrado traspasos de trimestre.</p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="alTitle" style="margin-top:14px">
+  <h2 id="alTitle">Alertas operativas {% if pendientes %}<span class="badge b-warn">{{ pendientes|length }}</span>{% endif %}</h2>
+  <p class="help">Vencimientos, evidencias y atenciones por validar, registros observados, ausencia de ingresos, avance bajo el umbral e ingresos sobre el tope. Marcar como revisada no borra el evento.</p>
+  {% if pendientes %}
+  <ul class="al-list">
+    {% for a in pendientes %}
+    <li class="al-item {{ a.nivel }}">
+      <div>
+        <div class="al-head">{{ a.tipo }}</div>
+        <div>{{ a.motivo }}</div>
+        <div class="meta">Responsable: {{ a.responsable }} · {{ a.fecha|date:"d/m/Y" }}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        {% if a.url %}<a class="btn ghost btn-sm" href="{{ a.url }}">Ir al registro</a>{% endif %}
+        <form method="post" action="{% url 'alert_review' %}">{% csrf_token %}<input type="hidden" name="key" value="{{ a.key }}"><button class="btn soft btn-sm" type="submit">Marcar revisada</button></form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="meta">Sin alertas pendientes.</p>
+  {% endif %}
+  {% if revisadas %}
+  <details style="margin-top:12px">
+    <summary>Revisadas ({{ revisadas|length }})</summary>
+    <ul class="al-list" style="margin-top:10px">
+      {% for a in revisadas %}<li class="al-item leido"><div><div class="al-head">{{ a.tipo }}</div><div>{{ a.motivo }}</div><div class="meta">{{ a.responsable }} · {{ a.fecha|date:"d/m/Y" }}</div></div></li>{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+{% endblock %}

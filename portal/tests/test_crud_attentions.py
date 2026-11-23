@@ -41,7 +41,7 @@ class AttentionsTestCase(TestCase):
             "superadmin", password=DEMO_PASSWORD, is_superuser=True, is_staff=True,
         )
         cls.coordinador = make_employee(
-            "coordinador", "11.111.111-1", cls.d1, cls.roles["ROL02"],
+            "coordinador", "11.111.199-9", cls.d1, cls.roles["ROL02"],
         )
         cls.coordinador.authorized_delegations.set([cls.d1, cls.d2])
         cls.delegado = make_employee(
@@ -335,7 +335,8 @@ class AttentionsTestCase(TestCase):
             [cell.value for cell in sheet[1]],
             ["N°", "Fecha y hora", "Solicitante", "Tipo", "Sub atención",
              "Delegación", "Responsable", "Estado", "Requiere visita",
-             "Gestiones", "Puntaje operativo", "Semana cerrada"],
+             "Gestiones", "Puntaje operativo", "Semana cerrada",
+             "Ítem de la matriz", "Comparecencia", "Validación"],
         )
         # Delegación activa DEL01: 2 filas de datos.
         self.assertEqual(sheet.max_row - 1, 2)

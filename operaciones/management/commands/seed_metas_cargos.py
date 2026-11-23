@@ -31,6 +31,9 @@ ITEMS = {
     "MTX22": "Solución de problemas a usuarios particulares",
 }
 
+#: Ítems internos (informes, inventarios, operativos, reunión de equipo).
+ITEMS_INTERNOS = {"MTX09", "MTX10", "MTX14", "MTX15", "MTX16", "MTX17", "MTX21"}
+
 # código de cargo -> lista de (código de ítem, ponderador en %, meta del trimestre)
 # Valores tomados del Excel municipal como base; se ajustan editando esta tabla.
 METAS = {
@@ -92,9 +95,13 @@ class Command(BaseCommand):
         )
 
         for code, name in ITEMS.items():
-            ProjectItem.objects.update_or_create(
+            item, creado = ProjectItem.objects.update_or_create(
                 code=code, defaults={"name": name, "status": "Activo"},
             )
+            if creado and code in ITEMS_INTERNOS:
+                # Ítems internos: no exigen nombre y teléfono del usuario (punto 2).
+                item.requires_contact = False
+                item.save(update_fields=["requires_contact"])
 
         for pos_code, filas in METAS.items():
             try:

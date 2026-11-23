@@ -14,6 +14,9 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
+from io import StringIO
+
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -24,7 +27,7 @@ from operaciones.models import (
 )
 from sgr_core.models import (
     Achievement, AttentionSubtype, AttentionType, Delegation,
-    InstitutionalGoal, MeasurementItem, Period, ProjectItem,
+    InstitutionalGoal, MeasurementItem, Period, Position, ProjectItem,
     Role, RolePermission,
 )
 from sgr_core.roles import ensure_base_roles
@@ -220,6 +223,95 @@ ATTENTIONS = [
     ("14.141.414-3", "SAT007", "Rural", "coordinador2", "Orientación de trámites para comité rural.", "in_progress"),
     ("15.151.515-0", "SAT004", "Centro", "coordinador", "Reparación de luminaria en plaza central.", "received"),
 ]
+
+
+#: Cargo de los usuarios demo con nombre propio (username -> código de cargo).
+DEMO_POSITIONS = {
+    "funcionario": "CAR02",        # Gestor Social (Centro)
+    "funcionario.mar": "CAR03",    # Apoyo Administrativo (Avenida del Mar)
+    "limitado_demo": "CAR02",
+    "diego.molina": "CAR04",       # Organizaciones Comunitarias
+    "elena.campas": "CAR06",       # Gestión y Planificación
+    "gabriela.rojas": "CAR07",     # Coordinador de Servicios Comunitarios
+    "hugo.pizarro": "CAR02",
+    "ignacio.vera": "CAR03",
+}
+#: Cargos evaluados con metas cargadas, para repartir entre los funcionarios masivos.
+ROTACION_CARGOS = ("CAR02", "CAR03", "CAR04", "CAR06", "CAR07")
+
+
+#: Ítem sugerido por sub atención (catálogo demo SAT y catálogo real SUB).
+SUBTYPE_ITEMS = {
+    "SAT001": "MTX01", "SAT002": "MTX04", "SAT003": "MTX02", "SAT004": "MTX20",
+    "SAT005": "MTX07", "SAT006": "MTX07", "SAT007": "MTX07", "SAT008": "MTX07",
+    "SUB01": "MTX03", "SUB02": "MTX03", "SUB03": "MTX03",
+    "SUB04": "MTX01", "SUB05": "MTX01", "SUB06": "MTX01", "SUB07": "MTX01", "SUB08": "MTX01",
+    "SUB09": "MTX01", "SUB10": "MTX01", "SUB11": "MTX05", "SUB12": "MTX01", "SUB13": "MTX01",
+}
+
+#: Organización y directiva de demostración (datos ficticios del preview).
+DEMO_ORG = "JJ.VV. VILLA EL FARO (DEMO)"
+DEMO_DIRECTIVA = (
+    ("Presidente/a", "Patricia Soto Molina", "14.552.890-3", "+56984123310"),
+    ("Secretario/a", "Rodrigo Vera Díaz", "", "+56977654321"),
+    ("Tesorero/a", "Javiera Muñoz Pérez", "", ""),
+)
+
+
+def _suggest_subtype_items():
+    """Ítem sugerido para cada sub atención conocida (sin pisar lo configurado)."""
+    items = {i.code: i for i in ProjectItem.objects.filter(code__in=set(SUBTYPE_ITEMS.values()))}
+    for sub in AttentionSubtype.objects.filter(code__in=SUBTYPE_ITEMS, item__isnull=True):
+        item = items.get(SUBTYPE_ITEMS[sub.code])
+        if item is not None:
+            sub.item = item
+            sub.save(update_fields=["item", "updated_at"])
+
+
+def _seed_demo_directiva(delegacion):
+    """Organización ficticia con su organigrama, para probar "Directivo"."""
+    from sgr_core.models import CommunityOrganization, DirectiveRole, OrganizationMember
+
+    org, _ = CommunityOrganization.objects.get_or_create(
+        name=DEMO_ORG,
+        defaults={"category": "neighborhood", "delegation": delegacion, "territory": "DEMO",
+                  "verified": True, "notes": "Organización ficticia de demostración."},
+    )
+    for rol_nombre, nombre, rut, telefono in DEMO_DIRECTIVA:
+        rol = DirectiveRole.objects.filter(name=rol_nombre).first()
+        if rol is None:
+            continue
+        if not OrganizationMember.objects.filter(organization=org, role=rol, deleted_at__isnull=True).exists():
+            OrganizationMember.objects.create(organization=org, role=rol, full_name=nombre, rut=rut, phone=telefono)
+
+
+def _assign_demo_positions():
+    """Asigna cargo a los funcionarios demo que aún no lo tienen (idempotente).
+
+    Los delegados quedan como CAR01 (Delegado). Los coordinadores no se miden en
+    la matriz. Nunca se reemplaza un cargo ya asignado (p. ej. a mano).
+    """
+    cargos = {p.code: p for p in Position.objects.filter(code__startswith="CAR")}
+    if not cargos:
+        return
+    sin_cargo = (
+        Employee.objects.filter(deleted_at__isnull=True, position__isnull=True)
+        .select_related("user", "role").order_by("pk")
+    )
+    rotacion = [cargos[c] for c in ROTACION_CARGOS if c in cargos]
+    for i, emp in enumerate(sin_cargo):
+        codigo = DEMO_POSITIONS.get(emp.user.username)
+        if codigo is None and emp.role.scope == "own_delegation":
+            codigo = "CAR01"
+        if codigo is not None:
+            cargo = cargos.get(codigo)
+        elif emp.role.scope == "own_records" and rotacion:
+            cargo = rotacion[i % len(rotacion)]
+        else:
+            cargo = None
+        if cargo is not None:
+            emp.position = cargo
+            emp.save(update_fields=["position", "updated_at"])
 
 
 def _seed_massive(delegs, subtypes, goals, hoy):
@@ -670,6 +762,15 @@ class Command(BaseCommand):
 
         # --- Volumen masivo (objetivo pauta: 2.000+ registros y 50+ por CRUD) ---
         _seed_massive(delegs, subtypes, goals, hoy)
+
+        # --- Cargos, metas por cargo y cargo de cada funcionario demo ---
+        # Sin cargo, un funcionario no tiene ítems ni metas: Cumplimiento, el
+        # semáforo y el ranking quedaban vacíos en la base de demostración.
+        call_command("seed_cargos", stdout=StringIO())
+        call_command("seed_metas_cargos", stdout=StringIO())
+        _assign_demo_positions()
+        _suggest_subtype_items()
+        _seed_demo_directiva(delegs["Centro"])
 
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
         self.stdout.write(f"  Administrador:  {ADMIN_USER} / {DEMO_PASSWORD}")

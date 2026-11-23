@@ -10,16 +10,18 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
 from django.core.validators import RegexValidator
-from django.db import transaction
+from django.db import models, transaction
 
 from operaciones import rules as attention_rules
 from operaciones.models import Attention, Employee, Neighbor
+from sgr_core.models import DirectiveRole, OrganizationMember
 from portal.validators import normalize_phone, validate_full_name, validate_rut
 from sgr_core.models import (
     AttentionSubtype,
     AttentionType,
     CommunityOrganization,
     Delegation,
+    Position,
     ProjectItem,
     Role,
     RolePermission,
@@ -418,18 +420,23 @@ class UserForm(CrudModelForm):
 
     class Meta:
         model = Employee
-        fields = ("rut", "phone", "address", "role")
+        fields = ("rut", "phone", "address", "role", "position")
         labels = {
             "rut": "RUT",
             "phone": "Teléfono",
             "address": "Dirección",
             "role": "Rol",
+            "position": "Cargo",
         }
         help_texts = {
             "rut": "RUT del funcionario, por ejemplo 12.345.678-5. Debe ser único.",
             "phone": "Teléfono de contacto (opcional).",
             "address": "Dirección o referencia (opcional).",
             "role": "Solo se pueden asignar roles de menor alcance que el tuyo.",
+            "position": (
+                "Cargo según el descriptor de funciones. Define los ítems y metas "
+                "con que se mide al funcionario en la matriz."
+            ),
         }
         widgets = {
             "rut": forms.TextInput(
@@ -449,11 +456,24 @@ class UserForm(CrudModelForm):
                 attrs={"class": "in", "id": "id_role",
                        "aria-describedby": "id_role-help id_role-e"},
             ),
+            "position": forms.Select(
+                attrs={"class": "in", "aria-describedby": "id_position-help id_position-e"},
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.operator = getattr(self.request, "user", None)
+        # Cargos activos (al editar se conserva el actual aunque esté inactivo).
+        positions = Position.alive.filter(status="Activo")
+        current_position = getattr(self.instance, "position_id", None)
+        if current_position:
+            positions = Position.alive.filter(
+                models.Q(status="Activo") | models.Q(pk=current_position)
+            )
+        self.fields["position"].queryset = positions.order_by("code")
+        self.fields["position"].required = False
+        self.fields["position"].empty_label = "Sin cargo (no se mide en la matriz)"
         employee = getattr(self, "instance", None)
         self.editing = employee is not None and employee.pk is not None
 
@@ -949,6 +969,12 @@ class AttentionForm(CrudModelForm):
     - Tope diario (2.7): máximo 7 ingresos por funcionario y día.
     - Cierre semanal (2.7): no se ingresa en una semana cerrada de la
       delegación ni se edita una atención de una semana cerrada.
+    - Ítem de la matriz (RF-003/RF-009): solo los ítems que mide el cargo del
+      responsable en el período vigente.
+    - Comparecencia: persona natural o directivo de una organización (con su
+      organización, cargo directivo y, si existe, el integrante del organigrama).
+    - Funcionario como civil: si el RUT es el de un funcionario, se debe indicar
+      si acude como civil o si es una gestión interna (no se bloquea).
 
     Las reglas de negocio viven en ``operaciones.rules``.
     """
@@ -987,7 +1013,9 @@ class AttentionForm(CrudModelForm):
     class Meta:
         model = Attention
         fields = (
-            "delegation", "attention_type", "attention_subtype", "description",
+            "requester_mode", "organization", "organization_member", "directive_role",
+            "employee_relation",
+            "delegation", "attention_type", "attention_subtype", "item", "description",
             "requires_visit", "status", "unresolved_reason",
             "evidence_image", "attachment",
         )
@@ -999,9 +1027,21 @@ class AttentionForm(CrudModelForm):
             "requires_visit": "Requiere visita a terreno",
             "status": "Estado",
             "unresolved_reason": "Motivo de baja (Sin resolver)",
+            "item": "Ítem de la matriz",
+            "requester_mode": "¿Cómo acude la persona?",
+            "organization": "Organización",
+            "organization_member": "Directivo en el organigrama",
+            "directive_role": "Cargo directivo",
+            "employee_relation": "El solicitante es funcionario municipal",
         }
         widgets = {
             "delegation": forms.Select(attrs={"class": "in"}),
+            "item": forms.Select(attrs={"class": "in"}),
+            "requester_mode": forms.RadioSelect(attrs={"class": "radio-inline"}),
+            "organization": forms.HiddenInput(),
+            "organization_member": forms.Select(attrs={"class": "in"}),
+            "directive_role": forms.Select(attrs={"class": "in"}),
+            "employee_relation": forms.RadioSelect(),
             "attention_type": forms.Select(attrs={"class": "in"}),
             "attention_subtype": forms.Select(attrs={"class": "in"}),
             "description": forms.Textarea(
@@ -1072,6 +1112,127 @@ class AttentionForm(CrudModelForm):
         for name, message in required.items():
             if name in self.fields:
                 self.fields[name].error_messages["required"] = message
+
+        self._setup_item(request, editing)
+        self._setup_requester(request, editing)
+
+    # ---------------------------------------------------------------
+    # Ítem de la matriz y comparecencia
+    # ---------------------------------------------------------------
+
+    def _responsible_employee(self, request):
+        """Funcionario responsable: el de la atención o el usuario de sesión."""
+        if self.instance.pk is not None and self.instance.responsible_id:
+            return getattr(self.instance.responsible, "employee", None)
+        user = getattr(request, "user", None)
+        return getattr(user, "employee", None) if user is not None else None
+
+    def _setup_item(self, request, editing):
+        from operaciones.calculos import periodo_vigente
+
+        employee = self._responsible_employee(request)
+        items = attention_rules.items_for_employee(employee, periodo_vigente())
+        if editing and self.instance.item_id:
+            items = self._with_current(items, self.instance.item_id)
+        field = self.fields["item"]
+        field.queryset = items
+        field.required = False
+        field.empty_label = "Sin ítem (no suma a la matriz)"
+        self.item_available = items.exists()
+        self.responsible_position = (
+            employee.position.name if employee is not None and employee.position_id else ""
+        )
+
+    def _setup_requester(self, request, editing):
+        self.requester_employee = None
+        names = ("requester_mode", "organization", "organization_member",
+                 "directive_role", "employee_relation")
+        if editing:
+            # La comparecencia no cambia al editar: se muestra como texto.
+            for name in names:
+                self.fields.pop(name, None)
+            return
+        mode = self.fields["requester_mode"]
+        mode.choices = Attention.RequesterMode.choices
+        mode.initial = Attention.RequesterMode.PERSON
+        mode.required = False
+        self.fields["organization"].queryset = CommunityOrganization.alive.all()
+        self.fields["organization"].required = False
+        self.fields["directive_role"].queryset = DirectiveRole.alive.filter(status="Activo")
+        self.fields["directive_role"].required = False
+        self.fields["directive_role"].empty_label = "Selecciona el cargo"
+        # Solo los integrantes de la organización enviada (el JavaScript carga
+        # las opciones; el servidor valida contra este mismo conjunto).
+        members = OrganizationMember.alive.select_related("role")
+        org_pk = self.data.get("organization") if self.is_bound else None
+        if org_pk and str(org_pk).isdigit():
+            members = members.filter(organization_id=int(org_pk))
+        else:
+            members = members.none()
+        member_field = self.fields["organization_member"]
+        member_field.queryset = members
+        member_field.required = False
+        member_field.empty_label = "-- Ingreso manual del directivo --"
+        relation = self.fields["employee_relation"]
+        relation.choices = [
+            ("civil", "Atender como civil (vecino): sigue el flujo normal."),
+            ("internal", "Es una gestión interna: queda como otra gestión y no suma puntaje."),
+        ]
+        relation.required = False
+
+    @property
+    def selected_organization(self):
+        """Organización elegida (para volver a mostrarla si hay errores)."""
+        if "organization" not in self.fields:
+            return None
+        value = self.data.get("organization") if self.is_bound else None
+        if value and str(value).isdigit():
+            return CommunityOrganization.alive.filter(pk=int(value)).first()
+        return None
+
+    def _organization_in_scope(self, organization):
+        user = getattr(self.request, "user", None)
+        role = get_role(user) if user is not None else None
+        if role is not None and role.scope == "all":
+            return True
+        allowed = {d.pk for d in allowed_delegations(user)} if user is not None else set()
+        return organization.delegation_id is None or organization.delegation_id in allowed
+
+    def _clean_requester(self, cleaned):
+        """Comparecencia (persona o directivo) y funcionario como solicitante."""
+        mode = cleaned.get("requester_mode") or Attention.RequesterMode.PERSON
+        cleaned["requester_mode"] = mode
+        if mode == Attention.RequesterMode.DIRECTIVE:
+            organization = cleaned.get("organization")
+            member = cleaned.get("organization_member")
+            if organization is None:
+                self.add_error("organization", "Busca y selecciona la organización del directivo.")
+            elif not self._organization_in_scope(organization):
+                self.add_error("organization", "La organización no pertenece a tus delegaciones.")
+            if member is not None and organization is not None and member.organization_id != organization.pk:
+                self.add_error("organization_member", "El directivo no pertenece a la organización elegida.")
+            if cleaned.get("directive_role") is None:
+                if member is not None:
+                    cleaned["directive_role"] = member.role
+                else:
+                    self.add_error("directive_role", "Indica el cargo directivo de la persona.")
+        else:
+            cleaned["organization"] = None
+            cleaned["organization_member"] = None
+            cleaned["directive_role"] = None
+
+        rut = cleaned.get("neighbor_rut")
+        employee = attention_rules.employee_for_rut(rut) if rut else None
+        self.requester_employee = employee
+        if employee is None:
+            cleaned["employee_relation"] = ""
+        elif cleaned.get("employee_relation") not in ("civil", "internal"):
+            self.add_error(
+                "employee_relation",
+                f"El RUT corresponde a un funcionario municipal ({employee.full_name}, "
+                f"{employee.delegation.name}). Indica si acude como civil o si es una "
+                "gestión interna.",
+            )
 
     @staticmethod
     def _with_current(qs, current_pk):
@@ -1163,6 +1324,7 @@ class AttentionForm(CrudModelForm):
             self._clean_editing(cleaned)
         else:
             self._clean_creating(delegation)
+            self._clean_requester(cleaned)
         return cleaned
 
     def _clean_creating(self, delegation):
@@ -1238,6 +1400,13 @@ class AttentionForm(CrudModelForm):
         instance = super().save(commit=False)
         if instance.pk is None:
             instance.neighbor = self._resolve_neighbor()
+            employee = self.requester_employee
+            instance.requester_employee = employee
+            if employee is not None and instance.neighbor.employee_id != employee.pk:
+                # Misma persona: el registro de vecino queda vinculado al
+                # funcionario (trazabilidad, sin duplicar identidades).
+                instance.neighbor.employee = employee
+                instance.neighbor.save(update_fields=["employee", "updated_at"])
             # Delegación fija por perfil (crear): el formulario no la incluye.
             if "delegation" not in self.fields:
                 instance.delegation = self.fixed_delegation

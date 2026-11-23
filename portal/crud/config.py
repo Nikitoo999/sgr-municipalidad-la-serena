@@ -134,6 +134,8 @@ class ModuleConfig:
     #: Plantilla del formulario. Por defecto la del motor; un módulo puede
     #: aportar la suya (que herede de ``portal/crud/form.html``).
     form_template: str = "portal/crud/form.html"
+    #: Botones extra en la barra del título del listado: ``(etiqueta, url_name)``.
+    toolbar_links: tuple = ()
 
     # ------------------------------------------------------------------
     # Columnas y orden

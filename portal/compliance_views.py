@@ -9,7 +9,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from operaciones.calculos import TOPE_CUMPLIMIENTO, calcular_cumplimiento, dias_libres, MAX_FELICITACIONES, PUNTOS_FELICITACION, PUNTOS_RECLAMO
+from operaciones.calculos import (
+    MAX_FELICITACIONES, PUNTOS_FELICITACION, PUNTOS_RECLAMO, TOPE_CUMPLIMIENTO,
+    actividad_reciente, calcular_cumplimiento, dias_libres, resumen_equipo,
+)
 from sgr_core.models import Period
 from sgr_core.roles import SCOPE_RANKS
 
@@ -54,6 +57,7 @@ class ComplianceView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                     "cumplimiento": cumplimiento,
                     "esperado_pct": (cumplimiento["esperado"] * 100).quantize(DECIMO),
                     "comentarios": list(comentarios),
+                    "reciente": actividad_reciente(emp, periodo, hoy),
                 })
 
         context.update({
@@ -63,6 +67,7 @@ class ComplianceView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
             "periodos": periodos,
             "periodo": periodo,
             "filas": filas,
+            "equipo": resumen_equipo(filas) if filas else None,
             "tope_pct": int(TOPE_CUMPLIMIENTO * 100),
             "max_felicitaciones": MAX_FELICITACIONES,
             "puntos_felicitacion": PUNTOS_FELICITACION,

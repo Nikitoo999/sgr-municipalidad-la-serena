@@ -52,9 +52,11 @@ class CumplimientoTests(TestCase):
         meta = InstitutionalGoal.objects.create(name="Meta", weight=100, period=cls.periodo, delegation=delegacion)
         cls.tarea = Task.objects.create(goal=meta, title="Tarea", due_date=date(2026, 12, 1), assigned_to=cls.ana)
 
-    def actividad(self, dia, item, validada=True, estado=Activity.Status.DONE):
+    def actividad(self, dia, item, validada=True, estado=Activity.Status.DONE,
+                  contacto=("Vecina de prueba", "+56 9 1234 5678")):
         act = Activity.objects.create(
             task=self.tarea, name="Act", execution_date=dia, status=estado, item=item,
+            contact_name=contacto[0], contact_phone=contacto[1],
         )
         Evidence.objects.create(activity=act, is_validated=validada)
         return act

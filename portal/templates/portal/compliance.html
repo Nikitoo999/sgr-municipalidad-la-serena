@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{{ module_label }}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
 <style>
   .b-rojo{background:#fdecea;color:#b71c1c}
 </style>
@@ -39,10 +39,53 @@
 <p>Asigna un cargo a los funcionarios de la delegación para ver su cumplimiento.</p>
 </div>
 {% else %}
-<p class="meta">Cada ítem cuenta hasta el {{ tope_pct }} %. Solo suman las actividades realizadas con evidencia validada.</p>
+<p class="meta">Cada ítem cuenta hasta el {{ tope_pct }} %. Suman las actividades con evidencia aprobada y las atenciones con validación aprobada (máximo 7 por día).</p>
+
+{# Resumen de la delegación: puntaje de equipo, actividad reciente e ítems a reforzar #}
+<section class="card" aria-labelledby="teamTitle" style="margin-bottom:16px">
+  <h2 id="teamTitle">Resumen de la delegación · {{ periodo.name }}</h2>
+  {% if equipo %}
+  <p>
+    <strong>Puntaje del equipo: {{ equipo.porcentaje }} %</strong> · avance esperado a hoy {{ equipo.esperado_pct }} %
+    <span class="badge {% if equipo.semaforo == 'verde' %}b-ok{% elif equipo.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">
+      {% if equipo.semaforo == 'verde' %}Verde{% elif equipo.semaforo == 'amarillo' %}Amarillo{% else %}Rojo{% endif %}
+    </span>
+  </p>
+  <p class="meta">{{ equipo.evaluados }} funcionario{{ equipo.evaluados|pluralize }} evaluado{{ equipo.evaluados|pluralize }}: {{ equipo.verdes }} en verde, {{ equipo.amarillos }} en amarillo y {{ equipo.rojos }} en rojo. Los puntajes se ven como equipo: juntos suman más.</p>
+  {% if equipo.items_a_reforzar %}
+  <p><strong>Ítems a reforzar</strong> <span class="meta">(menor logro promedio; sobre el {{ tope_pct }} % ya no suma)</span></p>
+  <ul>
+    {% for it in equipo.items_a_reforzar %}<li>{{ it.item.name }}: {{ it.logro_pct }} % <span class="meta">({{ it.funcionarios }} funcionario{{ it.funcionarios|pluralize }})</span></li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% else %}
+  <p class="meta">No hay funcionarios evaluados con metas en este trimestre.</p>
+  {% endif %}
+  <div class="tablewrap">
+  <table>
+    <caption class="sr">Actividad reciente y cumplimiento por funcionario</caption>
+    <thead><tr><th scope="col">Funcionario</th><th scope="col">Cargo</th><th scope="col">Último ingreso</th><th scope="col">Días desde el último</th><th scope="col">Ingresos</th><th scope="col">Promedio diario</th><th scope="col">Cumplimiento</th><th scope="col">Semáforo</th></tr></thead>
+    <tbody>
+    {% for fila in filas %}
+    <tr>
+      <td><a href="#func-{{ fila.empleado.pk }}">{{ fila.empleado.full_name }}</a></td>
+      <td>{{ fila.empleado.position.name }}</td>
+      <td>{{ fila.reciente.ultimo|date:"d/m/Y"|default:"Sin ingresos" }}</td>
+      <td>{% if fila.reciente.dias_desde_ultimo is None %}—{% elif fila.reciente.dias_desde_ultimo > 3 %}<span class="badge b-rojo">{{ fila.reciente.dias_desde_ultimo }}</span>{% else %}{{ fila.reciente.dias_desde_ultimo }}{% endif %}</td>
+      <td>{{ fila.reciente.total }}</td>
+      <td>{{ fila.reciente.promedio }}</td>
+      <td>{{ fila.cumplimiento.porcentaje }} %</td>
+      <td><span class="badge {% if fila.cumplimiento.semaforo == 'verde' %}b-ok{% elif fila.cumplimiento.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">{% if fila.cumplimiento.semaforo == 'verde' %}Verde{% elif fila.cumplimiento.semaforo == 'amarillo' %}Amarillo{% else %}Rojo{% endif %}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
 {% for fila in filas %}
 {% with c=fila.cumplimiento %}
-<section class="card" style="margin-bottom:16px">
+<section class="card" style="margin-bottom:16px" id="func-{{ fila.empleado.pk }}">
 <h2>
     {{ fila.empleado.full_name }}
     <span class="badge {% if c.semaforo == 'verde' %}b-ok{% elif c.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">

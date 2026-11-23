@@ -1,0 +1,10 @@
+{% extends 'portal/crud/form.html' %}
+{% block after_form %}
+{% if not is_create and form.instance.pk %}
+<section class="card" style="margin-top:16px" aria-labelledby="pgTitle">
+  <h2 id="pgTitle">Ítems y metas del cargo</h2>
+  <p class="help">Los ítems, ponderadores y metas se definen por período. Al seleccionar un cargo en Usuarios, el funcionario queda medido con estos ítems.</p>
+  <a class="btn primary" href="{% url 'position_goals' form.instance.pk %}">Ver o editar ítems y metas</a>
+</section>
+{% endif %}
+{% endblock %}

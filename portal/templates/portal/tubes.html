@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}Tubos de trabajo{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
 <style>
   /* Tablero del tubo (formato Card / modelo Canvas, Unidad 3) */
   .tb-switch{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
@@ -82,6 +82,13 @@
         {% endfor %}
     </select>
     </div>
+    <div class="statebox">
+    <label for="prio">Prioridad</label>
+    <select class="in" id="prio" name="prio">
+        <option value=""{% if not prio %} selected{% endif %}>Todas</option>
+        <option value="1"{% if prio %} selected{% endif %}>Solo prioritarias (traspaso)</option>
+    </select>
+    </div>
     <button class="btn primary" type="submit">Filtrar</button>
     <a class="btn-outline" href="{% url 'tubes' %}?vista={{ vista }}">Limpiar filtros</a>
     <a class="btn-outline" href="{% url 'achievements' %}">Volver a cumplimiento</a>
@@ -98,6 +105,25 @@
   </div>
   {% endfor %}
 </section>
+{% if filas_resumen %}
+<details class="card" style="margin:0 0 16px" open>
+  <summary><strong>Resumen colectivo por funcionario</strong> <span class="meta">· exigencia {{ umbral_tubo }} % de solicitudes realizadas</span></summary>
+  <div class="tablewrap" style="margin-top:10px">
+  <table>
+    <caption class="sr">Solicitudes del tubo por funcionario</caption>
+    <thead><tr><th scope="col">Funcionario</th><th scope="col">Total</th><th scope="col">Realizadas</th><th scope="col">Abiertas</th><th scope="col">Vencidas</th><th scope="col">% realizado</th></tr></thead>
+    <tbody>
+    {% for f in filas_resumen %}
+    <tr><td>{{ f.nombre }}</td><td>{{ f.total }}</td><td>{{ f.realizadas }}</td><td>{{ f.abiertas }}</td><td>{% if f.vencidas %}<span class="badge b-bad">{{ f.vencidas }}</span>{% else %}0{% endif %}</td>
+      <td><span class="badge {% if f.cumple %}b-ok{% else %}b-warn{% endif %}">{{ f.pct|default:"—" }} %</span></td></tr>
+    {% endfor %}
+    <tr><th scope="row">{{ total_resumen.nombre }}</th><td>{{ total_resumen.total }}</td><td>{{ total_resumen.realizadas }}</td><td>{{ total_resumen.abiertas }}</td><td>{{ total_resumen.vencidas }}</td>
+      <td><span class="badge {% if total_resumen.cumple %}b-ok{% else %}b-warn{% endif %}">{{ total_resumen.pct|default:"—" }} %</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</details>
+{% endif %}
 {% if no_aplica %}<p class="meta">{{ no_aplica }} solicitud{{ no_aplica|pluralize:"es" }} marcada{{ no_aplica|pluralize }} como «No aplica» no se muestra{{ no_aplica|pluralize:"n" }} en el tablero (ver Planilla).</p>{% endif %}
 {% if can_edit %}<p class="meta">Arrastra una tarjeta a otra columna o usa su botón de avance. Para pasar a «Realizados» se pide la foto de respaldo y el código de verificación.</p>{% endif %}
 
@@ -115,20 +141,24 @@
                {% if can_edit and e.status != 'done' %}draggable="true"{% endif %}>
         <div class="tb-card-top">
           <span class="tb-code">{{ e.code }}</span>
-          {% if e.channel != 'delegation' %}<span class="tb-tag">{{ e.get_channel_display }}</span>{% endif %}
+          {% if e.priority %}<span class="badge b-prio">PRIORITARIO</span>{% elif e.channel != 'delegation' %}<span class="tb-tag">{{ e.get_channel_display }}</span>{% endif %}
           {% if e.letter_number %}<span class="tb-tag">Carta {{ e.letter_number }}</span>{% endif %}
         </div>
         <h3>{{ e.title }}</h3>
         <p class="ln"><strong>Solicitante:</strong> {{ e.requester }}</p>
         {% if e.support_area %}<p class="ln apoyo"><strong>Apoyo:</strong> {{ e.support_area }}</p>{% endif %}
         {% if not e.has_contact %}<p class="warn">Sin teléfono del solicitante: no suma puntaje</p>{% endif %}
-        {% if e.vencida %}<p class="warn">Compromiso vencido ({{ e.due_date|date:"d/m/Y" }})</p>{% endif %}
+        {% if e.organization %}<p class="ln"><strong>Organización:</strong> {{ e.organization.name }}</p>{% endif %}
+        {% if e.vencida %}<p class="warn">Compromiso vencido ({{ e.due_date|date:"d/m/Y" }})</p>
+        {% elif e.proxima %}<p class="warn" style="color:var(--warn)">Próxima a vencer ({{ e.due_date|date:"d/m/Y" }})</p>{% endif %}
+        {% if e.fuera_de_plazo %}<p class="warn" style="color:var(--warn)">Realizada fuera de plazo</p>{% endif %}
         <div class="tb-card-foot">
           {% if e.status == 'done' %}
           <span class="tb-done-ok">Concluido{% if e.completed_at %} · {{ e.completed_at|date:"d/m/Y" }}{% endif %}</span>
-          {% if e.proof_image %}<a href="{{ e.proof_image.url }}" target="_blank" rel="noopener">Ver foto</a>{% endif %}
+          <a href="{% url 'tube_detail' e.pk %}" data-sgr-modal data-modal-title="{{ e.code }}">Ver detalle</a>
           {% else %}
           <span>Responsable: {% if e.responsible %}{{ e.responsible.full_name }}{% else %}Sin asignar{% endif %}</span>
+          <a href="{% url 'tube_detail' e.pk %}" data-sgr-modal data-modal-title="{{ e.code }}">Ver</a>
           {% if can_edit and e.siguiente %}
           <button type="button" class="tb-next{% if e.siguiente.0 == 'done' %} do{% endif %}" data-move="{{ e.siguiente.0 }}">{{ e.siguiente.1 }}</button>
           {% endif %}
@@ -174,7 +204,10 @@
     {% for e in pagina %}
     <tr>
         <td>
-        <strong>{{ e.code }}</strong> · {{ e.get_channel_display }} · {{ e.delegation.name }}<br>
+        <a href="{% url 'tube_detail' e.pk %}" data-sgr-modal data-modal-title="{{ e.code }}"><strong>{{ e.code }}</strong></a> · {{ e.get_channel_display }} · {{ e.delegation.name }}
+        {% if e.priority %}<span class="badge b-prio">PRIORITARIO</span>{% endif %}
+        {% if e.vencida %}<span class="badge b-bad">Vencida</span>{% elif e.proxima %}<span class="badge b-warn">Próxima a vencer</span>{% endif %}
+        {% if e.fuera_de_plazo %}<span class="badge b-warn">Fuera de plazo</span>{% endif %}<br>
         {{ e.title }}<br>
         <span class="meta">
             {{ e.get_origin_display }} · {{ e.requester }}{% if e.contact_phone %} · Tel. {{ e.contact_phone }}{% else %} · <em>sin teléfono (no suma)</em>{% endif %}{% if e.territory %} · {{ e.territory }}{% endif %}
@@ -264,6 +297,13 @@ Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
         <label class="fl" for="n-title">Actividad / solicitud / problema <span class="req" aria-hidden="true">*</span></label>
         <input class="in" id="n-title" name="title" maxlength="255" required>
       </div>
+      <div class="full" data-org-picker>
+        <label class="fl" for="n-org">Organización solicitante (opcional)</label>
+        <input class="in" id="n-org" type="text" autocomplete="off" placeholder="Buscar junta de vecinos u organización..." data-org-search>
+        <input type="hidden" name="organization" data-org-id>
+        <div class="nb-results" data-org-results hidden></div>
+        <p class="help">Si la solicitud viene de una organización de la base comunitaria, elígela aquí.</p>
+      </div>
       <div>
         <label class="fl" for="n-requester">Solicitante (nombre) <span class="req" aria-hidden="true">*</span></label>
         <input class="in" id="n-requester" name="requester" maxlength="150" required>
@@ -352,6 +392,7 @@ Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
 {% endblock %}
 
 {% block scripts %}
+{% if can_create %}<script src="{% static 'portal/js/org_picker.js' %}?v=1"></script>{% endif %}
 {% if can_edit and vista == 'tablero' %}
 <script src="{% static 'portal/js/tubes_board.js' %}?v=1"></script>
 {% endif %}

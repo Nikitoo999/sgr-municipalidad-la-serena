@@ -53,7 +53,7 @@ class AttentionRulesTests(TestCase):
     def setUpTestData(cls):
         cls.roles = ensure_roles()
         cls.d1 = make_delegation("Centro", "DEL01", color="#C62828")
-        cls.coordinador = make_employee("coordinador", "11.111.111-1", cls.d1, cls.roles["ROL02"])
+        cls.coordinador = make_employee("coordinador", "11.111.199-9", cls.d1, cls.roles["ROL02"])
         cls.coordinador.authorized_delegations.set([cls.d1])
         cls.tipo = AttentionType.objects.create(code="TAT01", name="Social")
         cls.sub = AttentionSubtype.objects.create(code="SAT01", name="Taller realizado", attention_type=cls.tipo)
@@ -278,3 +278,107 @@ class OrganizationsCrudTests(TestCase):
         export = self.client.get(reverse("organizations_export"), {"categoria": "senior"})
         self.assertEqual(export.status_code, 200)
         self.assertIn("spreadsheetml", export["Content-Type"])
+
+
+@override_settings(STORAGES=TEST_STORAGES)
+class CorreccionesCriticasTests(TestCase):
+    """Errores reportados por el equipo al probar la rama (regresiones)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.roles = ensure_roles()
+        cls.d1 = make_delegation("Centro", "DEL01", color="#C62828")
+        make_user("superadmin", password=DEMO_PASSWORD, is_superuser=True, is_staff=True)
+        cls.cargo = Position.objects.create(code="CAR02", name="Gestor Social")
+        cls.ana = make_employee("ana", "10.000.001-1", cls.d1, cls.roles["ROL04"],
+                                first_name="Ana", last_name="Pérez")
+        cls.ana.position = cls.cargo
+        cls.ana.save()
+
+    def setUp(self):
+        self.client.login(username="superadmin", password=DEMO_PASSWORD)
+
+    def test_organigrama_dibuja_funcionarios_en_el_html(self):
+        # Antes salía vacío: el defaultdict anidado hacía que la plantilla
+        # resolviera posiciones.items como una lista vacía.
+        resp = self.client.get(reverse("organigrama"))
+        self.assertContains(resp, "Ana Pérez")
+        self.assertContains(resp, "DEL01 · Centro")
+        self.assertContains(resp, "Gestor Social (1)")
+        self.assertContains(resp, "Funcionario")  # nombre del rol, no el código de alcance
+
+    def test_reenviar_codigo_por_get_no_da_error(self):
+        resp = self.client.get(reverse("password_reset_resend"))
+        self.assertRedirects(resp, reverse("password_reset_verify"), fetch_redirect_response=False)
+
+    def test_las_ventanas_ocultas_respetan_hidden(self):
+        # Sin esta regla, display:grid anula [hidden] y las ventanas del Tubo y
+        # de Cumplimiento aparecen abiertas sin poder cerrarse.
+        from pathlib import Path
+
+        from django.conf import settings
+
+        css = (Path(settings.BASE_DIR) / "portal/static/portal/css/sgr.css").read_text(encoding="utf-8")
+        self.assertIn(".smodal-backdrop[hidden]{display:none}", css)
+
+
+@override_settings(STORAGES=TEST_STORAGES)
+class DirectivaOrganizacionTests(TestCase):
+    """Organigrama de la organización (preview de implementación)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.roles = ensure_roles()
+        cls.d1 = make_delegation("Centro", "DEL01", color="#C62828")
+        cls.d2 = make_delegation("Avenida del Mar", "DEL02", color="#1D6FA5")
+        cls.delegado = make_employee("delegado", "11.111.112-2", cls.d1, cls.roles["ROL03"])
+        cls.funcionario = make_employee("funcionario", "11.111.113-3", cls.d1, cls.roles["ROL04"])
+        cls.org = CommunityOrganization.objects.create(name="JJVV VILLA EL FARO", delegation=cls.d1)
+        cls.org_ajena = CommunityOrganization.objects.create(name="CLUB DEL MAR", delegation=cls.d2)
+
+    def test_cargos_base_creados_por_migracion(self):
+        from sgr_core.models import DirectiveRole
+
+        self.assertEqual(
+            list(DirectiveRole.objects.filter(is_base=True).values_list("name", flat=True)),
+            ["Presidente/a", "Secretario/a", "Tesorero/a"],
+        )
+
+    def test_asignar_y_reemplazar_integrante(self):
+        from sgr_core.models import DirectiveRole, OrganizationMember
+
+        presidente = DirectiveRole.objects.get(name="Presidente/a")
+        self.client.login(username="delegado", password=DEMO_PASSWORD)
+        url = reverse("organization_member_save", args=[self.org.pk])
+        self.client.post(url, {"role": presidente.pk, "full_name": "Patricia Soto", "phone": "+56 9 8412 3310"})
+        self.client.post(url, {"role": presidente.pk, "full_name": "Rodrigo Vera"})
+        vigentes = OrganizationMember.alive.filter(organization=self.org)
+        self.assertEqual([m.full_name for m in vigentes], ["Rodrigo Vera"])
+        detalle = self.client.get(reverse("organizations_detail", args=[self.org.pk]))
+        self.assertContains(detalle, "Organigrama · JJVV VILLA EL FARO")
+        self.assertContains(detalle, "Rodrigo Vera")
+
+    def test_no_se_edita_directiva_de_otra_delegacion(self):
+        from sgr_core.models import DirectiveRole
+
+        self.client.login(username="delegado", password=DEMO_PASSWORD)
+        resp = self.client.post(reverse("organization_member_save", args=[self.org_ajena.pk]), {
+            "role": DirectiveRole.objects.first().pk, "full_name": "Intruso Total",
+        })
+        self.assertEqual(resp.status_code, 403)
+
+    def test_funcionario_no_edita_directiva(self):
+        from sgr_core.models import DirectiveRole
+
+        self.client.login(username="funcionario", password=DEMO_PASSWORD)
+        resp = self.client.post(reverse("organization_member_save", args=[self.org.pk]), {
+            "role": DirectiveRole.objects.first().pk, "full_name": "Sin Permiso",
+        })
+        self.assertEqual(resp.status_code, 403)
+
+    def test_crear_cargo_directivo(self):
+        from sgr_core.models import DirectiveRole
+
+        self.client.login(username="delegado", password=DEMO_PASSWORD)
+        self.client.post(reverse("directive_role_create"), {"name": "Vicepresidente/a"})
+        self.assertTrue(DirectiveRole.objects.filter(name="Vicepresidente/a").exists())

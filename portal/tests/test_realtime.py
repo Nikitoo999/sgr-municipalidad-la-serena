@@ -168,7 +168,7 @@ class AttentionEventEmissionTests(TestCase):
         cls.roles = ensure_roles()
         cls.d1 = make_delegation("Centro", "DEL01", color="#C62828")
         cls.coordinador = make_employee(
-            "coordinador", "11.111.111-1", cls.d1, cls.roles["ROL02"],
+            "coordinador", "11.111.199-9", cls.d1, cls.roles["ROL02"],
         )
         cls.coordinador.authorized_delegations.set([cls.d1])
         cls.tipo = AttentionType.objects.create(code="TAT01", name="Social")

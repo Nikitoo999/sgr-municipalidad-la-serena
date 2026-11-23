@@ -166,3 +166,13 @@ fieldset>legend{font-weight:600;margin-bottom:8px;padding:0}
 .section-title{font-size:18px;margin:6px 0 12px}
 .inline-form{margin:0}
 .btn.btn-sm{height:34px;padding:0 12px;font-size:13px}
+
+/* ---- Unidad 3: comparecencia, funcionario civil y validación ---- */
+.radio-row{display:flex;gap:18px;flex-wrap:wrap}
+.radio-col{display:grid;gap:8px;margin-top:8px}
+.radio-row .checkrow,.radio-col .checkrow{display:flex;align-items:flex-start;gap:8px;font-weight:500}
+.radio-row ul,.radio-col ul{list-style:none;margin:0;padding:0}
+.directive-box{border-left:3px solid var(--muni);background:var(--muni-tint);border-radius:10px;padding:14px 16px}
+.review-card{margin-top:18px}
+.kv-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:4px}
+.badge.b-prio{background:#fde8d4;color:#8a3b00}

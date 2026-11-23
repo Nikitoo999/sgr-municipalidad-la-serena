@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{{ module_label }} – Organigrama{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
 <style>
   .organigrama { max-width: 1000px; margin: 0 auto; }
   .org-delegacion { margin-bottom: 24px; border: 1px solid #d9d9d9; border-radius: 8px; background: #fff; }
@@ -50,7 +50,7 @@
           <div class="org-emp">
             <span class="org-ic">{% sgr_icon 'users' 14 %}</span>
             <span class="org-name">{{ item.full_name }}</span>
-            <span class="org-role">{{ item.scope }}</span>
+            <span class="org-role">{{ item.role_name }}</span>
           </div>
           {% endfor %}
         </div>

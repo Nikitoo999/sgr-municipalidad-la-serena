@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{{ config.list_title }}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
 <style>
   .th-sort{display:inline-flex;align-items:center;gap:4px;color:inherit;text-decoration:none}
   .th-sort:hover,.th-sort.active{color:#920000}
@@ -12,6 +12,7 @@
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ config.list_title }}</nav>
 <div class="titlebar"><h1>{{ config.list_title }}</h1>
+  {% for label, url_name in config.toolbar_links %}<a class="btn soft" href="{% url url_name %}">{{ label }}</a>{% endfor %}
   {% if can_create %}
   <a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="{{ config.new_title }}">{% sgr_icon 'plus' 18 %}<span>{{ config.new_title }}</span></a>
   {% endif %}

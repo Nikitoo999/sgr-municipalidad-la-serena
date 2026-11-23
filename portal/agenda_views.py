@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -83,8 +81,23 @@ class AgendaView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         info = access.get_access(self.request)
 
         tareas = list(self._tareas())
+        puede_reasignar = info.can("tasks", "edit")
+        candidatos = {}
         for tarea in tareas:
             tarea.items_matriz = list(items_de_la_tarea(tarea))
+            tarea.reasignaciones = list(
+                tarea.reassignments.select_related("original_employee__user", "reassigned_employee__user")
+                .order_by("-reassigned_at")[:3]
+            )
+            if puede_reasignar:
+                deleg_id = tarea.goal.delegation_id
+                if deleg_id not in candidatos:
+                    candidatos[deleg_id] = list(
+                        Employee.objects.filter(
+                            deleted_at__isnull=True, user__is_active=True, delegation_id=deleg_id,
+                        ).select_related("user").order_by("user__first_name", "user__last_name")
+                    )
+                tarea.candidatos = [e for e in candidatos[deleg_id] if e.pk != tarea.assigned_to_id]
             for actividad in tarea.activities.all():
                 evidencias = list(actividad.evidences.all())
                 actividad.lista_evidencias = evidencias
@@ -104,9 +117,50 @@ class AgendaView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         return context
 
 class ActivityForm(forms.ModelForm):
+    """Actividad de la agenda (RF-009/RF-010).
+
+    - Nombre y teléfono del usuario: opcionales, pero sin ellos la actividad no
+      suma si el ítem es de cara al usuario (punto 2 del nuevo requerimiento).
+    - La fecha no puede ser de una semana ya cerrada por plazo (punto 4) ni de
+      un período cerrado (RN-013).
+    """
+
     class Meta:
         model = Activity
-        fields = ["name", "execution_date", "item"]
+        fields = ["name", "execution_date", "item", "contact_name", "contact_phone"]
+
+    def clean_contact_phone(self):
+        from portal.validators import normalize_phone
+
+        phone = (self.cleaned_data.get("contact_phone") or "").strip()
+        if not phone:
+            return ""
+        try:
+            return normalize_phone(phone)
+        except forms.ValidationError:
+            raise
+        except Exception:
+            raise forms.ValidationError("Ingresa un teléfono válido, por ejemplo +56 9 1234 5678.")
+
+    def clean_execution_date(self):
+        from operaciones import rules
+        from sgr_core.models import Period
+
+        fecha = self.cleaned_data.get("execution_date")
+        if fecha is None:
+            return fecha
+        error = rules.past_week_entry_error(fecha)
+        if error:
+            raise forms.ValidationError(error)
+        cerrado = Period.objects.filter(
+            deleted_at__isnull=True, status="Cerrado",
+            start_date__lte=fecha, end_date__gte=fecha,
+        ).first()
+        if cerrado is not None:
+            raise forms.ValidationError(
+                f"La fecha pertenece al período cerrado «{cerrado.name}»: no se puede registrar."
+            )
+        return fecha
 
 
 class ActivityCreateView(LoginRequiredMixin, ModulePermissionMixin, View):
@@ -123,9 +177,13 @@ class ActivityCreateView(LoginRequiredMixin, ModulePermissionMixin, View):
             actividad = form.save(commit=False)
             actividad.task = tarea
             actividad.save()
-            messages.success(request, f"Actividad registrada en {tarea.code}.")
+            aviso = ""
+            if actividad.item_id and actividad.item.requires_contact and not actividad.has_contact:
+                aviso = " Sin nombre y teléfono del usuario no sumará puntaje: agrégalos si corresponde."
+            messages.success(request, f"Actividad registrada en {tarea.code}.{aviso}")
         else:
-            messages.error(request, "No se pudo registrar la actividad: revisa el nombre y la fecha.")
+            errores = "; ".join(e for lista in form.errors.values() for e in lista)
+            messages.error(request, f"No se pudo registrar la actividad: {errores}")
         return redirect("tasks")
 
 class EvidenceForm(forms.ModelForm):
@@ -165,31 +223,62 @@ class EvidenceCreateView(LoginRequiredMixin, ModulePermissionMixin, View):
 
 
 class EvidenceValidateView(LoginRequiredMixin, ModulePermissionMixin, View):
-    """Marca una evidencia como validada por jefatura o delegado (solo POST)."""
+    """Revisa una evidencia: aprobar, rechazar o pedir corrección (solo POST).
+
+    RF-013 / CA-02: la decisión registra verificador, fecha, resultado y
+    observación (obligatoria al rechazar o pedir corrección). Solo una
+    evidencia aprobada hace que la actividad sume. Sin ``decision`` se aprueba
+    (compatibilidad con el botón "Validar" anterior). Nadie revisa la
+    evidencia de una tarea asignada a sí mismo (segregación de funciones).
+    """
 
     module = "tasks"
     action = "edit"
 
     def post(self, request, evidence_id):
+        from operaciones.models import ReviewStatus
+
         evidencia = get_object_or_404(
-            Evidence.objects.select_related("activity__task"),
+            Evidence.objects.select_related("activity__task__assigned_to"),
             pk=evidence_id, deleted_at__isnull=True,
             activity__task__in=tareas_del_alcance(request),
         )
+        codigo = evidencia.activity.task.code
         if evidencia.is_validated:
             messages.info(request, "Esa evidencia ya estaba validada.")
             return redirect("tasks")
+        asignado = evidencia.activity.task.assigned_to
+        if asignado is not None and asignado.user_id == request.user.pk:
+            messages.error(request, "No puedes revisar la evidencia de una tarea asignada a ti.")
+            return redirect("tasks")
 
-        evidencia.is_validated = True
+        decision = request.POST.get("decision") or ReviewStatus.APPROVED
+        notes = " ".join((request.POST.get("notes") or "").split())[:500]
+        if decision not in (ReviewStatus.APPROVED, ReviewStatus.REJECTED, ReviewStatus.CORRECTION):
+            messages.error(request, "Decisión de revisión no válida.")
+            return redirect("tasks")
+        if decision != ReviewStatus.APPROVED and len(notes) < 5:
+            messages.error(request, "Indica la observación para el funcionario (al menos 5 caracteres).")
+            return redirect("tasks")
+
+        evidencia.review_status = decision
+        evidencia.review_notes = notes
+        evidencia.is_validated = decision == ReviewStatus.APPROVED
         evidencia.validated_by = request.user
         evidencia.validated_at = timezone.now()
-        evidencia.save(update_fields=["is_validated", "validated_by", "validated_at", "updated_at"])
+        evidencia.save(update_fields=[
+            "is_validated", "validated_by", "validated_at", "review_status", "review_notes", "updated_at",
+        ])
+        etiqueta = evidencia.get_review_status_display()
         audit(
-            request, "edit", module="tasks",
-            object_repr=f"Evidencia de {evidencia.activity.task.code}",
-            detail=f"Validada por {request.user}",
+            request, "validate", module="tasks",
+            object_repr=f"Evidencia de {codigo}",
+            detail=f"{etiqueta} por {request.user}" + (f" · {notes}" if notes else ""),
         )
-        messages.success(request, f"Evidencia de {evidencia.activity.task.code} validada.")
+        if evidencia.is_validated:
+            messages.success(request, f"Evidencia de {codigo} validada.")
+        else:
+            messages.success(request, f"Evidencia de {codigo}: {etiqueta.lower()}. El funcionario verá tu observación.")
         return redirect("tasks")
 
 
@@ -428,23 +517,32 @@ class OrganigramView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
             except (ValueError, TypeError):
                 pass
 
-        # Agrupación: por delegación (código), posición, luego nombre
-        # Usamos defaultdict para anidar: delegación -> posición -> lista de empleados
-        organigrama = defaultdict(lambda: defaultdict(list))
+        # Agrupación: delegación -> cargo -> funcionarios (el cargo CAR01,
+        # Delegado, queda primero por el orden de código).
+        #
+        # Se usan dict normales, NO defaultdict: en la plantilla,
+        # ``posiciones.items`` primero intenta ``posiciones["items"]`` y un
+        # defaultdict "responde" creando una lista vacía, así que el
+        # organigrama se dibujaba sin funcionarios.
+        organigrama = {}
         for emp in qs.order_by(
             "delegation__code",
             "position__code",
             "user__first_name",
             "user__last_name",
         ):
-            de_key = emp.delegation.code if emp.delegation else "Sin delegación"
-            pos_key = emp.position.code if emp.position else "Sin cargo"
-            organigrama[de_key][pos_key].append(
+            de_key = (
+                f"{emp.delegation.code} · {emp.delegation.name}"
+                if emp.delegation else "Sin delegación"
+            )
+            pos_key = emp.position.name if emp.position else "Sin cargo asignado"
+            organigrama.setdefault(de_key, {}).setdefault(pos_key, []).append(
                 {
                     "employee": emp,
                     "full_name": emp.user.get_full_name() or emp.user.username,
                     "rank": emp.role.rank if emp.role else 0,
                     "scope": emp.role.scope if emp.role else "—",
+                    "role_name": emp.role.name if emp.role else "Sin rol",
                 }
             )
 
@@ -453,7 +551,7 @@ class OrganigramView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                 "active_module": "users",
                 "module_label": MODULE_LABELS["users"],
                 "module_icon": MODULE_ICONS["users"],
-                "organigrama": dict(sorted(organigrama.items())),
+                "organigrama": organigrama,
                 "all_delegations": Delegation.objects.filter(
                     status="Activa", deleted_at__isnull=True
                 ).order_by("code"),
@@ -650,3 +748,54 @@ class PendingTransferExecuteView(LoginRequiredMixin, ModulePermissionMixin, View
             f"Tarea '{nueva.title}' traspasada a la meta '{target_goal.name}' (código {nueva.code}).",
         )
         return redirect("pending_transfer")
+
+
+class TaskReassignView(LoginRequiredMixin, ModulePermissionMixin, View):
+    """Reasigna una tarea a otro funcionario de la delegación (HU-15).
+
+    Conserva responsable anterior, nuevo responsable, autor (auditoría), fecha
+    y motivo en ``TaskReassignment``. Solo POST; requiere ``tasks.edit``.
+    """
+
+    module = "tasks"
+    action = "edit"
+
+    def post(self, request, task_id):
+        from operaciones.models import TaskReassignment
+
+        tarea = get_object_or_404(
+            tareas_del_alcance(request).select_related("goal", "assigned_to__user"), pk=task_id,
+        )
+        motivo = request.POST.get("reason", "")
+        notas = " ".join((request.POST.get("notes") or "").split())[:500]
+        pk = request.POST.get("employee", "")
+        nuevo = None
+        if pk.isdigit():
+            nuevo = Employee.objects.filter(
+                pk=int(pk), deleted_at__isnull=True, user__is_active=True,
+                delegation_id=tarea.goal.delegation_id,
+            ).select_related("user").first()
+        motivos = dict(TaskReassignment._meta.get_field("reason").choices)
+        if nuevo is None:
+            messages.error(request, "Elige un funcionario activo de la delegación de la tarea.")
+        elif nuevo.pk == tarea.assigned_to_id:
+            messages.info(request, f"{nuevo.full_name} ya es el responsable de {tarea.code}.")
+        elif motivo not in motivos:
+            messages.error(request, "Indica el motivo de la reasignación.")
+        else:
+            anterior = tarea.assigned_to
+            with transaction.atomic():
+                if anterior is not None:
+                    TaskReassignment.objects.create(
+                        task=tarea, original_employee=anterior, reassigned_employee=nuevo,
+                        reason=motivo, reassigned_at=timezone.now(), notes=notas or None,
+                    )
+                tarea.assigned_to = nuevo
+                tarea.save(update_fields=["assigned_to", "updated_at"])
+            audit(
+                request, "edit", module="tasks", object_repr=f"Tarea {tarea.code}",
+                detail=(f"Reasignada {anterior.full_name if anterior else 'sin responsable'} → "
+                        f"{nuevo.full_name} ({motivos[motivo]}){': ' + notas if notas else ''}"),
+            )
+            messages.success(request, f"{tarea.code} reasignada a {nuevo.full_name}.")
+        return redirect("tasks")
