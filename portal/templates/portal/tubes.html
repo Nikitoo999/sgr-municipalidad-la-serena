@@ -3,13 +3,67 @@
 {% block title %}Tubos de trabajo{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<style>
+  /* Tablero del tubo (formato Card / modelo Canvas, Unidad 3) */
+  .tb-switch{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .tb-switch a{padding:9px 16px;font-weight:600;color:var(--muted);text-decoration:none}
+  .tb-switch a[aria-current="page"]{background:var(--muni);color:#fff}
+  .tb-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:0 0 18px}
+  .tb-kpi{background:#fff;border:1px solid var(--line);border-left:5px solid var(--off);border-radius:10px;padding:16px 18px}
+  .tb-kpi h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 8px}
+  .tb-kpi .v{font-size:32px;font-weight:700;line-height:1.1;font-family:Georgia,serif}
+  .tb-kpi p{color:var(--muted);font-size:13px;margin-top:6px}
+  .k-total{border-left-color:var(--muni)}.k-total .v{color:var(--muni)}
+  .k-done{border-left-color:var(--ok)}.k-done .v{color:var(--ok)}
+  .k-progress{border-left-color:#c98a10}.k-progress .v{color:#b07400}
+  .k-alert{border-left-color:var(--bad)}.k-alert .v{color:var(--bad)}
+  .tb-board{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:16px;overflow-x:auto;padding-bottom:6px}
+  .tb-col{background:#f4ede9;border:1px solid #ebe0da;border-radius:12px;padding:14px;min-height:260px;display:flex;flex-direction:column;transition:box-shadow .15s,background .15s}
+  .tb-col.drop-ok{background:#efe4de;box-shadow:inset 0 0 0 2px var(--col)}
+  .tb-col-h{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:12px;border-bottom:2px solid #e2d6cf}
+  .tb-col-h h2{font-size:14px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--col);margin:0}
+  .tb-count{background:#fff;border:1px solid var(--line);border-radius:999px;min-width:28px;height:28px;display:grid;place-items:center;font-size:13px;font-weight:700;padding:0 8px}
+  .tb-cards{display:flex;flex-direction:column;gap:12px;flex:1}
+  .col-received{--col:#3d4450}.col-pending{--col:var(--muni)}.col-progress{--col:#a26a00}.col-done{--col:var(--ok)}
+  .tb-card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--col);border-radius:8px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .tb-card[draggable="true"]{cursor:grab}
+  .tb-card.dragging{opacity:.45}
+  .tb-card-top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px}
+  .tb-code{font-family:ui-monospace,Consolas,monospace;font-weight:700;font-size:13px;color:var(--col)}
+  .tb-tag{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:var(--info-bg);color:var(--info);border-radius:6px;padding:2px 6px}
+  .tb-card h3{font-size:16px;line-height:1.35;margin:0 0 6px}
+  .col-done .tb-card h3{text-decoration:line-through;color:var(--muted)}
+  .tb-card .ln{font-size:14px;color:var(--ink);margin:2px 0}
+  .tb-card .apoyo{color:var(--info)}
+  .tb-card .warn{color:var(--bad);font-size:12px;font-weight:600}
+  .tb-card-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px dashed var(--line);margin-top:10px;padding-top:8px;font-size:13px;color:var(--muted)}
+  .tb-next{background:var(--warn-bg);color:var(--warn);border:0;border-radius:6px;padding:5px 9px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .tb-next.do{background:var(--ok-bg);color:var(--ok)}
+  .tb-next:hover{filter:brightness(.95)}
+  .tb-done-ok{color:var(--ok);font-weight:700}
+  .tb-empty{color:var(--muted);font-size:13px;text-align:center;padding:18px 6px;border:1px dashed #dccfc8;border-radius:8px}
+  .tb-more{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+  @media (max-width:1100px){.tb-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:560px){.tb-kpis{grid-template-columns:1fr}.tb-board{grid-template-columns:repeat(4,85vw)}}
+</style>
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ module_label }} / Tubos</nav>
-<div class="titlebar"><h1>Tubos de trabajo</h1></div>
+<div class="titlebar"><h1>Tubos de trabajo</h1>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <nav class="tb-switch" aria-label="Vista del tubo">
+      <a href="{{ url_tablero }}"{% if vista == 'tablero' %} aria-current="page"{% endif %}>Tablero</a>
+      <a href="{{ url_planilla }}"{% if vista == 'planilla' %} aria-current="page"{% endif %}>Planilla</a>
+    </nav>
+    {% if can_create %}
+    <button type="button" class="btn primary" data-open-modal="tubeNewModal">{% sgr_icon 'plus' 18 %}<span>Nueva solicitud</span></button>
+    {% endif %}
+  </div>
+</div>
 
 <section class="card toolbar" aria-label="Filtros del tubo">
 <form method="get" role="search" style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+    <input type="hidden" name="vista" value="{{ vista }}">
     <div class="statebox">
     <label for="canal">Canal</label>
     <select class="in" id="canal" name="canal">
@@ -29,94 +83,72 @@
     </select>
     </div>
     <button class="btn primary" type="submit">Filtrar</button>
-    <a class="btn-outline" href="{% url 'tubes' %}">Limpiar filtros</a>
+    <a class="btn-outline" href="{% url 'tubes' %}?vista={{ vista }}">Limpiar filtros</a>
     <a class="btn-outline" href="{% url 'achievements' %}">Volver a cumplimiento</a>
 </form>
 </section>
 
+{% if vista == 'tablero' %}
+<section class="tb-kpis" aria-label="Resumen del tubo">
+  {% for k in indicadores %}
+  <div class="tb-kpi {{ k.css }}">
+    <h2>{{ k.titulo }}</h2>
+    <div class="v" data-kpi="{{ k.clave }}">{{ k.valor }}</div>
+    <p>{{ k.detalle }}</p>
+  </div>
+  {% endfor %}
+</section>
+{% if no_aplica %}<p class="meta">{{ no_aplica }} solicitud{{ no_aplica|pluralize:"es" }} marcada{{ no_aplica|pluralize }} como «No aplica» no se muestra{{ no_aplica|pluralize:"n" }} en el tablero (ver Planilla).</p>{% endif %}
+{% if can_edit %}<p class="meta">Arrastra una tarjeta a otra columna o usa su botón de avance. Para pasar a «Realizados» se pide la foto de respaldo y el código de verificación.</p>{% endif %}
+
+<div class="tb-board" id="tubeBoard" data-can-edit="{{ can_edit|yesno:'1,' }}">
+  {% for col in columnas %}
+  <section class="tb-col {{ col.css }}" data-status="{{ col.estado }}" aria-labelledby="col-{{ col.estado }}">
+    <header class="tb-col-h">
+      <h2 id="col-{{ col.estado }}">{{ col.titulo }}</h2>
+      <span class="tb-count" data-count>{{ col.total }}</span>
+    </header>
+    <div class="tb-cards">
+      {% for e in col.tarjetas %}
+      <article class="tb-card" id="tube-{{ e.pk }}" data-id="{{ e.pk }}" data-code="{{ e.code }}"
+               data-status-url="{% url 'tube_status' e.pk %}" data-close-url="{% url 'tube_close' e.pk %}"
+               {% if can_edit and e.status != 'done' %}draggable="true"{% endif %}>
+        <div class="tb-card-top">
+          <span class="tb-code">{{ e.code }}</span>
+          {% if e.channel != 'delegation' %}<span class="tb-tag">{{ e.get_channel_display }}</span>{% endif %}
+          {% if e.letter_number %}<span class="tb-tag">Carta {{ e.letter_number }}</span>{% endif %}
+        </div>
+        <h3>{{ e.title }}</h3>
+        <p class="ln"><strong>Solicitante:</strong> {{ e.requester }}</p>
+        {% if e.support_area %}<p class="ln apoyo"><strong>Apoyo:</strong> {{ e.support_area }}</p>{% endif %}
+        {% if not e.has_contact %}<p class="warn">Sin teléfono del solicitante: no suma puntaje</p>{% endif %}
+        {% if e.vencida %}<p class="warn">Compromiso vencido ({{ e.due_date|date:"d/m/Y" }})</p>{% endif %}
+        <div class="tb-card-foot">
+          {% if e.status == 'done' %}
+          <span class="tb-done-ok">Concluido{% if e.completed_at %} · {{ e.completed_at|date:"d/m/Y" }}{% endif %}</span>
+          {% if e.proof_image %}<a href="{{ e.proof_image.url }}" target="_blank" rel="noopener">Ver foto</a>{% endif %}
+          {% else %}
+          <span>Responsable: {% if e.responsible %}{{ e.responsible.full_name }}{% else %}Sin asignar{% endif %}</span>
+          {% if can_edit and e.siguiente %}
+          <button type="button" class="tb-next{% if e.siguiente.0 == 'done' %} do{% endif %}" data-move="{{ e.siguiente.0 }}">{{ e.siguiente.1 }}</button>
+          {% endif %}
+          {% endif %}
+        </div>
+      </article>
+      {% empty %}
+      <p class="tb-empty" data-empty>Sin solicitudes</p>
+      {% endfor %}
+      {% if col.total > col.tarjetas|length %}<p class="tb-more">Se muestran {{ col.tarjetas|length }} de {{ col.total }}. Ver todas en la <a href="{{ url_planilla }}">planilla</a>.</p>{% endif %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+{% else %}
 <p class="meta">
 {% for etiqueta, n in resumen %}{{ etiqueta }}: <strong>{{ n }}</strong>{% if not forloop.last %} · {% endif %}{% endfor %}
 {% if porcentaje is not None %}· Realizado: <strong>{{ porcentaje }} %</strong>{% endif %}
 </p>
-
-{% if can_create %}
-<details class="card" style="margin-bottom:16px">
-<summary><strong>Registrar nueva solicitud</strong></summary>
-<form method="post" action="{% url 'tube_create' %}"
-        style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px">
-    {% csrf_token %}
-    <div>
-    <label class="fl" for="n-delegation">Delegación</label>
-    <select class="in" id="n-delegation" name="delegation" required>
-        {% for d in delegaciones %}
-        <option value="{{ d.pk }}"{% if d.pk == activa_pk %} selected{% endif %}>{{ d.name }}</option>
-        {% endfor %}
-    </select>
-    </div>
-    <div>
-    <label class="fl" for="n-channel">Canal</label>
-    <select class="in" id="n-channel" name="channel">
-        {% for valor, etiqueta in canales %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}
-    </select>
-    </div>
-    <div>
-    <label class="fl" for="n-title">Actividad / solicitud / problema</label>
-    <input class="in" id="n-title" name="title" maxlength="255" required>
-    </div>
-    <div>
-    <label class="fl" for="n-origin">Interno o externo</label>
-    <select class="in" id="n-origin" name="origin">
-        <option value="EXT">Externo</option>
-        <option value="INT">Interno</option>
-    </select>
-    </div>
-    <div>
-    <label class="fl" for="n-requester">Solicitante</label>
-    <input class="in" id="n-requester" name="requester" maxlength="150" required>
-    </div>
-    <div>
-    <label class="fl" for="n-territory">Territorio</label>
-    <input class="in" id="n-territory" name="territory" maxlength="60">
-    </div>
-    <div>
-    <label class="fl" for="n-responsible">Responsable</label>
-    <select class="in" id="n-responsible" name="responsible">
-        <option value="">Sin asignar</option>
-        {% for r in responsables %}
-        <option value="{{ r.pk }}">{{ r.full_name }} ({{ r.delegation.name }})</option>
-        {% endfor %}
-    </select>
-    </div>
-    <div>
-    <label class="fl" for="n-request-date">Fecha de solicitud</label>
-    <input class="in" id="n-request-date" name="request_date" type="date" value="{{ hoy }}" required>
-    </div>
-    <div>
-    <label class="fl" for="n-due-date">Fecha de compromiso</label>
-    <input class="in" id="n-due-date" name="due_date" type="date">
-    </div>
-    <div>
-    <label class="fl" for="n-support">Área o persona de apoyo</label>
-    <input class="in" id="n-support" name="support_area" maxlength="100">
-    </div>
-    <div>
-    <label class="fl" for="n-letter">N° de carta (solo Cartas)</label>
-    <input class="in" id="n-letter" name="letter_number" maxlength="20">
-    </div>
-    <div>
-    <label class="fl" for="n-phone">Teléfono de contacto</label>
-    <input class="in" id="n-phone" name="contact_phone" maxlength="20">
-    </div>
-    <div style="grid-column:1/-1">
-    <label class="fl" for="n-notes">Avance y observaciones</label>
-    <input class="in" id="n-notes" name="notes">
-    </div>
-    <div style="grid-column:1/-1">
-    <button class="btn primary" type="submit">Ingresar solicitud</button>
-    </div>
-</form>
-</details>
-{% endif %}
 
 {% if not pagina.object_list %}
 <div class="state">
@@ -145,7 +177,7 @@
         <strong>{{ e.code }}</strong> · {{ e.get_channel_display }} · {{ e.delegation.name }}<br>
         {{ e.title }}<br>
         <span class="meta">
-            {{ e.get_origin_display }} · {{ e.requester }}{% if e.territory %} · {{ e.territory }}{% endif %}
+            {{ e.get_origin_display }} · {{ e.requester }}{% if e.contact_phone %} · Tel. {{ e.contact_phone }}{% else %} · <em>sin teléfono (no suma)</em>{% endif %}{% if e.territory %} · {{ e.territory }}{% endif %}
             {% if e.letter_number %} · Carta N° {{ e.letter_number }}{% endif %}
         </span>
         </td>
@@ -167,6 +199,7 @@
         {% if e.status != 'done' %}
         <form method="post" action="{% url 'tube_status' e.pk %}" style="display:flex;gap:6px;margin-bottom:8px">
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ volver }}">
             <select class="in" name="status" aria-label="Nuevo estatus de {{ e.code }}">
             {% for valor, etiqueta in estados_editables %}
             <option value="{{ valor }}"{% if e.status == valor %} selected{% endif %}>{{ etiqueta }}</option>
@@ -177,6 +210,7 @@
         <form method="post" action="{% url 'tube_close' e.pk %}" enctype="multipart/form-data"
                 style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ volver }}">
             <input class="in" type="file" name="proof_image" accept="image/*" required aria-label="Foto de respaldo de {{ e.code }}">
             <input class="in" name="code" maxlength="8" required placeholder="Código en la foto" style="width:150px">
             <button class="btn primary" type="submit">Cerrar</button>
@@ -194,10 +228,131 @@
 
 {% if pagina.has_other_pages %}
 <nav class="meta" aria-label="Paginación" style="margin-top:12px">
-{% if pagina.has_previous %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.previous_page_number }}">‹ Anterior</a>{% endif %}
+{% if pagina.has_previous %}<a href="?{{ querystring }}&page={{ pagina.previous_page_number }}">‹ Anterior</a>{% endif %}
 Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
-{% if pagina.has_next %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.next_page_number }}">Siguiente ›</a>{% endif %}
+{% if pagina.has_next %}<a href="?{{ querystring }}&page={{ pagina.next_page_number }}">Siguiente ›</a>{% endif %}
 </nav>
 {% endif %}
+{% endif %}
+{% endif %}
+
+{% if can_create %}
+<div class="smodal-backdrop" id="tubeNewModal" data-sgr-dialog hidden>
+  <div class="smodal" role="dialog" aria-modal="true" aria-labelledby="tubeNewTitle">
+    <div class="smodal-head">
+      <h2 id="tubeNewTitle">Nueva solicitud al tubo</h2>
+      <button type="button" class="smodal-close" data-close-modal aria-label="Cerrar">{% sgr_icon 'x' 20 %}</button>
+    </div>
+    <form class="smodal-form" method="post" action="{% url 'tube_create' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ volver }}">
+      <div>
+        <label class="fl" for="n-delegation">Delegación <span class="req" aria-hidden="true">*</span></label>
+        <select class="in" id="n-delegation" name="delegation" required>
+          {% for d in delegaciones %}
+          <option value="{{ d.pk }}"{% if d.pk == activa_pk %} selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="fl" for="n-channel">Canal</label>
+        <select class="in" id="n-channel" name="channel">
+          {% for valor, etiqueta in canales %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="full">
+        <label class="fl" for="n-title">Actividad / solicitud / problema <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="n-title" name="title" maxlength="255" required>
+      </div>
+      <div>
+        <label class="fl" for="n-requester">Solicitante (nombre) <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="n-requester" name="requester" maxlength="150" required>
+      </div>
+      <div>
+        <label class="fl" for="n-phone">Teléfono de contacto</label>
+        <input class="in" id="n-phone" name="contact_phone" maxlength="20" inputmode="tel">
+        <p class="help">Sin nombre y teléfono del solicitante la solicitud no suma puntaje.</p>
+      </div>
+      <div>
+        <label class="fl" for="n-origin">Interno o externo</label>
+        <select class="in" id="n-origin" name="origin">
+          <option value="EXT">Externo</option>
+          <option value="INT">Interno</option>
+        </select>
+      </div>
+      <div>
+        <label class="fl" for="n-territory">Territorio</label>
+        <input class="in" id="n-territory" name="territory" maxlength="60">
+      </div>
+      <div>
+        <label class="fl" for="n-responsible">Responsable</label>
+        <select class="in" id="n-responsible" name="responsible">
+          <option value="">Sin asignar</option>
+          {% for r in responsables %}
+          <option value="{{ r.pk }}">{{ r.full_name }} ({{ r.delegation.name }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="fl" for="n-support">Área o persona de apoyo</label>
+        <input class="in" id="n-support" name="support_area" maxlength="100">
+      </div>
+      <div>
+        <label class="fl" for="n-request-date">Fecha de solicitud <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="n-request-date" name="request_date" type="date" value="{{ hoy }}" max="{{ hoy }}" required>
+      </div>
+      <div>
+        <label class="fl" for="n-due-date">Fecha de compromiso</label>
+        <input class="in" id="n-due-date" name="due_date" type="date">
+      </div>
+      <div>
+        <label class="fl" for="n-letter">N° de carta (solo Cartas)</label>
+        <input class="in" id="n-letter" name="letter_number" maxlength="20">
+      </div>
+      <div class="full">
+        <label class="fl" for="n-notes">Avance y observaciones</label>
+        <input class="in" id="n-notes" name="notes">
+      </div>
+      <div class="formfoot full">
+        <button type="button" class="btn ghost" data-close-modal>Cancelar</button>
+        <button class="btn primary" type="submit">Ingresar solicitud</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if can_edit and vista == 'tablero' %}
+<div class="smodal-backdrop" id="tubeCloseModal" data-sgr-dialog hidden>
+  <div class="smodal" role="dialog" aria-modal="true" aria-labelledby="tubeCloseTitle" style="width:min(520px,100%)">
+    <div class="smodal-head">
+      <h2 id="tubeCloseTitle">Cerrar como realizada</h2>
+      <button type="button" class="smodal-close" data-close-modal aria-label="Cerrar">{% sgr_icon 'x' 20 %}</button>
+    </div>
+    <form class="smodal-form" method="post" action="" enctype="multipart/form-data" id="tubeCloseForm">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ volver }}">
+      <p class="full meta" id="tubeCloseInfo"></p>
+      <div class="full">
+        <label class="fl" for="c-photo">Foto de respaldo (máx. 2 MB) <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" type="file" id="c-photo" name="proof_image" accept="image/*" required>
+      </div>
+      <div class="full">
+        <label class="fl" for="c-code">Código de verificación que aparece en la foto <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="c-code" name="code" maxlength="8" required autocomplete="off" style="text-transform:uppercase">
+      </div>
+      <div class="formfoot full">
+        <button type="button" class="btn ghost" data-close-modal>Cancelar</button>
+        <button class="btn primary" type="submit">Cerrar solicitud</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if can_edit and vista == 'tablero' %}
+<script src="{% static 'portal/js/tubes_board.js' %}?v=1"></script>
 {% endif %}
 {% endblock %}

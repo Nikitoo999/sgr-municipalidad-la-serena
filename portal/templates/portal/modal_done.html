@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guardado – Sistema Municipal</title>
+<style>body{margin:0;background:#fff;color:#1f2328;font:15px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:120px}</style>
+</head>
+<body>
+{# Respuesta de un formulario abierto en la ventana emergente: avisa a la ventana principal. No usa base.html para no consumir los mensajes de la sesión. #}
+<p>Guardado. <a href="{{ redirect_url }}" target="_top">Continuar</a></p>
+{{ redirect_url|json_script:"sgr-modal-redirect" }}
+<script>
+  (function () {
+    var url = JSON.parse(document.getElementById('sgr-modal-redirect').textContent);
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'sgr-modal', action: 'done', url: url }, window.location.origin);
+    } else {
+      window.location.replace(url);
+    }
+  })();
+</script>
+</body>
+</html>

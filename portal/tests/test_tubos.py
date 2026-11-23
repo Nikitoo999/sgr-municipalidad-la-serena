@@ -2,12 +2,13 @@
 import io
 import shutil
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image
 
 from operaciones.models import TubeEntry
@@ -57,7 +58,8 @@ class TubosTests(TestCase):
     def datos_nueva(self, **extra):
         datos = {
             "delegation": self.d1.pk, "channel": "delegation", "title": "Limpieza de sitio eriazo",
-            "origin": "EXT", "requester": "Vecina", "request_date": "2026-11-05",
+            "origin": "EXT", "requester": "Vecina",
+            "request_date": timezone.localdate().isoformat(),
             "responsible": self.ana.pk,
         }
         datos.update(extra)
@@ -153,3 +155,81 @@ class TubosTests(TestCase):
             {"proof_image": png_file(), "code": self.t1.verification_code},
         )
         self.assertEqual(resp.status_code, 403)
+
+    # --- Unidad 3: tablero de 4 columnas y nuevas reglas ---------------------
+    def test_tablero_muestra_las_cuatro_columnas_y_los_indicadores(self):
+        self.login()
+        resp = self.client.get(reverse("tubes"))
+        self.assertEqual(resp.context["vista"], "tablero")
+        self.assertEqual(
+            [c["estado"] for c in resp.context["columnas"]],
+            ["received", "pending", "in_progress", "done"],
+        )
+        for titulo in ("1. Ingresados", "2. Pendientes", "3. En proceso", "4. Realizados",
+                       "Gestiones en tubo", "Realizadas / concluidas",
+                       "En proceso activo", "Pendientes / alerta"):
+            self.assertContains(resp, titulo)
+
+    def test_planilla_sigue_disponible(self):
+        self.login()
+        resp = self.client.get(reverse("tubes"), {"vista": "planilla"})
+        self.assertEqual(resp.context["vista"], "planilla")
+        self.assertContains(resp, "Poda en Las Compañías")
+        self.assertContains(resp, "<table>", html=False)
+
+    def test_cambio_de_estatus_por_ajax_responde_json(self):
+        self.login()
+        resp = self.client.post(
+            reverse("tube_status", args=[self.t1.pk]), {"status": "pending"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        self.t1.refresh_from_db()
+        self.assertEqual(self.t1.status, TubeEntry.Status.PENDING)
+
+    def test_ajax_no_permite_realizado_sin_cierre(self):
+        self.login()
+        resp = self.client.post(
+            reverse("tube_status", args=[self.t1.pk]), {"status": "done"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(resp.json()["ok"])
+
+    def test_funcionario_no_cambia_estatus_por_ajax(self):
+        self.login("ana")
+        resp = self.client.post(
+            reverse("tube_status", args=[self.t1.pk]), {"status": "pending"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_no_se_ingresa_con_fecha_de_semana_cerrada(self):
+        # Nuevo requerimiento, punto 4: desde el martes no se ingresan gestiones de la semana pasada.
+        self.login()
+        hace_dos_semanas = timezone.localdate() - timedelta(days=14)
+        self.client.post(reverse("tube_create"), self.datos_nueva(request_date=hace_dos_semanas.isoformat()))
+        self.assertFalse(TubeEntry.objects.filter(title="Limpieza de sitio eriazo").exists())
+
+    def test_no_se_ingresa_con_fecha_futura(self):
+        self.login()
+        manana = timezone.localdate() + timedelta(days=1)
+        self.client.post(reverse("tube_create"), self.datos_nueva(request_date=manana.isoformat()))
+        self.assertFalse(TubeEntry.objects.filter(title="Limpieza de sitio eriazo").exists())
+
+    def test_redireccion_conserva_la_vista_de_origen(self):
+        self.login()
+        destino = reverse("tubes") + "?vista=planilla&canal=delegation"
+        resp = self.client.post(
+            reverse("tube_status", args=[self.t1.pk]), {"status": "pending", "next": destino},
+        )
+        self.assertRedirects(resp, destino, fetch_redirect_response=False)
+
+    def test_redireccion_ignora_destinos_externos(self):
+        self.login()
+        resp = self.client.post(
+            reverse("tube_status", args=[self.t1.pk]),
+            {"status": "pending", "next": "https://evil.example.com/"},
+        )
+        self.assertRedirects(resp, reverse("tubes"), fetch_redirect_response=False)

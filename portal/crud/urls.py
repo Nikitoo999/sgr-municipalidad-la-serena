@@ -22,6 +22,7 @@ from . import items  # noqa: F401  (registra el módulo al importar)
 from . import attention_types  # noqa: F401  (registra el módulo al importar)
 from . import attention_subtypes  # noqa: F401  (registra el módulo al importar)
 from . import attentions  # noqa: F401  (registra el módulo al importar)
+from . import organizations  # noqa: F401  (registra el módulo al importar)
 from .attentions import (
     AttentionCreateView,
     AttentionDetailView,

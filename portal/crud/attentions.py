@@ -626,8 +626,11 @@ class AttentionCreateView(_AttentionFormContext, CrudCreateView):
             if not limit_error:
                 obj = form.save(commit=False)
                 obj.responsible = user
-                # Los ingresos del rol Delegado no suman al puntaje operativo.
-                obj.counts_for_score = rules.counts_for_score(user)
+                # No suman los ingresos del rol Delegado ni las gestiones
+                # preparatorias (sub atención marcada "no suma puntaje").
+                obj.counts_for_score = rules.attention_counts_for_score(
+                    user, obj.attention_subtype,
+                )
                 obj.save()
                 # Notifica solo si la transacción confirma el alta.
                 transaction.on_commit(lambda: _broadcast_attention(obj, "created"))
@@ -688,7 +691,15 @@ class AttentionUpdateView(_AttentionFormContext, CrudUpdateView):
         return context
 
     def form_valid(self, form):
-        obj = form.save()
+        obj = form.save(commit=False)
+        if "attention_subtype" in form.changed_data:
+            # Al cambiar la sub atención se recalcula si suma puntaje, con el
+            # responsable original (no quien edita).
+            obj.counts_for_score = rules.attention_counts_for_score(
+                obj.responsible, obj.attention_subtype,
+            )
+        obj.save()
+        form.save_m2m()
         transaction.on_commit(lambda: _broadcast_attention(obj, "updated"))
         audit(
             self.request, "edit", module="attentions",

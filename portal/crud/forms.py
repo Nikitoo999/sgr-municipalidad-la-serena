@@ -18,6 +18,7 @@ from portal.validators import normalize_phone, validate_full_name, validate_rut
 from sgr_core.models import (
     AttentionSubtype,
     AttentionType,
+    CommunityOrganization,
     Delegation,
     ProjectItem,
     Role,
@@ -877,16 +878,21 @@ class AttentionSubtypeForm(CrudModelForm):
 
     class Meta:
         model = AttentionSubtype
-        fields = ("code", "name", "attention_type", "status")
+        fields = ("code", "name", "attention_type", "scores", "status")
         labels = {
             "code": "Código",
             "name": "Nombre de la sub atención",
             "attention_type": "Tipo de atención",
+            "scores": "Suma puntaje",
             "status": "Estado",
         }
         help_texts = {
             "name": "Nombre visible de la sub atención.",
             "attention_type": "Solo se ofrecen tipos activos.",
+            "scores": (
+                "Desmárcalo si es una gestión preparatoria (coordinación, correo, "
+                "invitación): el punto se da cuando se realiza la acción."
+            ),
             "status": "Una sub atención inactiva no aparece en los formularios nuevos.",
         }
         widgets = {
@@ -901,6 +907,9 @@ class AttentionSubtypeForm(CrudModelForm):
             "attention_type": forms.Select(
                 attrs={"class": "in",
                        "aria-describedby": "id_attention_type-help id_attention_type-e"},
+            ),
+            "scores": forms.CheckboxInput(
+                attrs={"class": "chk", "aria-describedby": "id_scores-help"},
             ),
             "status": forms.Select(
                 attrs={"class": "in", "aria-describedby": "id_status-help id_status-e"},
@@ -1254,3 +1263,108 @@ class FollowUpForm(forms.Form):
         if len(text) > 500:
             raise forms.ValidationError("La gestión no puede superar los 500 caracteres.")
         return text
+
+
+class CommunityOrganizationForm(CrudModelForm):
+    """Organización comunitaria (Unidad 3: base de organizaciones comunitarias).
+
+    Juntas de vecinos y organizaciones funcionales (adulto mayor, deportivas,
+    culturales, comités...). La delegación se elige entre las que el operador
+    puede gestionar; quien no tiene alcance "todas" debe asignar una.
+    """
+
+    full_width_fields = ("name", "legal_address", "notes")
+
+    class Meta:
+        model = CommunityOrganization
+        fields = (
+            "name", "category", "delegation", "territory", "legal_address",
+            "active_members", "registry_number", "directive_number",
+            "constitution_date", "registry_date", "verified", "status", "notes",
+        )
+        labels = {
+            "name": "Nombre de la organización",
+            "category": "Categoría",
+            "delegation": "Delegación",
+            "territory": "Territorio",
+            "legal_address": "Domicilio legal",
+            "active_members": "Socios activos",
+            "registry_number": "N° registro personalidad jurídica",
+            "directive_number": "N° registro de directiva",
+            "constitution_date": "Fecha de constitución",
+            "registry_date": "Fecha de inscripción en registro",
+            "verified": "Datos verificados",
+            "status": "Estado",
+            "notes": "Observaciones",
+        }
+        help_texts = {
+            "name": "Nombre completo, tal como figura en el registro.",
+            "category": "Junta de vecinos (territorial) u organización funcional.",
+            "territory": "Sector o territorio de la delegación (opcional).",
+            "registry_number": "Si se indica, no puede repetirse en otra organización.",
+            "verified": "Márcalo cuando los datos se hayan confirmado con la directiva.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "in", "maxlength": 200,
+                                           "placeholder": "Junta de Vecinos Villa El Sol"}),
+            "category": forms.Select(attrs={"class": "in"}),
+            "delegation": forms.Select(attrs={"class": "in"}),
+            "territory": forms.TextInput(attrs={"class": "in", "maxlength": 30}),
+            "legal_address": forms.TextInput(attrs={"class": "in", "maxlength": 255}),
+            "active_members": forms.NumberInput(attrs={"class": "in", "min": 0}),
+            "registry_number": forms.TextInput(attrs={"class": "in", "maxlength": 20}),
+            "directive_number": forms.TextInput(attrs={"class": "in", "maxlength": 20}),
+            "constitution_date": forms.DateInput(attrs={"class": "in", "type": "date"}, format="%Y-%m-%d"),
+            "registry_date": forms.DateInput(attrs={"class": "in", "type": "date"}, format="%Y-%m-%d"),
+            "verified": forms.CheckboxInput(attrs={"class": "chk"}),
+            "status": forms.Select(attrs={"class": "in"}),
+            "notes": forms.Textarea(attrs={"class": "in", "rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.request
+        user = getattr(request, "user", None)
+        allowed = allowed_delegations(user) if user is not None else []
+        pks = {d.pk for d in allowed}
+        if self.instance.pk and self.instance.delegation_id:
+            pks.add(self.instance.delegation_id)
+        self.fields["delegation"].queryset = Delegation.objects.filter(pk__in=pks).order_by("name")
+        role = get_role(user) if user is not None else None
+        self.fields["delegation"].required = not (role is not None and role.scope == "all")
+        active = get_active_delegation(request) if request is not None else None
+        if (not self.instance.pk and active not in (None, ALL_DELEGATIONS)
+                and active.pk in pks):
+            self.initial.setdefault("delegation", active.pk)
+
+    def clean_name(self):
+        name = " ".join((self.cleaned_data.get("name") or "").split())
+        if len(name) < 3:
+            raise forms.ValidationError("Ingresa el nombre de la organización (al menos 3 caracteres).")
+        return name.upper()
+
+    def clean_registry_number(self):
+        number = (self.cleaned_data.get("registry_number") or "").strip()
+        if number:
+            duplicate = CommunityOrganization.alive.filter(registry_number__iexact=number)
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise forms.ValidationError(
+                    f"Ya existe una organización con el N° de registro {number}."
+                )
+        return number
+
+    def clean(self):
+        cleaned = super().clean()
+        name, delegation = cleaned.get("name"), cleaned.get("delegation")
+        if name:
+            duplicate = CommunityOrganization.alive.filter(name__iexact=name, delegation=delegation)
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                self.add_error("name", "Ya existe una organización con ese nombre en la delegación.")
+        start, end = cleaned.get("constitution_date"), cleaned.get("registry_date")
+        if start and end and end < start:
+            self.add_error("registry_date", "La inscripción no puede ser anterior a la constitución.")
+        return cleaned

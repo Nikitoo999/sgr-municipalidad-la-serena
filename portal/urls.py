@@ -12,7 +12,7 @@ from .agenda_views import (
     PendingTransferView,
     TaskStatusChangeView,
 )
-from .compliance_views import ComplianceView, FeedbackCreateView
+from .compliance_views import ComplianceView, DayOffCreateView, FeedbackCreateView
 from .tubes_views import TubeCloseView, TubeCreateView, TubeListView, TubeStatusView
 from .reports_views import ReportsView
 
@@ -88,6 +88,7 @@ urlpatterns = [
     ),
     path('cumplimiento/', ComplianceView.as_view(), name='achievements'),
     path('cumplimiento/<int:employee_id>/comentarios/nuevo/', FeedbackCreateView.as_view(), name='feedback_create'),
+    path('cumplimiento/<int:employee_id>/dias-libres/nuevo/', DayOffCreateView.as_view(), name='day_off_create'),
     path('cumplimiento/tubos/', TubeListView.as_view(), name='tubes'),
     path('cumplimiento/tubos/nuevo/', TubeCreateView.as_view(), name='tube_create'),
     path('cumplimiento/tubos/<int:entry_id>/estado/', TubeStatusView.as_view(), name='tube_status'),

@@ -152,6 +152,8 @@ def sgr_context(request):
     ]
 
     return {
+        # Página abierta dentro de la ventana emergente (portal.modal).
+        "sgr_embed": request.GET.get("modal") == "1",
         "sgr_access": info,
         "sgr_role": info.role,
         "sgr_allowed_delegations": allowed,

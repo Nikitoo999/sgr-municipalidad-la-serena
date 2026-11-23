@@ -13,7 +13,7 @@
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / {{ config.list_title }}</nav>
 <div class="titlebar"><h1>{{ config.list_title }}</h1>
   {% if can_create %}
-  <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>{{ config.new_title }}</span></a>
+  <a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="{{ config.new_title }}">{% sgr_icon 'plus' 18 %}<span>{{ config.new_title }}</span></a>
   {% endif %}
 </div>
 
@@ -146,7 +146,7 @@
   {% if empty_kind == 'records' %}
   <h2>Aún no hay registros</h2>
   <p>Cuando se cree el primer registro aparecerá en esta lista.</p>
-  {% if can_create %}<a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>{{ config.new_title }}</span></a>{% endif %}
+  {% if can_create %}<a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="{{ config.new_title }}">{% sgr_icon 'plus' 18 %}<span>{{ config.new_title }}</span></a>{% endif %}
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>

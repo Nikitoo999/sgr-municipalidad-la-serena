@@ -341,7 +341,10 @@ class Attention(BaseModel):
     )
     counts_for_score = models.BooleanField(
         default=True, verbose_name="Cuenta para el puntaje operativo",
-        help_text="Las atenciones ingresadas por el rol Delegado no suman al puntaje operativo.",
+        help_text=(
+            "No suman las atenciones ingresadas por el rol Delegado ni las de "
+            "sub atenciones preparatorias."
+        ),
     )
     evidence_image = models.ImageField(
         upload_to=attention_image_path, max_length=255, blank=True, null=True,
@@ -425,9 +428,9 @@ class Attention(BaseModel):
     @property
     def score_display(self):
         """Texto del puntaje operativo (columna de exportación y consulta)."""
-        if self.counts_for_score:
-            return "Cuenta"
-        return "No cuenta (ingreso del rol Delegado)"
+        from .rules import score_reason
+
+        return score_reason(self)
 
     def save(self, *args, **kwargs):
         """Asigna number (formato ATN-0001) tras el primer insert.
@@ -616,6 +619,11 @@ class TubeEntry(BaseModel):
     def code(self):
         """Código de la solicitud (TUB-00012)."""
         return f"TUB-{self.pk:05d}" if self.pk else ""
+
+    @property
+    def has_contact(self):
+        """¿Tiene nombre y teléfono del solicitante? Sin ellos no suma puntaje."""
+        return bool((self.requester or "").strip() and (self.contact_phone or "").strip())
 
     def clean(self):
         super().clean()

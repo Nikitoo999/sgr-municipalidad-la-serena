@@ -18,7 +18,8 @@ de puntaje usen exactamente la misma lógica:
   delegación") se marcan al crearlas como que no cuentan.
 """
 
-from datetime import datetime, time, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -34,6 +35,9 @@ MAX_FOLLOW_UPS = 3
 NON_SCORING_SCOPES = ("own_delegation",)
 #: Estados en que una atención sigue abierta y admite gestiones.
 OPEN_STATUSES = ("received", "in_progress")
+#: Días desde el lunes hasta el cierre automático de la semana: la semana se
+#: completa hasta el lunes siguiente y el martes (lunes + 8) ya está cerrada.
+AUTO_CLOSURE_DAYS = 8
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +145,27 @@ def counts_for_score(user):
     return not (role is not None and role.scope in NON_SCORING_SCOPES)
 
 
+def attention_counts_for_score(user, subtype=None):
+    """¿Suma al puntaje una atención de ``user`` con la sub atención ``subtype``?
+
+    No suma si la ingresa un Delegado ni si la sub atención es una gestión
+    preparatoria (``scores=False``: coordinaciones, correos, invitaciones).
+    """
+    if subtype is not None and not getattr(subtype, "scores", True):
+        return False
+    return counts_for_score(user)
+
+
+def score_reason(attention):
+    """Texto del puntaje operativo de una atención (consulta y exportación)."""
+    if attention.counts_for_score:
+        return "Cuenta"
+    subtype = attention.attention_subtype if attention.attention_subtype_id else None
+    if subtype is not None and not subtype.scores:
+        return "No cuenta (gestión preparatoria)"
+    return "No cuenta (ingreso del rol Delegado)"
+
+
 def scoring_attentions(queryset=None):
     """Atenciones que suman al puntaje operativo.
 
@@ -158,15 +183,51 @@ def scoring_attentions(queryset=None):
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class AutoClosure:
+    """Cierre automático de una semana (no se guarda en la base de datos).
+
+    Tiene el mismo atributo ``week_start`` que ``WeeklyClosure`` para que las
+    vistas y formularios lo traten igual que un cierre manual.
+    """
+
+    week_start: date
+    automatic: bool = True
+
+
+def auto_closure_deadline(start):
+    """Primer día en que la semana del lunes ``start`` queda cerrada sola.
+
+    La semana (lunes a viernes) se puede completar hasta el lunes siguiente;
+    desde el martes ya no se aceptan ingresos ni ediciones de esa semana.
+    """
+    return start + timedelta(days=AUTO_CLOSURE_DAYS)
+
+
+def is_auto_closed(day, today=None):
+    """¿La semana de ``day`` ya se cerró automáticamente?"""
+    if day is None:
+        return False
+    today = today or local_day()
+    return today >= auto_closure_deadline(week_start(day))
+
+
 def closure_for(delegation_id, day):
-    """Cierre vigente de la semana de ``day`` en la delegación (o ``None``)."""
+    """Cierre vigente de la semana de ``day`` en la delegación (o ``None``).
+
+    Primero se busca un cierre manual; si no hay y ya pasó el plazo (martes
+    de la semana siguiente), se devuelve un ``AutoClosure``.
+    """
     from .models import WeeklyClosure
 
     if not delegation_id or day is None:
         return None
-    return WeeklyClosure.alive.filter(
+    closure = WeeklyClosure.alive.filter(
         delegation_id=delegation_id, week_start=week_start(day),
     ).first()
+    if closure is None and is_auto_closed(day):
+        return AutoClosure(week_start=week_start(day))
+    return closure
 
 
 def is_week_closed(delegation_id, day):
@@ -181,7 +242,10 @@ def attention_closure(attention):
 
 
 def closed_pairs(attentions):
-    """``{(delegation_id, lunes)}`` cerrados entre ``attentions`` (1 consulta)."""
+    """``{(delegation_id, lunes)}`` cerrados entre ``attentions`` (1 consulta).
+
+    Incluye las semanas cerradas automáticamente por plazo.
+    """
     from .models import WeeklyClosure
 
     pairs = {
@@ -191,11 +255,27 @@ def closed_pairs(attentions):
     }
     if not pairs:
         return set()
-    closed = WeeklyClosure.alive.filter(
+    closed = set(WeeklyClosure.alive.filter(
         delegation_id__in={delegation for delegation, _ in pairs},
         week_start__in={start for _, start in pairs},
-    ).values_list("delegation_id", "week_start")
-    return set(closed) & pairs
+    ).values_list("delegation_id", "week_start"))
+    closed |= {pair for pair in pairs if is_auto_closed(pair[1])}
+    return closed & pairs
+
+
+def past_week_entry_error(day, today=None):
+    """Mensaje si ``day`` pertenece a una semana ya cerrada por plazo ("" si no).
+
+    Se usa para registros con fecha ingresada a mano (por ejemplo, el tubo).
+    """
+    if day is None or not is_auto_closed(day, today):
+        return ""
+    start = week_start(day)
+    return (
+        f"La semana {week_label(start)} se cerró el "
+        f"{auto_closure_deadline(start):%d-%m-%Y}: los ingresos de una semana se "
+        "aceptan solo hasta el lunes siguiente."
+    )
 
 
 def close_week(delegation, start, user, notes=""):

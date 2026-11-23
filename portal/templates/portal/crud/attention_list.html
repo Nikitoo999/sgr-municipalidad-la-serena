@@ -13,7 +13,7 @@
     <a class="btn ghost" href="{{ closures_url }}">{% sgr_icon 'calendar' 18 %}<span>Cierre semanal</span></a>
     {% endif %}
     {% if can_create %}
-    <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
+    <a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="Ingreso de atención">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
     {% endif %}
   </div>
 </div>
@@ -200,7 +200,7 @@
   {% if empty_kind == 'records' %}
   <h2>Aún no hay registros</h2>
   <p>Cuando se ingrese la primera atención aparecerá en esta lista.</p>
-  {% if can_create %}<a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
+  {% if can_create %}<a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="Ingreso de atención">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>

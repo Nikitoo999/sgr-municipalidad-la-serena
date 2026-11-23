@@ -158,17 +158,26 @@ def puntos_reclamos(cantidad):
 
 
 def razon_tubo(employee, period):
-    """Fracción de solicitudes del tubo realizadas (None si no tuvo solicitudes en el trimestre)."""
-    estados = list(
+    """Fracción de solicitudes del tubo realizadas (None si no tuvo solicitudes en el trimestre).
+
+    Nuevo requerimiento (punto 2): una solicitud realizada sin nombre y teléfono
+    del solicitante no tiene puntuación (sigue contando como solicitud).
+    """
+    filas = list(
         TubeEntry.objects.filter(
             responsible=employee, deleted_at__isnull=True,
             request_date__range=(period.start_date, period.end_date),
-        ).exclude(status=TubeEntry.Status.NOT_APPLICABLE).values_list("status", flat=True)
+        ).exclude(status=TubeEntry.Status.NOT_APPLICABLE)
+        .values_list("status", "requester", "contact_phone")
     )
-    if not estados:
+    if not filas:
         return None
-    realizadas = sum(1 for estado in estados if estado == TubeEntry.Status.DONE)
-    return Decimal(realizadas) / Decimal(len(estados))
+    realizadas = sum(
+        1 for estado, solicitante, telefono in filas
+        if estado == TubeEntry.Status.DONE
+        and (solicitante or "").strip() and (telefono or "").strip()
+    )
+    return Decimal(realizadas) / Decimal(len(filas))
 
 
 #: Código del ítem "Soluciones de ingresos al tubo": se mide en % de solicitudes realizadas.

@@ -46,6 +46,7 @@ from openpyxl.workbook import Workbook
 from ..access import ModulePermissionMixin, get_access
 from ..audit import audit
 from ..context_processors import badge_colors
+from ..modal import ModalFormMixin
 from .config import CELL_DELEGATION, CELL_STATUS, ModuleConfig, get_module
 from .search import apply_search
 
@@ -614,8 +615,12 @@ class CrudFormView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, For
         return context
 
 
-class CrudCreateView(CrudFormView):
-    """Crear un registro (acción create, solo POST guarda)."""
+class CrudCreateView(ModalFormMixin, CrudFormView):
+    """Crear un registro (acción create, solo POST guarda).
+
+    Con ``?modal=1`` se abre dentro de la ventana emergente del listado
+    (``portal.modal``): al guardar, el modal se cierra y el listado se recarga.
+    """
 
     action = "create"
     mode = "create"

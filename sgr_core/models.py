@@ -280,6 +280,13 @@ class AttentionSubtype(AutoCodeMixin, BaseModel):
         AttentionType, on_delete=models.RESTRICT,
         related_name="subtypes", verbose_name="Tipo de atención",
     )
+    scores = models.BooleanField(
+        default=True, verbose_name="Suma puntaje",
+        help_text=(
+            "Desmarcar en gestiones preparatorias (coordinaciones, correos, "
+            "invitaciones): el punto se da cuando se realiza la acción."
+        ),
+    )
     status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
 
     class Meta:
@@ -290,6 +297,11 @@ class AttentionSubtype(AutoCodeMixin, BaseModel):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    @property
+    def scores_display(self):
+        """Texto de la columna "Suma puntaje"."""
+        return "Sí" if self.scores else "No (gestión preparatoria)"
 
 
 class Position(BaseModel):
@@ -378,6 +390,18 @@ class CommunityOrganization(BaseModel):
         verbose_name_plural = "Organizaciones comunitarias"
         db_table = "organizacion_comunitaria"
         ordering = ["name"]
+
+    @property
+    def category_label(self):
+        return self.get_category_display()
+
+    @property
+    def verified_display(self):
+        return "Verificada" if self.verified else "Sin verificar"
+
+    @property
+    def members_display(self):
+        return "—" if self.active_members is None else self.active_members
 
     def __str__(self):
         return self.name
