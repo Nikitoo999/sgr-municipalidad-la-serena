@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.http import urlencode
 from django.views import View
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, RedirectView
 from django.utils import timezone
 from operaciones.models import Activity, Employee, Evidence, Task
 from sgr_core.models import Delegation, InstitutionalGoal, ProjectItem
@@ -17,6 +17,44 @@ from . import access
 from .access import ModulePermissionMixin
 from .modules import MODULE_ICONS, MODULE_LABELS
 from .audit import audit
+
+
+class KanbanRedirectView(LoginRequiredMixin, RedirectView):
+    """Redirige el Kanban al Tubo de Trabajo.
+
+    Se mantiene la URL con name='kanban_tasks' para que cualquier
+    ``{% url 'kanban_tasks' %}`` o ``reverse('kanban_tasks')`` siga
+    funcionando, pero el destino es ahora /cumplimiento/tubos/.
+    """
+
+    pattern_name = "tubes"
+    permanent = False
+
+    def get_redirect_url(self, *args, **kwargs):
+        messages.info(
+            self.request,
+            "El Kanban fue reemplazado por el Tubo de Trabajo.",
+        )
+        return super().get_redirect_url(*args, **kwargs)
+
+
+class KanbanTaskStatusChangeRedirectView(LoginRequiredMixin, ModulePermissionMixin, View):
+    """Redirige el cambio de estado de tarea (kanban) al Tubo de Trabajo.
+
+    Mantiene el name='kanban_task_status_change' para no romper formularios
+    o enlaces antiguos. No modifica ninguna tarea; solo avisa y redirige.
+    """
+
+    module = "tasks"
+    action = "edit"
+
+    def post(self, request, task_id):
+        messages.warning(
+            request,
+            "El Kanban fue reemplazado por el Tubo de Trabajo. "
+            "Gestiona los estados en /cumplimiento/tubos/.",
+        )
+        return redirect("tubes")
 
 def tareas_del_alcance(request):
     """Tareas que el usuario puede ver según su rol y la delegación activa."""

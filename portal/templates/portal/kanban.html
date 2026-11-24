@@ -329,7 +329,7 @@
       </div>
       <button type="submit" class="btn primary">{% sgr_icon 'search' 16 %}<span>Aplicar filtros</span></button>
       {% if goal_active or assigned_to_active %}
-        <a href="{% url 'kanban_tasks' %}?view={{ view_mode }}" class="btn ghost">{% sgr_icon 'x' 16 %}<span>Limpiar filtros</span></a>
+        <a href="{% url 'kanban_tasks' %}?view={{ view_mode }}" class="btn ghost" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
       {% endif %}
       <div class="kanban-summary" style="margin-left:14px; font-size:13px; color:var(--muted, #5b6370); white-space:nowrap;" aria-label="Resumen de tareas">Total: {{ total_tareas }} · Completadas: {{ columnas.Completada|length }}</div>
     </div>

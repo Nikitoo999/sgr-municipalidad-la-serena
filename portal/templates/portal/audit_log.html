@@ -17,7 +17,7 @@
     <div class="statebox"><label for="desde">Desde</label><input class="in" id="desde" name="desde" type="date" value="{{ filtros.desde|default:'' }}"></div>
     <div class="statebox"><label for="hasta">Hasta</label><input class="in" id="hasta" name="hasta" type="date" value="{{ filtros.hasta|default:'' }}"></div>
     <button class="btn primary" type="submit">Filtrar</button>
-    <a class="btn-outline" href="{% url 'audit_log' %}">Limpiar filtros</a>
+    <a class="btn-outline" href="{% url 'audit_log' %}" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
   </form>
 </section>
 

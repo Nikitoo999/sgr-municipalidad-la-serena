@@ -90,7 +90,7 @@
     </select>
     </div>
     <button class="btn primary" type="submit">Filtrar</button>
-    <a class="btn-outline" href="{% url 'tubes' %}?vista={{ vista }}">Limpiar filtros</a>
+    <a class="btn-outline" href="{% url 'tubes' %}?vista={{ vista }}" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
     <a class="btn-outline" href="{% url 'achievements' %}">Volver a cumplimiento</a>
 </form>
 </section>

@@ -72,7 +72,7 @@
       {% endwith %}
       {% endfor %}
       {% if sgr_can_view_tasks %}
-      <a href="{% url 'kanban_tasks' %}"{% if request.resolver_match.url_name == 'kanban_tasks' %} aria-current="page"{% endif %}>{% sgr_icon 'layers' 16 %}<span>Kanban</span></a>
+      <a href="{% url 'tubes' %}"{% if request.resolver_match.url_name == 'tubes' %} aria-current="page"{% endif %}>{% sgr_icon 'layers' 16 %}<span>Tubos de trabajo</span></a>
       {% endif %}
       {% if sgr_can_view_tasks %}
       <a href="{% url 'pending_transfer' %}"{% if request.resolver_match.url_name == 'pending_transfer' %} aria-current="page"{% endif %}>{% sgr_icon 'calendar' 16 %}<span>Pendientes a traspasar</span></a>

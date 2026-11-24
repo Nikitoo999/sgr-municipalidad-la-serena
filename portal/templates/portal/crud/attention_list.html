@@ -41,7 +41,7 @@
         {% endfor %}
       </select>
     </div>
-      <a class="btn-outline" href="{{ clear_url }}" id="clearBtn">Limpiar filtros</a>
+      <a class="btn-outline" href="{{ clear_url }}" id="clearBtn" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
     {% endif %}
@@ -204,7 +204,7 @@
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>
-  <a class="btn primary" href="{{ clear_url }}">Limpiar filtros</a>
+  <a class="btn primary" href="{{ clear_url }}" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
   {% endif %}
 </div>
 {% endif %}

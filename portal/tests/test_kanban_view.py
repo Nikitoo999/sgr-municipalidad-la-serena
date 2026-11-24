@@ -114,130 +114,103 @@ class KanbanViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("login", resp.url)
 
-    def test_con_permiso_tasks_view_responde_200(self):
+    def test_kanban_redirige_a_tubos_con_permiso(self):
         self.login()
         self.set_active(self.d1)
         resp = self.client.get(reverse("kanban_tasks"))
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_sin_permiso_tasks_view_es_403(self):
-        # Usuario autenticado pero sin Employee -> get_role es None -> sin permisos.
+    def test_kanban_redirige_a_tubos_sin_empleado(self):
+        # Usuario autenticado pero sin Employee -> get_role es None.
+        # KanbanRedirectView solo tiene LoginRequiredMixin, así que redirige (no 403).
         sin_emp = User.objects.create_user(
             username="sin_emp_kanban", password=DEMO_PASSWORD,
         )
         self.client.login(username="sin_emp_kanban", password=DEMO_PASSWORD)
         self.set_active(self.d1)
         resp = self.client.get(reverse("kanban_tasks"))
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    # --- scoping --------------------------------------------------------
-    def test_superadmin_ve_todas_las_delegaciones(self):
+    # --- scoping (ya no aplica: kanban redirige, no muestra columnas) ---
+    def test_superadmin_ve_redirect_a_tubos(self):
         self.login()
-        self.set_active(None)  # ALL_DELEGATIONS
+        self.set_active(None)
         resp = self.client.get(reverse("kanban_tasks"))
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertIn(self.t1.code, codigos)
-        self.assertIn(self.t4.code, codigos)
-        self.assertNotIn(self.t5.code, codigos)  # soft-deleted excluida
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_coordinador_ve_solo_delegacion_activa(self):
+    def test_coordinador_ve_redirect_a_tubos(self):
         self.login("coord_kanban")
         self.set_active(self.d1)
         resp = self.client.get(reverse("kanban_tasks"))
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertIn(self.t1.code, codigos)
-        self.assertNotIn(self.t4.code, codigos)  # d2 no visible desde d1
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_funcionario_own_records_ve_solo_sus_tareas(self):
+    def test_funcionario_own_records_ve_redirect_a_tubos(self):
         self.login("ana_kanban")
         self.set_active(self.d1)
         resp = self.client.get(reverse("kanban_tasks"))
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertIn(self.t1.code, codigos)  # ana es assigned_to
-        self.assertNotIn(self.t3.code, codigos)  # no asignada a ana
-        self.assertNotIn(self.t4.code, codigos)  # d2 / de luis
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_tareas_soft_deleted_excluidas(self):
+    def test_tareas_no_se_listan_en_kanban(self):
+        """Ya no hay listado de tareas en kanban; todo va al tubo."""
         self.login()
         self.set_active(None)
         resp = self.client.get(reverse("kanban_tasks"))
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertNotIn(self.t5.code, codigos)
+        self.assertEqual(resp.status_code, 302)
 
-    # --- agrupación por estado ------------------------------------------
-    def test_agrupa_por_estado(self):
-        self.login()
-        self.set_active(None)
-        resp = self.client.get(reverse("kanban_tasks"))
-        self.assertEqual(resp.status_code, 200)
-        columnas = resp.context["columnas"]
-        estados = {
-            estado: [item["tarea"].code for item in tareas]
-            for estado, tareas in columnas.items()
-        }
-        self.assertIn(self.t1.code, estados["Pendiente"])
-        self.assertIn(self.t2.code, estados["En Progreso"])
-        self.assertIn(self.t3.code, estados["Completada"])
-
-    # --- filtros GET ----------------------------------------------------
-    def test_filtrar_por_goal(self):
+    # --- filtros GET (ya no aplican: kanban redirige) -------------------
+    def test_filtrar_por_goal_redirige_a_tubos(self):
         self.login()
         self.set_active(None)
         resp = self.client.get(reverse("kanban_tasks"), {"goal": self.g2.pk})
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertIn(self.t4.code, codigos)  # meta g2
-        self.assertNotIn(self.t1.code, codigos)  # meta g1
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_filtrar_por_assigned_to_id(self):
+    def test_filtrar_por_assigned_to_redirige_a_tubos(self):
         self.login()
         self.set_active(None)
         resp = self.client.get(
             reverse("kanban_tasks"), {"assigned_to": self.ana.pk}
         )
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertIn(self.t1.code, codigos)  # assigned_to = ana
-        self.assertIn(self.t2.code, codigos)
-        self.assertNotIn(self.t3.code, codigos)  # assigned_to = None
-        self.assertNotIn(self.t4.code, codigos)  # assigned_to = luis
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_filtrar_por_unassigned(self):
+    def test_filtrar_por_unassigned_redirige_a_tubos(self):
         self.login()
         self.set_active(None)
         resp = self.client.get(
             reverse("kanban_tasks"), {"assigned_to": "unassigned"}
         )
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertIn(self.t3.code, codigos)  # assigned_to__isnull=True
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_filtrar_por_assigned_to_inexistente_devuelve_vacio(self):
+    def test_filtrar_por_assigned_to_inexistente_redirige_a_tubos(self):
         self.login()
         self.set_active(None)
         resp = self.client.get(
             reverse("kanban_tasks"), {"assigned_to": 999999}
         )
-        self.assertEqual(resp.status_code, 200)
-        codigos = self._codigos_columnas(resp)
-        self.assertEqual(codigos, set())
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    # --- tolerancia a valores inválidos --------------------------------
-    def test_valor_goal_invalido_no_rompe(self):
+    # --- tolerancia a valores inválidos (redirige igual) ----------------
+    def test_valor_goal_invalido_redirige_a_tubos(self):
         self.login()
         self.set_active(None)
         resp = self.client.get(reverse("kanban_tasks"), {"goal": "abc"})
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
-    def test_valor_assigned_to_invalido_no_rompe(self):
+    def test_valor_assigned_to_invalido_redirige_a_tubos(self):
         self.login()
         self.set_active(None)
         resp = self.client.get(reverse("kanban_tasks"), {"assigned_to": "basura"})
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
 
     # --- cambio de estado (POST) ----------------------------------------
     def _post_cambiar_estado(self, task_id, status, username="supadmin_kanban",
@@ -255,57 +228,69 @@ class KanbanViewTests(TestCase):
             {"status": status},
         )
 
-    def test_cambiar_estado_exitoso_con_permiso(self):
+    def test_cambiar_estado_redirige_a_tubos(self):
+        """El cambio de estado de tarea ya no existe: redirige al tubo."""
         resp = self._post_cambiar_estado(self.t1.pk, "Completada", delegation=None)
         self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
+        # La tarea NO se modifica (kanban fue reemplazado).
         self.t1.refresh_from_db()
-        self.assertEqual(self.t1.status, "Completada")
+        self.assertEqual(self.t1.status, "Pendiente")
 
-    def test_cambiar_estado_sin_permiso_es_403(self):
+    def test_cambiar_estado_sin_permiso_redirige_a_tubos(self):
         # Coordinador solo tiene tasks.view, no tasks.edit.
+        # KanbanTaskStatusChangeRedirectView tiene ModulePermissionMixin (tasks.edit),
+        # así que coordinador recibe 403.
         resp = self._post_cambiar_estado(self.t1.pk, "Completada",
                                          username="coord_kanban", delegation=None)
         self.assertEqual(resp.status_code, 403)
         self.t1.refresh_from_db()
         self.assertEqual(self.t1.status, "Pendiente")
 
-    def test_cambiar_estado_funcionario_sin_permiso_es_403(self):
+    def test_cambiar_estado_funcionario_sin_permiso_redirige_o_403(self):
         # Funcionario own_records solo tiene tasks.view y tasks.create, no edit.
         resp = self._post_cambiar_estado(self.t1.pk, "Completada",
                                          username="ana_kanban", delegation=self.d1)
         self.assertEqual(resp.status_code, 403)
 
-    def test_cambiar_estado_exitoso_con_delegado_en_su_delegacion(self):
-        # Delegado con tasks.edit puede editar tareas de su delegación activa.
+    def test_cambiar_estado_delegado_redirige_a_tubos(self):
+        # Delegado con tasks.edit: la vista de redirect tiene ModulePermissionMixin
+        # y permite tasks.edit, así que redirige a tubos (no modifica la tarea).
         resp = self._post_cambiar_estado(self.t1.pk, "En Progreso",
                                          username="delegado_kanban", delegation=self.d1)
         self.assertEqual(resp.status_code, 302)
-        self.t1.refresh_from_db()
-        self.assertEqual(self.t1.status, "En Progreso")
-
-    def test_cambiar_estado_fuera_de_alcance_es_404(self):
-        # Delegado con delegación activa d1 no puede editar tarea de d2.
-        resp = self._post_cambiar_estado(self.t4.pk, "Completada",
-                                         username="delegado_kanban", delegation=self.d1)
-        self.assertEqual(resp.status_code, 404)
-        self.t4.refresh_from_db()
-        self.assertEqual(self.t4.status, "Pendiente")
-
-    def test_cambiar_estado_tarea_soft_deleted_es_404(self):
-        self.set_active(None)
-        resp = self._post_cambiar_estado(self.t5.pk, "Completada")
-        self.assertEqual(resp.status_code, 404)
-        self.t5.refresh_from_db()
-        self.assertEqual(self.t5.status, "Pendiente")
-
-    def test_estado_invalido_no_altera_bd(self):
-        self.set_active(None)
-        resp = self._post_cambiar_estado(self.t1.pk, "EstadoInexistente")
-        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
         self.t1.refresh_from_db()
         self.assertEqual(self.t1.status, "Pendiente")
 
-    def test_redireccion_preserva_filtros_goal_y_assigned_to(self):
+    def test_cambiar_estado_fuera_de_alcance_redirige_a_tubos(self):
+        # Delegado con delegación activa d1: la vista de redirect no valida
+        # alcance de tarea, solo redirige a tubos.
+        resp = self._post_cambiar_estado(self.t4.pk, "Completada",
+                                         username="delegado_kanban", delegation=self.d1)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
+        self.t4.refresh_from_db()
+        self.assertEqual(self.t4.status, "Pendiente")
+
+    def test_cambiar_estado_tarea_soft_deleted_redirige_a_tubos(self):
+        # La vista de redirect no consulta la tarea, solo redirige.
+        self.set_active(None)
+        resp = self._post_cambiar_estado(self.t5.pk, "Completada")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
+        self.t5.refresh_from_db()
+        self.assertEqual(self.t5.status, "Pendiente")
+
+    def test_estado_invalido_redirige_a_tubos(self):
+        self.set_active(None)
+        resp = self._post_cambiar_estado(self.t1.pk, "EstadoInexistente")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
+        self.t1.refresh_from_db()
+        self.assertEqual(self.t1.status, "Pendiente")
+
+    def test_redireccion_no_preserva_filtros(self):
         self.login()
         self.set_active(None)
         resp = self.client.post(
@@ -313,25 +298,25 @@ class KanbanViewTests(TestCase):
             {"status": "Completada", "goal": self.g1.pk, "assigned_to": self.ana.pk},
         )
         self.assertEqual(resp.status_code, 302)
-        self.assertIn(f"goal={self.g1.pk}", resp.url)
-        self.assertIn(f"assigned_to={self.ana.pk}", resp.url)
+        self.assertIn("/cumplimiento/tubos/", resp.url)
         self.t1.refresh_from_db()
-        self.assertEqual(self.t1.status, "Completada")
+        self.assertEqual(self.t1.status, "Pendiente")
 
-    def test_own_records_solo_sus_propias_tareas(self):
+    def test_own_records_solo_sus_propias_tareas_403(self):
         # Ana (own_records, d1) intenta editar t3 (sin asignar, d1): sin permiso edit → 403.
         self.set_active(self.d1)
         resp = self._post_cambiar_estado(self.t3.pk, "En Progreso", username="ana_kanban")
         self.assertEqual(resp.status_code, 403)
 
     # --- enlace de navegación --------------------------------------------
-    def test_usuario_con_tasks_view_ve_enlace_kanban(self):
+    def test_usuario_con_tasks_view_ve_enlace_tubos(self):
         self.login()
         resp = self.client.get(reverse("home"))
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"/kanban-tareas/", resp.content)
+        self.assertIn(b"/cumplimiento/tubos/", resp.content)
+        self.assertNotIn(b"/kanban-tareas/", resp.content)
 
-    def test_usuario_sin_tasks_view_no_ve_enlace_kanban(self):
+    def test_usuario_sin_tasks_view_no_ve_enlace_tubos(self):
         # Usuario autenticado sin Employee -> sin rol -> sin tareas.view.
         sin_emp = User.objects.create_user(
             username="sin_emp_nav", password=DEMO_PASSWORD,
@@ -339,20 +324,21 @@ class KanbanViewTests(TestCase):
         self.client.login(username="sin_emp_nav", password=DEMO_PASSWORD)
         resp = self.client.get(reverse("home"))
         self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"/cumplimiento/tubos/", resp.content)
         self.assertNotIn(b"/kanban-tareas/", resp.content)
 
-    def test_enlace_kanban_activo_cuando_esta_en_kanban(self):
+    def test_enlace_tubos_activo_cuando_esta_en_tubos(self):
         self.login()
-        resp = self.client.get(reverse("kanban_tasks"))
+        resp = self.client.get(reverse("tubes"))
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'href="/kanban-tareas/" aria-current="page"', resp.content)
+        self.assertIn(b'href="/cumplimiento/tubos/" aria-current="page"', resp.content)
 
-    def test_enlace_kanban_no_activo_fuera_de_kanban(self):
+    def test_enlace_tubos_no_activo_fuera_de_tubos(self):
         self.login()
         resp = self.client.get(reverse("home"))
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'href="/kanban-tareas/"', resp.content)
+        self.assertIn(b'href="/cumplimiento/tubos/"', resp.content)
         self.assertNotIn(
-            b'href="/kanban-tareas/" aria-current="page"', resp.content
+            b'href="/cumplimiento/tubos/" aria-current="page"', resp.content
         )
 
