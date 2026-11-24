@@ -47,7 +47,11 @@ preview de implementación) y qué queda por confirmar con la Municipalidad.
 ## Organigramas
 
 - **Organigrama de funcionarios** (Usuarios): funcionarios por delegación y cargo. Se corrigió que aparecía vacío.
-- **Organigrama de la organización** (preview): directiva de cada junta de vecinos u organización, con cargos base Presidente/a, Secretario/a y Tesorero/a y cargos creados. Sus integrantes se usan en el ingreso "Directivo de organización".
+- **Organigrama de la organización** (preview, `/organizaciones/organigrama/`): directiva de cada junta de vecinos u organización, con cargos base Presidente/a, Secretario/a y Tesorero/a y cargos creados. Sus integrantes se usan en el ingreso "Directivo de organización".
+  - Los cargos se ordenan en tres niveles: 1 Presidencia (Presidente/a, Vicepresidente/a), 2 Directiva (Secretario/a, Tesorero/a) y 3 Delegaciones, vocalías y otros cargos. El orden ubica el cargo dentro de su nivel.
+  - Cada cargo activo aparece aunque esté vacante, para asignarlo desde el mismo nodo. Una organización tiene un integrante por cargo.
+  - El catálogo de cargos es común a todas las organizaciones. Los cargos base no se renombran ni se eliminan. Un cargo creado se elimina solo si nadie lo ocupa, y solo el superadministrador elimina, como en el resto del sistema.
+  - No es un organigrama de Recursos Humanos: los funcionarios municipales están en el organigrama de Usuarios.
 
 ## Datos personales
 

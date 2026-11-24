@@ -296,6 +296,7 @@ También se crean `admin_demo`, `limitado_demo` y `jefatura_centro` (cuentas del
 | `/atenciones/<pk>/validar/` | `attention_review` | delegado o superior (POST) |
 | `/atenciones/funcionario-por-rut/` | `attention_rut_check` | quien ingresa atenciones |
 | `/organizaciones/` (mismas subrutas + `<pk>/directiva/`) | `organizations` | superadmin, coordinador, delegado (funcionario solo ver) |
+| `/organizaciones/organigrama/` (+ `cargos-directivos/nuevo/`, `<id>/editar/`, `<id>/eliminar/`) | `organizations` | ver: todos; asignar y editar cargos: coordinador y delegado; eliminar cargos: superadmin |
 | `/cargos/` (mismas subrutas + `<pk>/metas/`) | `positions` | superadmin edita; coordinador y delegado consultan |
 | `/periodos/` (mismas subrutas + `cierre/`) | `periods` | superadmin cierra/reabre; coordinador y delegado consultan |
 | `/cumplimiento/tubos/<pk>/` (+ `reprogramar/`, `reasignar/`, `comentarios/nuevo/`) | `tube_detail` | según permiso de Cumplimiento |
@@ -414,6 +415,7 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
 | Ingreso de atención en ventana emergente ("Nuevo ...") | Operativo |
 | Funcionario como civil / gestión interna | Operativo (detección por RUT, sin bloqueo) |
 | Atención "Persona o Directivo" con organigrama de la organización | Operativo |
+| Organigrama de organizaciones por niveles (cubiertos/vacantes, gestión de cargos) | Operativo |
 | Validación del punto de atenciones y evidencias (aprobar / rechazar / corrección) | Operativo |
 | Matriz: atenciones y actividades validadas suman al ítem del cargo | Operativo |
 | Tubo: tablero de 4 columnas, historial, plazos, reprogramación, reasignación | Operativo |

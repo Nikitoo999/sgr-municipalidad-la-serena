@@ -44,6 +44,9 @@ from .attention_extras import (
 )
 from .organizations import (
     DirectiveRoleCreateView,
+    DirectiveRoleDeleteView,
+    DirectiveRoleUpdateView,
+    OrganizationChartView,
     OrganizationMemberRemoveView,
     OrganizationMemberSaveView,
 )
@@ -139,6 +142,21 @@ urlpatterns += [
         name="attention_comment",
     ),
     path("organizaciones/buscar/", OrganizationLookupView.as_view(), name="organization_lookup"),
+    path(
+        "organizaciones/organigrama/",
+        OrganizationChartView.as_view(module_key="organizations"),
+        name="organization_chart",
+    ),
+    path(
+        "organizaciones/cargos-directivos/<int:role_pk>/editar/",
+        DirectiveRoleUpdateView.as_view(module_key="organizations"),
+        name="directive_role_update",
+    ),
+    path(
+        "organizaciones/cargos-directivos/<int:role_pk>/eliminar/",
+        DirectiveRoleDeleteView.as_view(module_key="organizations"),
+        name="directive_role_delete",
+    ),
     path(
         "organizaciones/<int:pk>/directiva/",
         OrganizationMemberSaveView.as_view(module_key="organizations"),

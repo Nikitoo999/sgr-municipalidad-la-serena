@@ -1,0 +1,228 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Organigrama{% if org %} · {{ org.name }}{% endif %}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'portal/css/org_chart.css' %}?v=1">
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'organizations' %}">Organizaciones comunitarias</a> / Organigrama</nav>
+<div class="titlebar">
+  <h1>Organigrama de organizaciones</h1>
+  {% if can_create %}<a class="btn primary" href="#cargos">{% sgr_icon 'plus' 16 %}<span>Crear cargo directivo</span></a>{% endif %}
+</div>
+<p class="help oc-intro">Directivas de juntas de vecinos y organizaciones comunitarias por nivel jerárquico. Sus integrantes se eligen al ingresar una atención como «Directivo de organización». En la demo usa datos ficticios.</p>
+
+<div class="oc-layout">
+  <aside class="card oc-orgs" aria-labelledby="ocOrgsTitle">
+    <h2 id="ocOrgsTitle">Organizaciones</h2>
+    <form method="get" class="oc-orgsearch" role="search">
+      <label class="sr" for="ocOrgQ">Buscar organización</label>
+      <input class="in" id="ocOrgQ" name="q" value="{{ q }}" maxlength="80" placeholder="Nombre o territorio">
+      <button class="btn soft btn-sm" type="submit" aria-label="Buscar">{% sgr_icon 'search' 16 %}</button>
+      {% if q %}<a class="btn ghost btn-sm" href="{% url 'organization_chart' %}" aria-label="Limpiar búsqueda">{% sgr_icon 'x' 16 %}</a>{% endif %}
+    </form>
+    {% if organizaciones %}
+    <ul class="oc-orglist">
+      {% for o in organizaciones %}
+      <li>
+        <a class="oc-org{% if org and o.pk == org.pk %} active{% endif %}" href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}org={{ o.pk }}"{% if org and o.pk == org.pk %} aria-current="true"{% endif %}>
+          <span class="oc-org-name">{{ o.name }}</span>
+          <span class="oc-org-meta">{{ o.category_label }}{% if o.territory %} · {{ o.territory }}{% endif %}{% if o.delegation %} · {{ o.delegation.code }}{% endif %}</span>
+          <span class="badge {% if o.directivos %}b-info{% else %}b-off{% endif %}">{{ o.directivos }} directivo{{ o.directivos|pluralize }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="meta oc-orgcount">Mostrando {{ organizaciones|length }} de {{ total_organizaciones }}{% if total_organizaciones > limite %}: usa el buscador para encontrar otras{% endif %}.</p>
+    {% else %}
+    <p class="meta">{% if q %}Ninguna organización coincide con «{{ q }}».{% else %}No hay organizaciones en tu alcance.{% endif %}</p>
+    {% endif %}
+  </aside>
+
+  <div class="oc-main">
+    {% if org %}
+    <section class="card" aria-labelledby="ocChartTitle">
+      <div class="oc-head">
+        <div>
+          <h2 id="ocChartTitle">Organigrama · {{ org.name }}</h2>
+          <p class="meta">{{ org.category_label }} · Territorio {{ org.territory|default:"—" }}{% if org.delegation %} · {{ org.delegation.code }} · {{ org.delegation.name }}{% endif %} · <a href="{% url 'organizations_detail' org.pk %}">Ficha de la organización</a></p>
+        </div>
+        <div class="oc-counters" aria-label="Cargos cubiertos y vacantes">
+          <span class="badge b-ok">{% sgr_icon 'check' 14 %} {{ cubiertos }} cubierto{{ cubiertos|pluralize }}</span>
+          <span class="badge {% if vacantes %}b-warn{% else %}b-off{% endif %}">{{ vacantes }} vacante{{ vacantes|pluralize }}</span>
+        </div>
+      </div>
+      {% if total_cargos %}
+      <div class="oc-progress" role="img" aria-label="{{ cubiertos }} de {{ total_cargos }} cargos cubiertos"><span style="width:{% widthratio cubiertos total_cargos 100 %}%"></span></div>
+
+      <div class="oc-filter">
+        <div>
+          <label class="fl" for="ocSearch">Filtrar por cargo o integrante</label>
+          <input class="in" id="ocSearch" type="search" maxlength="60" placeholder="Ej.: Tesorero, Soto, 12.345.678" autocomplete="off">
+        </div>
+        <div>
+          <label class="fl" for="ocState">Mostrar</label>
+          <select class="in" id="ocState">
+            <option value="">Todos los cargos</option>
+            <option value="filled">Solo cubiertos</option>
+            <option value="vacant">Solo vacantes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="oc-tree" id="ocTree">
+        {% for nivel in niveles %}
+        <section class="oc-level" data-oc-level aria-label="{{ nivel.label }}">
+          <h3 class="oc-level-title">{{ nivel.label }}</h3>
+          <div class="oc-nodes{% if nivel.nodes|length > 1 %} multi{% endif %}">
+            {% for n in nivel.nodes %}
+            {% with role=n.role member=n.member %}
+            <article class="oc-node {% if member %}is-filled{% else %}is-vacant{% endif %}" data-oc-node data-state="{% if member %}filled{% else %}vacant{% endif %}" data-search="{{ role.name|lower }} {% if member %}{{ member.full_name|lower }} {{ member.rut|lower }} {{ member.phone }}{% endif %}">
+              <div class="oc-node-top">
+                <span class="oc-role">{{ role.name }}</span>
+                {% if member %}<span class="badge b-ok">Cubierto</span>{% else %}<span class="badge b-warn">Vacante</span>{% endif %}
+              </div>
+              {% if member %}
+              <p class="oc-name">{{ member.full_name }}</p>
+              <dl class="oc-data">
+                <div><dt>RUT</dt><dd>{{ member.rut|default:"Sin RUT" }}</dd></div>
+                <div><dt>Teléfono</dt><dd>{% if member.phone %}<a href="tel:{{ member.phone|cut:' ' }}">{{ member.phone }}</a>{% else %}Sin teléfono{% endif %}</dd></div>
+              </dl>
+              {% else %}
+              <p class="oc-vacant-text">Cargo sin integrante en esta organización.</p>
+              {% endif %}
+              {% if role.status != 'Activo' %}<p class="meta">Cargo inactivo en el catálogo.</p>{% endif %}
+
+              {% if can_edit %}
+              <div class="oc-actions">
+                {% if role.status == 'Activo' %}
+                <details class="oc-edit" data-oc-details>
+                  <summary class="btn {% if member %}soft{% else %}primary{% endif %} btn-sm">{% if member %}{% sgr_icon 'pencil' 14 %}<span>Editar</span>{% else %}{% sgr_icon 'plus' 14 %}<span>Asignar</span>{% endif %}</summary>
+                  <form method="post" action="{% url 'organization_member_save' org.pk %}" class="oc-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ volver }}">
+                    <input type="hidden" name="role" value="{{ role.pk }}">
+                    <label class="fl" for="ocName{{ role.pk }}">Nombre completo <span class="req" aria-hidden="true">*</span></label>
+                    <input class="in" id="ocName{{ role.pk }}" name="full_name" maxlength="150" required value="{{ member.full_name|default:'' }}" placeholder="Ej.: Patricia Soto">
+                    <label class="fl" for="ocRut{{ role.pk }}">RUT</label>
+                    <input class="in" id="ocRut{{ role.pk }}" name="rut" maxlength="12" value="{{ member.rut|default:'' }}" placeholder="14.552.890-3">
+                    <label class="fl" for="ocPhone{{ role.pk }}">Teléfono</label>
+                    <input class="in" id="ocPhone{{ role.pk }}" name="phone" maxlength="20" inputmode="tel" value="{{ member.phone|default:'' }}" placeholder="+56 9 8412 3310">
+                    <button class="btn primary btn-sm" type="submit">{% if member %}Guardar cambios{% else %}Asignar a {{ role.name }}{% endif %}</button>
+                  </form>
+                </details>
+                {% endif %}
+                {% if member %}
+                <form method="post" action="{% url 'organization_member_remove' org.pk member.pk %}" data-no-disable="1" data-oc-confirm="{{ member.full_name }} dejará de ser {{ role.name }} de {{ org.name }}. El cambio queda en la auditoría." data-oc-confirm-title="¿Dejar vacante el cargo?" data-oc-confirm-button="Dejar vacante">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ volver }}">
+                  <button class="btn ghost btn-sm" type="submit">{% sgr_icon 'x' 14 %}<span>Dejar vacante</span></button>
+                </form>
+                {% endif %}
+              </div>
+              {% endif %}
+            </article>
+            {% endwith %}
+            {% endfor %}
+          </div>
+        </section>
+        {% endfor %}
+        <p class="meta oc-noresults" id="ocNoResults" hidden>Ningún cargo coincide con el filtro.</p>
+      </div>
+      {% else %}
+      <div class="state"><div class="ic">{% sgr_icon 'users' 24 %}</div><h2>No hay cargos directivos activos</h2><p>Crea el primer cargo en «Cargos directivos».</p></div>
+      {% endif %}
+    </section>
+    {% else %}
+    <div class="state"><div class="ic">{% sgr_icon 'building' 24 %}</div><h2>Elige una organización</h2><p>Selecciónala en la columna izquierda para ver su organigrama.</p></div>
+    {% endif %}
+
+    <section class="card oc-roles" id="cargos" aria-labelledby="ocRolesTitle">
+      <h2 id="ocRolesTitle">Cargos directivos</h2>
+      <p class="help">El catálogo es común a todas las organizaciones. El nivel ubica el cargo en el organigrama y el orden, dentro de su nivel. Los cargos base no se renombran ni se eliminan; un cargo creado se elimina solo si nadie lo ocupa.</p>
+
+      {% if can_create %}
+      <form method="post" action="{% url 'directive_role_create' %}" class="oc-newrole">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ volver }}#cargos">
+        <div>
+          <label class="fl" for="ocNewRole">Nombre del cargo <span class="req" aria-hidden="true">*</span></label>
+          <input class="in" id="ocNewRole" name="name" maxlength="60" minlength="3" required placeholder="Vicepresidente/a, Delegado/a Vecinal...">
+        </div>
+        <div>
+          <label class="fl" for="ocNewLevel">Nivel</label>
+          <select class="in" id="ocNewLevel" name="level">
+            {% for valor, etiqueta in level_choices %}<option value="{{ valor }}"{% if valor == 3 %} selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="fl" for="ocNewOrder">Orden</label>
+          <input class="in" id="ocNewOrder" name="order" type="number" min="1" max="999" value="100">
+        </div>
+        <div class="oc-newrole-btn"><button class="btn primary" type="submit">{% sgr_icon 'plus' 16 %}<span>Crear cargo</span></button></div>
+      </form>
+      {% endif %}
+
+      <div class="tablewrap">
+        <table>
+          <caption class="sr">Catálogo de cargos directivos</caption>
+          <thead><tr><th scope="col">Cargo</th><th scope="col">Nivel</th><th scope="col">Orden</th><th scope="col">En uso</th>{% if can_edit or can_delete %}<th scope="col">Acciones</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for r in catalogo %}
+          <tr>
+            <td>
+              {% if can_edit and not r.is_base %}
+              <label class="sr" for="ocRoleName{{ r.pk }}">Nombre de {{ r.name }}</label>
+              <input class="in" id="ocRoleName{{ r.pk }}" name="name" form="ocRole{{ r.pk }}" maxlength="60" minlength="3" required value="{{ r.name }}">
+              {% else %}
+              <strong>{{ r.name }}</strong>
+              {% endif %}
+              {% if r.is_base %}<span class="badge b-info">Base</span>{% endif %}
+              {% if r.status != 'Activo' %}<span class="badge b-off">Inactivo</span>{% endif %}
+            </td>
+            <td>
+              {% if can_edit %}
+              <label class="sr" for="ocRoleLevel{{ r.pk }}">Nivel de {{ r.name }}</label>
+              <select class="in" id="ocRoleLevel{{ r.pk }}" name="level" form="ocRole{{ r.pk }}">
+                {% for valor, etiqueta in level_choices %}<option value="{{ valor }}"{% if valor == r.level %} selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+              </select>
+              {% else %}{{ r.get_level_display }}{% endif %}
+            </td>
+            <td>
+              {% if can_edit %}
+              <label class="sr" for="ocRoleOrder{{ r.pk }}">Orden de {{ r.name }}</label>
+              <input class="in oc-order" id="ocRoleOrder{{ r.pk }}" name="order" form="ocRole{{ r.pk }}" type="number" min="1" max="999" value="{{ r.order }}">
+              {% else %}{{ r.order }}{% endif %}
+            </td>
+            <td>{% if r.uso %}{{ r.uso }} organizaci{{ r.uso|pluralize:"ón,ones" }}{% else %}<span class="meta">Sin uso</span>{% endif %}</td>
+            {% if can_edit or can_delete %}
+            <td class="oc-rowactions">
+              {% if can_edit %}
+              <form method="post" action="{% url 'directive_role_update' r.pk %}" id="ocRole{{ r.pk }}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ volver }}#cargos">
+                <button class="btn soft btn-sm" type="submit">Guardar</button>
+              </form>
+              {% endif %}
+              {% if can_delete and not r.is_base and not r.uso %}
+              <form method="post" action="{% url 'directive_role_delete' r.pk %}" data-no-disable="1" data-oc-confirm="Se eliminará el cargo «{{ r.name }}» del catálogo. Ninguna organización lo ocupa." data-oc-confirm-title="¿Eliminar el cargo?" data-oc-confirm-button="Sí, eliminar">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ volver }}#cargos">
+                <button class="btn ghost btn-sm" type="submit" aria-label="Eliminar {{ r.name }}">{% sgr_icon 'trash' 14 %}</button>
+              </form>
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="meta">No hay cargos directivos.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'portal/js/org_chart.js' %}?v=1"></script>{% endblock %}

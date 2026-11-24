@@ -81,8 +81,11 @@
       {% if sgr_role.scope == 'all' %}
       <a href="{% url 'audit_log' %}"{% if active_module == 'audit' %} aria-current="page"{% endif %}>{% sgr_icon 'shield' 16 %}<span>Auditoría</span></a>
       {% endif %}
+      {% if sgr_can_view_organizations %}
+      <a href="{% url 'organization_chart' %}"{% if request.resolver_match.url_name == 'organization_chart' %} aria-current="page"{% endif %}>{% sgr_icon 'building' 16 %}<span>Organigrama de organizaciones</span></a>
+      {% endif %}
       {% if sgr_can_view_users %}
-      <a href="{% url 'organigrama' %}"{% if request.resolver_match.url_name == 'organigrama' %} aria-current="page"{% endif %}>{% sgr_icon 'users' 16 %}<span>Organigrama</span></a>
+      <a href="{% url 'organigrama' %}"{% if request.resolver_match.url_name == 'organigrama' %} aria-current="page"{% endif %}>{% sgr_icon 'users' 16 %}<span>Organigrama de funcionarios</span></a>
       {% endif %}
     </nav>
   </aside>

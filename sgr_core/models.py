@@ -453,7 +453,7 @@ class CommunityOrganization(BaseModel):
     def directiva(self):
         """Integrantes vigentes de la directiva (organigrama), por cargo."""
         return self.members.filter(deleted_at__isnull=True).select_related("role").order_by(
-            "role__order", "role__name",
+            "role__level", "role__order", "role__name",
         )
 
     @property
@@ -469,11 +469,20 @@ class DirectiveRole(BaseModel):
     """Cargo de la directiva de una organización (Presidente/a, Secretario/a...).
 
     Los cargos base se cargan con una migración; se pueden crear otros
-    (Vicepresidente/a, Encargado/a de Medio Ambiente...).
+    (Vicepresidente/a, Encargado/a de Medio Ambiente...). El nivel ubica el
+    cargo en la jerarquía del organigrama y el orden, dentro de su nivel.
     """
+
+    class Level(models.IntegerChoices):
+        PRESIDENCY = 1, "Nivel 1 · Presidencia"
+        BOARD = 2, "Nivel 2 · Directiva"
+        DELEGATES = 3, "Nivel 3 · Delegaciones, vocalías y otros cargos"
 
     name = models.CharField(max_length=60, verbose_name="Cargo directivo")
     is_base = models.BooleanField(default=False, verbose_name="Cargo base")
+    level = models.PositiveSmallIntegerField(
+        choices=Level.choices, default=Level.DELEGATES, verbose_name="Nivel jerárquico",
+    )
     order = models.PositiveSmallIntegerField(default=100, verbose_name="Orden en el organigrama")
     status = models.CharField(max_length=10, choices=CATALOG_STATUS_CHOICES, default="Activo", verbose_name="Estado")
 
@@ -481,7 +490,7 @@ class DirectiveRole(BaseModel):
         verbose_name = "Cargo directivo"
         verbose_name_plural = "Cargos directivos"
         db_table = "cargo_directivo"
-        ordering = ["order", "name"]
+        ordering = ["level", "order", "name"]
 
     def __str__(self):
         return self.name
@@ -511,7 +520,7 @@ class OrganizationMember(BaseModel):
         verbose_name = "Integrante de directiva"
         verbose_name_plural = "Integrantes de directiva"
         db_table = "integrante_organizacion"
-        ordering = ["role__order", "role__name"]
+        ordering = ["role__level", "role__order", "role__name"]
 
     def __str__(self):
         return f"{self.role.name}: {self.full_name}"

@@ -194,7 +194,9 @@ class OrganigramViewTests(TestCase):
         self.login("ana_org")
         resp = self.client.get(reverse("home"))
         self.assertEqual(resp.status_code, 200)
-        self.assertNotIn(b"/organigrama/", resp.content)
+        # El organigrama de funcionarios no aparece (el de organizaciones,
+        # /organizaciones/organigrama/, sí le corresponde: solo consulta).
+        self.assertNotIn(b'href="/organigrama/"', resp.content)
 
     def test_enlace_organigrama_activo_cuando_esta_en_organigrama(self):
         self.login()

@@ -80,6 +80,7 @@ ORGANIZATIONS_MODULE = ModuleConfig(
     select_related=("delegation",),
     scope=organizations_scope,
     form_template="portal/crud/organization_form.html",
+    toolbar_links=(("Organigrama", "organization_chart"),),
 )
 
 register_module(ORGANIZATIONS_MODULE)
@@ -92,10 +93,13 @@ register_module(ORGANIZATIONS_MODULE)
 from django.contrib import messages  # noqa: E402
 from django.contrib.auth.mixins import LoginRequiredMixin  # noqa: E402
 from django.core.exceptions import ValidationError  # noqa: E402
+from django.db.models import Count, Q  # noqa: E402
 from django.shortcuts import redirect  # noqa: E402
+from django.urls import reverse  # noqa: E402
 from django.utils import timezone  # noqa: E402
 from django.utils.http import url_has_allowed_host_and_scheme  # noqa: E402
 from django.views import View  # noqa: E402
+from django.views.generic import TemplateView  # noqa: E402
 
 from portal.validators import normalize_phone, validate_full_name, validate_rut  # noqa: E402
 from sgr_core.models import DirectiveRole, OrganizationMember  # noqa: E402
@@ -105,8 +109,141 @@ from ..audit import audit  # noqa: E402
 from .views import CrudBaseMixin, resolve_object_or_deny, scoped_queryset  # noqa: E402
 
 
+#: Máximo de organizaciones en la columna izquierda (el buscador acota el resto).
+CHART_ORG_LIMIT = 60
+
+
+def _safe_next(request):
+    """URL de retorno del formulario, solo si es del mismo sitio."""
+    destino = request.POST.get("next") or ""
+    if destino and url_has_allowed_host_and_scheme(
+        destino, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+    ):
+        return destino
+    return ""
+
+
 def _directiva_redirect(request, organization):
-    return redirect("organizations_detail", pk=organization.pk)
+    """Vuelve al organigrama (o a la página indicada en ``next``)."""
+    return redirect(_safe_next(request) or f"{reverse('organization_chart')}?org={organization.pk}")
+
+
+def _roles_redirect(request):
+    return redirect(_safe_next(request) or "organization_chart")
+
+
+def _role_form_values(request, role=None):
+    """Valida nombre, nivel y orden de un cargo directivo. Devuelve (datos, errores)."""
+    errors = []
+    name = " ".join((request.POST.get("name") or "").split())[:60]
+    if role is not None and role.is_base:
+        name = role.name  # los cargos base no se renombran
+    elif len(name) < 3:
+        errors.append("Escribe el nombre del cargo directivo (al menos 3 caracteres).")
+    else:
+        repetido = DirectiveRole.objects.filter(name__iexact=name, deleted_at__isnull=True)
+        if role is not None:
+            repetido = repetido.exclude(pk=role.pk)
+        if repetido.exists():
+            errors.append(f"El cargo «{name}» ya existe.")
+    try:
+        level = int(request.POST.get("level") or DirectiveRole.Level.DELEGATES)
+    except (TypeError, ValueError):
+        level = 0
+    if level not in DirectiveRole.Level.values:
+        errors.append("Elige un nivel jerárquico válido.")
+    try:
+        order = int(request.POST.get("order") or 100)
+    except (TypeError, ValueError):
+        order = -1
+    if not 1 <= order <= 999:
+        errors.append("El orden debe ser un número entre 1 y 999.")
+    return {"name": name, "level": level, "order": order}, errors
+
+
+def _roles_en_uso():
+    """{role_id: integrantes vigentes en todas las organizaciones}."""
+    return dict(
+        OrganizationMember.objects.filter(deleted_at__isnull=True)
+        .values("role_id").annotate(n=Count("pk")).values_list("role_id", "n")
+    )
+
+
+class OrganizationChartView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, TemplateView):
+    """Organigrama de las organizaciones comunitarias, por niveles jerárquicos.
+
+    Columna izquierda: organizaciones del alcance (buscador por nombre o
+    territorio). Derecha: la directiva de la organización elegida, con los
+    cargos ocupados y vacantes ordenados por nivel, más la gestión de cargos.
+    """
+
+    template_name = "portal/organization_chart.html"
+    action = "view"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        request = self.request
+        base = scoped_queryset(request, self.config, ordering=("name",))
+        q = " ".join((request.GET.get("q") or "").split())[:80]
+        listado = base
+        if q:
+            listado = listado.filter(Q(name__icontains=q) | Q(territory__icontains=q))
+        total = listado.count()
+        organizaciones = list(
+            listado.select_related("delegation").annotate(
+                directivos=Count("members", filter=Q(members__deleted_at__isnull=True)),
+            )[:CHART_ORG_LIMIT]
+        )
+        seleccionada = None
+        org_pk = request.GET.get("org") or ""
+        if org_pk.isdigit():
+            seleccionada = base.select_related("delegation").filter(pk=int(org_pk)).first()
+        if seleccionada is None and organizaciones:
+            seleccionada = organizaciones[0]
+
+        niveles, cubiertos, vacantes = [], 0, 0
+        if seleccionada is not None:
+            integrantes = {m.role_id: m for m in seleccionada.directiva}
+            roles = {
+                r.pk: r for r in DirectiveRole.objects.filter(deleted_at__isnull=True, status="Activo")
+            }
+            for m in integrantes.values():  # un cargo inactivo con integrante igual se muestra
+                roles.setdefault(m.role_id, m.role)
+            for valor, etiqueta in DirectiveRole.Level.choices:
+                nodos = []
+                for role in sorted(roles.values(), key=lambda r: (r.order, r.name)):
+                    if role.level != valor:
+                        continue
+                    miembro = integrantes.get(role.pk)
+                    nodos.append({"role": role, "member": miembro})
+                    if miembro:
+                        cubiertos += 1
+                    else:
+                        vacantes += 1
+                if nodos:
+                    niveles.append({"value": valor, "label": etiqueta, "nodes": nodos})
+
+        en_uso = _roles_en_uso()
+        catalogo = list(DirectiveRole.objects.filter(deleted_at__isnull=True))
+        for role in catalogo:
+            role.uso = en_uso.get(role.pk, 0)
+        context.update({
+            "config": self.config,
+            "q": q,
+            "organizaciones": organizaciones,
+            "total_organizaciones": total,
+            "limite": CHART_ORG_LIMIT,
+            "org": seleccionada,
+            "niveles": niveles,
+            "cubiertos": cubiertos,
+            "vacantes": vacantes,
+            "total_cargos": cubiertos + vacantes,
+            "catalogo": catalogo,
+            "level_choices": DirectiveRole.Level.choices,
+            "volver": request.get_full_path(),
+            **self.access_flags(),
+        })
+        return context
 
 
 class OrganizationMemberSaveView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, View):
@@ -193,19 +330,60 @@ class DirectiveRoleCreateView(LoginRequiredMixin, ModulePermissionMixin, CrudBas
     action = "create"
 
     def post(self, request, *args, **kwargs):
-        name = " ".join((request.POST.get("name") or "").split())[:60]
-        destino = request.POST.get("next") or ""
-        if len(name) < 3:
-            messages.error(request, "Escribe el nombre del cargo directivo (al menos 3 caracteres).")
-        elif DirectiveRole.objects.filter(name__iexact=name, deleted_at__isnull=True).exists():
-            messages.info(request, f"El cargo «{name}» ya existe.")
+        datos, errors = _role_form_values(request)
+        if errors:
+            messages.error(request, " ".join(errors))
         else:
-            DirectiveRole.objects.create(name=name, order=100)
-            audit(request, "create", module="organizations", object_repr=name,
-                  detail="Cargo directivo creado")
-            messages.success(request, f"Cargo directivo «{name}» creado.")
-        if destino and url_has_allowed_host_and_scheme(
-            destino, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
-        ):
-            return redirect(destino)
-        return redirect("organizations")
+            role = DirectiveRole.objects.create(**datos)
+            audit(request, "create", module="organizations", object_repr=role.name,
+                  detail=f"Cargo directivo creado ({role.get_level_display()}, orden {role.order})")
+            messages.success(request, f"Cargo directivo «{role.name}» creado.")
+        return _roles_redirect(request)
+
+
+class DirectiveRoleUpdateView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, View):
+    """Cambia nombre, nivel u orden de un cargo (los cargos base no se renombran)."""
+
+    action = "edit"
+
+    def post(self, request, *args, **kwargs):
+        role = DirectiveRole.objects.filter(pk=self.kwargs["role_pk"], deleted_at__isnull=True).first()
+        if role is None:
+            messages.error(request, "El cargo directivo ya no existe.")
+            return _roles_redirect(request)
+        datos, errors = _role_form_values(request, role)
+        if errors:
+            messages.error(request, " ".join(errors))
+            return _roles_redirect(request)
+        antes = f"{role.name} ({role.get_level_display()}, orden {role.order})"
+        role.name, role.level, role.order = datos["name"], datos["level"], datos["order"]
+        role.save(update_fields=["name", "level", "order", "updated_at"])
+        audit(request, "edit", module="organizations", object_repr=role.name,
+              detail=f"Cargo directivo: {antes} → {role.name} ({role.get_level_display()}, orden {role.order})")
+        messages.success(request, f"Cargo «{role.name}» actualizado.")
+        return _roles_redirect(request)
+
+
+class DirectiveRoleDeleteView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMixin, View):
+    """Elimina un cargo creado que nadie ocupa (borrado lógico; solo superadmin)."""
+
+    action = "delete"
+
+    def post(self, request, *args, **kwargs):
+        role = DirectiveRole.objects.filter(pk=self.kwargs["role_pk"], deleted_at__isnull=True).first()
+        if role is None:
+            messages.error(request, "El cargo directivo ya no existe.")
+        elif role.is_base:
+            messages.error(request, f"«{role.name}» es un cargo base: no se elimina.")
+        elif OrganizationMember.objects.filter(role=role, deleted_at__isnull=True).exists():
+            messages.error(
+                request,
+                f"«{role.name}» está ocupado en alguna organización: déjalo vacante antes de eliminarlo.",
+            )
+        else:
+            role.deleted_at = timezone.now()
+            role.save(update_fields=["deleted_at", "updated_at"])
+            audit(request, "delete", module="organizations", object_repr=role.name,
+                  detail="Cargo directivo eliminado")
+            messages.success(request, f"Cargo «{role.name}» eliminado.")
+        return _roles_redirect(request)
