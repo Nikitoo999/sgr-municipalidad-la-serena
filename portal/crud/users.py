@@ -106,6 +106,13 @@ def filter_by_status(queryset, value):
     return queryset.filter(user__is_active=(value == "Activo"))
 
 
+def position_options(request):
+    """Cargos para el filtro "Cargo" (lista blanca)."""
+    from sgr_core.models import Position
+
+    return [(p.pk, p.name) for p in Position.alive.order_by("code")]
+
+
 USERS_MODULE = ModuleConfig(
     module_key="users",
     slug="usuarios",
@@ -120,6 +127,7 @@ USERS_MODULE = ModuleConfig(
                    sort_fields=("user__first_name", "user__last_name", "user__username")),
         ColumnSpec("email", "Correo", sort_key="correo", sort_fields=("user__email",)),
         ColumnSpec("role_code", "Rol", sort_key="rol", sort_fields=("role__code",)),
+        ColumnSpec("position_label", "Cargo", sort_key="cargo", sort_fields=("position__code",)),
         ColumnSpec("delegations", "Delegaciones", cell=CELL_DELEGATION,
                    sort_key="delegacion", sort_fields=("delegation__code",)),
         # Ascendente muestra primero los activos.
@@ -137,13 +145,14 @@ USERS_MODULE = ModuleConfig(
     status_filter=filter_by_status,
     filters=(
         FilterSpec("rol", "Rol", "role_id", options=role_options),
+        FilterSpec("cargo", "Cargo", "position_id", options=position_options),
         FilterSpec("delegacion", "Delegación", "delegation_id",
                    options=delegation_options, apply=filter_by_delegation,
                    empty_label="Todas"),
     ),
     ordering=("user__first_name", "user__last_name", "rut"),
     default_sort="nombre",
-    select_related=("user", "role", "delegation"),
+    select_related=("user", "role", "delegation", "position"),
     row_label=lambda employee: employee.full_name,
     scope=users_scope,
     delete_guard=user_delete_guard,

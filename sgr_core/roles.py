@@ -17,6 +17,9 @@ MODULES = (
     ('tasks', 'Agenda de tareas'),
     ('achievements', 'Cumplimiento'),
     ('reports', 'Reportes'),
+    ('organizations', 'Organizaciones comunitarias'),
+    ('periods', 'Períodos y cierre de trimestre'),
+    ('positions', 'Cargos y metas'),
 )
 
 ACTIONS = (
@@ -89,6 +92,9 @@ BASE_ROLES = (
             'achievements': ('view',),
             'reports': ('view',),
             'attentions': STD_ACTIONS,
+            'organizations': STD_ACTIONS,
+            'periods': ('view',),
+            'positions': ('view', 'export'),
         },
     },
     {
@@ -105,6 +111,9 @@ BASE_ROLES = (
             'achievements': ('view', 'create', 'edit'),
             'reports': ('view',),
             'attentions': STD_ACTIONS,
+            'organizations': STD_ACTIONS,
+            'periods': ('view',),
+            'positions': ('view',),
         },
     },
     {
@@ -117,6 +126,7 @@ BASE_ROLES = (
             'attentions': ('view', 'create', 'export'),
             'tasks': ('view', 'create'),
             'achievements': ('view',),
+            'organizations': ('view',),
         },
     },
 )

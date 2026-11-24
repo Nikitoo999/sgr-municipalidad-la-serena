@@ -14,11 +14,21 @@ de puntaje usen exactamente la misma lógica:
   semana en esa delegación (ni registrar gestiones mientras la semana
   actual esté cerrada).
 - **Puntaje operativo**: solo suman las atenciones vivas con
-  ``counts_for_score``. Las ingresadas por el rol Delegado (alcance "Su
-  delegación") se marcan al crearlas como que no cuentan.
+  ``counts_for_score``. No cuentan: las ingresadas por el rol Delegado
+  (alcance "Su delegación"), las de sub atenciones preparatorias (punto 5 del
+  nuevo requerimiento), las gestiones internas en que el solicitante es un
+  funcionario (punto 1) y las que un funcionario registra para sí mismo
+  (punto 6).
+- **Funcionario como civil**: si el RUT del solicitante es el de un
+  funcionario, se pide indicar si acude como civil (vecino) o si es una
+  gestión interna. Nunca se bloquea el ingreso ni se duplica a la persona.
+- **Validación del punto** (RN-009): una atención aporta a la matriz solo
+  con validación aprobada por un verificador distinto del responsable.
 """
 
-from datetime import datetime, time, timedelta
+import re
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -34,6 +44,9 @@ MAX_FOLLOW_UPS = 3
 NON_SCORING_SCOPES = ("own_delegation",)
 #: Estados en que una atención sigue abierta y admite gestiones.
 OPEN_STATUSES = ("received", "in_progress")
+#: Días desde el lunes hasta el cierre automático de la semana: la semana se
+#: completa hasta el lunes siguiente y el martes (lunes + 8) ya está cerrada.
+AUTO_CLOSURE_DAYS = 8
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +143,47 @@ def daily_limit_error(user, lock=False):
 # ---------------------------------------------------------------------------
 
 
+def rut_key(value):
+    """RUT sin puntos, guion ni espacios, en mayúsculas (para comparar)."""
+    return re.sub(r"[^0-9K]", "", str(value or "").upper())
+
+
+def employee_for_rut(rut):
+    """Funcionario vivo cuyo RUT coincide con ``rut`` (o ``None``).
+
+    Compara sin puntos ni guion, así 12.345.678-5 y 123456785 coinciden.
+    """
+    from django.db.models import Value
+    from django.db.models.functions import Replace, Upper
+
+    from .models import Employee
+
+    key = rut_key(rut)
+    if len(key) < 2:
+        return None
+    plano = Upper(Replace(Replace(Replace("rut", Value("."), Value("")), Value("-"), Value("")),
+                          Value(" "), Value("")))
+    return (
+        Employee.objects.filter(deleted_at__isnull=True)
+        .annotate(_rut_plano=plano).filter(_rut_plano=key)
+        .select_related("user", "delegation", "position").first()
+    )
+
+
+def items_for_employee(employee, period):
+    """Ítems de la matriz que mide el cargo del funcionario en el período."""
+    from sgr_core.models import ProjectItem
+
+    if employee is None or employee.position_id is None or period is None:
+        return ProjectItem.objects.none()
+    return ProjectItem.objects.filter(
+        position_goals__position_id=employee.position_id,
+        position_goals__period=period,
+        position_goals__deleted_at__isnull=True,
+        deleted_at__isnull=True,
+    ).distinct().order_by("code")
+
+
 def counts_for_score(user):
     """¿Las atenciones que ingresa ``user`` suman al puntaje operativo?
 
@@ -139,6 +193,101 @@ def counts_for_score(user):
     employee = getattr(user, "employee", None)
     role = getattr(employee, "role", None) if employee is not None else None
     return not (role is not None and role.scope in NON_SCORING_SCOPES)
+
+
+def attention_counts_for_score(user, subtype=None, *, employee_relation="", requester_employee=None):
+    """¿Suma al puntaje una atención de ``user`` con la sub atención ``subtype``?
+
+    No suma si:
+
+    - la sub atención es una gestión preparatoria (``scores=False``), punto 5;
+    - el solicitante es un funcionario y es una gestión interna, punto 1;
+    - el funcionario registra su propia solicitud (aunque sea como civil),
+      punto 6: no se ingresa solo para generar puntaje;
+    - la ingresa el rol Delegado (regla vigente desde el Bloque 2B).
+    """
+    if subtype is not None and not getattr(subtype, "scores", True):
+        return False
+    if employee_relation == "internal":
+        return False
+    if (
+        requester_employee is not None and user is not None
+        and requester_employee.user_id == getattr(user, "pk", None)
+    ):
+        return False
+    return counts_for_score(user)
+
+
+def score_reason(attention):
+    """Texto del puntaje operativo de una atención (consulta y exportación)."""
+    if attention.counts_for_score:
+        return "Cuenta"
+    subtype = attention.attention_subtype if attention.attention_subtype_id else None
+    if subtype is not None and not subtype.scores:
+        return "No cuenta (gestión preparatoria)"
+    if attention.employee_relation == "internal":
+        return "No cuenta (gestión interna: solicita un funcionario)"
+    if (
+        attention.requester_employee_id
+        and attention.requester_employee.user_id == attention.responsible_id
+    ):
+        return "No cuenta (el funcionario registró su propia solicitud)"
+    return "No cuenta (ingreso del rol Delegado)"
+
+
+# ---------------------------------------------------------------------------
+# Validación del punto (RN-009, RF-013)
+# ---------------------------------------------------------------------------
+
+#: Decisiones que puede tomar el verificador.
+REVIEW_DECISIONS = ("approved", "rejected", "correction")
+#: Largo mínimo de la observación al rechazar o pedir corrección.
+REVIEW_NOTES_MIN = 5
+
+
+def is_verifier(user):
+    """Verificador: Delegado o rol superior (alcance de rango 1 o más)."""
+    from portal.access import get_role
+
+    role = get_role(user)
+    return role is not None and role.rank >= 1
+
+
+def attention_review_error(attention, user, decision, notes):
+    """Motivo por el que no se puede registrar la revisión ("" si se puede)."""
+    if decision not in REVIEW_DECISIONS:
+        return "Decisión de validación no válida."
+    if not is_verifier(user):
+        return "Solo el delegado o un rol superior valida atenciones."
+    if attention.responsible_id == getattr(user, "pk", None):
+        return "No puedes validar una atención que registraste tú (segregación de funciones)."
+    if decision == "approved" and not (attention.evidence_image or attention.attachment):
+        return (
+            "Para aprobar, la atención debe tener evidencia (imagen o documento) "
+            "asociada a su número."
+        )
+    if decision != "approved" and len((notes or "").strip()) < REVIEW_NOTES_MIN:
+        return "Indica la observación para el funcionario (al menos 5 caracteres)."
+    return ""
+
+
+def apply_attention_review(attention, user, decision, notes):
+    """Guarda la decisión del verificador en la atención."""
+    attention.validation_status = decision
+    attention.validated_by = user
+    attention.validated_at = timezone.now()
+    attention.validation_notes = (notes or "").strip()
+    attention.save(update_fields=[
+        "validation_status", "validated_by", "validated_at", "validation_notes", "updated_at",
+    ])
+    return attention
+
+
+def reset_attention_review(attention):
+    """Vuelve la validación a "Pendiente" (p. ej., al editar datos que puntúan)."""
+    attention.validation_status = "pending"
+    attention.validated_by = None
+    attention.validated_at = None
 
 
 def scoring_attentions(queryset=None):
@@ -158,15 +307,51 @@ def scoring_attentions(queryset=None):
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class AutoClosure:
+    """Cierre automático de una semana (no se guarda en la base de datos).
+
+    Tiene el mismo atributo ``week_start`` que ``WeeklyClosure`` para que las
+    vistas y formularios lo traten igual que un cierre manual.
+    """
+
+    week_start: date
+    automatic: bool = True
+
+
+def auto_closure_deadline(start):
+    """Primer día en que la semana del lunes ``start`` queda cerrada sola.
+
+    La semana (lunes a viernes) se puede completar hasta el lunes siguiente;
+    desde el martes ya no se aceptan ingresos ni ediciones de esa semana.
+    """
+    return start + timedelta(days=AUTO_CLOSURE_DAYS)
+
+
+def is_auto_closed(day, today=None):
+    """¿La semana de ``day`` ya se cerró automáticamente?"""
+    if day is None:
+        return False
+    today = today or local_day()
+    return today >= auto_closure_deadline(week_start(day))
+
+
 def closure_for(delegation_id, day):
-    """Cierre vigente de la semana de ``day`` en la delegación (o ``None``)."""
+    """Cierre vigente de la semana de ``day`` en la delegación (o ``None``).
+
+    Primero se busca un cierre manual; si no hay y ya pasó el plazo (martes
+    de la semana siguiente), se devuelve un ``AutoClosure``.
+    """
     from .models import WeeklyClosure
 
     if not delegation_id or day is None:
         return None
-    return WeeklyClosure.alive.filter(
+    closure = WeeklyClosure.alive.filter(
         delegation_id=delegation_id, week_start=week_start(day),
     ).first()
+    if closure is None and is_auto_closed(day):
+        return AutoClosure(week_start=week_start(day))
+    return closure
 
 
 def is_week_closed(delegation_id, day):
@@ -181,7 +366,10 @@ def attention_closure(attention):
 
 
 def closed_pairs(attentions):
-    """``{(delegation_id, lunes)}`` cerrados entre ``attentions`` (1 consulta)."""
+    """``{(delegation_id, lunes)}`` cerrados entre ``attentions`` (1 consulta).
+
+    Incluye las semanas cerradas automáticamente por plazo.
+    """
     from .models import WeeklyClosure
 
     pairs = {
@@ -191,11 +379,27 @@ def closed_pairs(attentions):
     }
     if not pairs:
         return set()
-    closed = WeeklyClosure.alive.filter(
+    closed = set(WeeklyClosure.alive.filter(
         delegation_id__in={delegation for delegation, _ in pairs},
         week_start__in={start for _, start in pairs},
-    ).values_list("delegation_id", "week_start")
-    return set(closed) & pairs
+    ).values_list("delegation_id", "week_start"))
+    closed |= {pair for pair in pairs if is_auto_closed(pair[1])}
+    return closed & pairs
+
+
+def past_week_entry_error(day, today=None):
+    """Mensaje si ``day`` pertenece a una semana ya cerrada por plazo ("" si no).
+
+    Se usa para registros con fecha ingresada a mano (por ejemplo, el tubo).
+    """
+    if day is None or not is_auto_closed(day, today):
+        return ""
+    start = week_start(day)
+    return (
+        f"La semana {week_label(start)} se cerró el "
+        f"{auto_closure_deadline(start):%d-%m-%Y}: los ingresos de una semana se "
+        "aceptan solo hasta el lunes siguiente."
+    )
 
 
 def close_week(delegation, start, user, notes=""):

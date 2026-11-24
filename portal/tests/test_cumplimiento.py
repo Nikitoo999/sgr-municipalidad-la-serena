@@ -52,9 +52,11 @@ class CumplimientoTests(TestCase):
         meta = InstitutionalGoal.objects.create(name="Meta", weight=100, period=cls.periodo, delegation=delegacion)
         cls.tarea = Task.objects.create(goal=meta, title="Tarea", due_date=date(2026, 12, 1), assigned_to=cls.ana)
 
-    def actividad(self, dia, item, validada=True, estado=Activity.Status.DONE):
+    def actividad(self, dia, item, validada=True, estado=Activity.Status.DONE,
+                  contacto=("Vecina de prueba", "+56 9 1234 5678")):
         act = Activity.objects.create(
             task=self.tarea, name="Act", execution_date=dia, status=estado, item=item,
+            contact_name=contacto[0], contact_phone=contacto[1],
         )
         Evidence.objects.create(activity=act, is_validated=validada)
         return act
@@ -160,10 +162,10 @@ class TuboCumplimientoTests(TestCase):
         cls.ana.position = cargo
         cls.ana.save()
 
-    def solicitud(self, estado, dia=date(2026, 11, 2)):
+    def solicitud(self, estado, dia=date(2026, 11, 2), telefono="+56 9 1234 5678"):
         return TubeEntry.objects.create(
             delegation=self.delegacion, title="Solicitud", requester="JJVV", responsible=self.ana,
-            request_date=dia, status=estado,
+            request_date=dia, status=estado, contact_phone=telefono,
         )
 
     def calcular(self):
@@ -176,6 +178,13 @@ class TuboCumplimientoTests(TestCase):
         fila = self.calcular()["items"][0]
         self.assertEqual(fila["razon"], Decimal("0.9375"))      # 0,75 / 0,80
         self.assertEqual(fila["puntaje"], Decimal("93.75"))
+
+    def test_realizada_sin_telefono_no_suma(self):
+        # Nuevo requerimiento, punto 2: sin nombre y teléfono no hay puntuación.
+        self.solicitud(TubeEntry.Status.DONE)
+        self.solicitud(TubeEntry.Status.DONE, telefono="")
+        fila = self.calcular()["items"][0]
+        self.assertEqual(fila["razon"], Decimal("0.625"))       # 0,50 / 0,80
 
     def test_no_aplica_no_cuenta(self):
         self.solicitud(TubeEntry.Status.DONE)

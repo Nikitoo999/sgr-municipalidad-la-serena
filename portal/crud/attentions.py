@@ -20,6 +20,7 @@ tope de 7 ingresos por funcionario y día, cierre semanal por delegación (bloqu
 ingreso y edición) y los ingresos del rol Delegado no suman al puntaje.
 """
 
+import logging
 from datetime import date, datetime, time, timedelta
 
 from asgiref.sync import async_to_sync
@@ -180,6 +181,8 @@ ATTENTIONS_MODULE = ModuleConfig(
         )),
         ColumnSpec("status_display", "Estado", cell=CELL_STATUS,
                    sort_key="estado", sort_fields=("_estado_orden",)),
+        ColumnSpec("validation_display", "Validación",
+                   sort_key="validacion", sort_fields=("validation_status",)),
     ),
     search_fields=(
         "number", "neighbor__full_name", "neighbor__identifier",
@@ -485,7 +488,28 @@ class _AttentionFormContext:
             if not editing and "delegation" not in form.fields:
                 suffix = "  [Asignada por perfil]"
             fixed_label = f"{fixed.code} | Delegación {fixed.name}{suffix}"
+        subtype_item_map = {
+            subtype.pk: subtype.item_id
+            for subtype in form.fields["attention_subtype"].queryset
+            if subtype.item_id
+        }
+        employee_box_text = ""
+        requester_employee = getattr(form, "requester_employee", None)
+        if requester_employee is not None:
+            employee_box_text = (
+                f"Este RUT corresponde a un funcionario municipal: {requester_employee.full_name} "
+                f"({requester_employee.delegation.code} · {requester_employee.delegation.name}). "
+                "Indica cómo se registra la solicitud:"
+            )
+        if editing and self.object is not None:
+            extra["requester_display"] = self.object.requester_display
+            extra["item_label"] = self.object.item_label
         return {
+            "subtype_item_map": subtype_item_map,
+            "item_available": getattr(form, "item_available", False),
+            "responsible_position": getattr(form, "responsible_position", ""),
+            "selected_organization": getattr(form, "selected_organization", None),
+            "employee_box_text": employee_box_text,
             "subtype_type_map": subtype_type_map,
             "responsible_name": responsible_name,
             "attention_date_text": date_text,
@@ -586,8 +610,23 @@ class AttentionListView(CrudListView):
         return context
 
 
+logger = logging.getLogger(__name__)
+
+
 def _broadcast_attention(obj, action="created"):
-    """Emite en vivo la creación/edición de una atención a su delegación y a ALL."""
+    """Emite en vivo la creación/edición de una atención a su delegación y a ALL.
+
+    El aviso en vivo es accesorio: si Redis no está disponible (o la capa de
+    canales no se puede cargar), la atención ya quedó guardada y no debe
+    responderse un error 500. Se registra en el log del servidor.
+    """
+    try:
+        _send_attention_event(obj, action)
+    except Exception:  # noqa: BLE001 - nunca romper el guardado por el aviso en vivo
+        logger.warning("No se pudo emitir en vivo la atención %s", obj.pk, exc_info=True)
+
+
+def _send_attention_event(obj, action):
     channel_layer = get_channel_layer()
     if channel_layer is None:
         return
@@ -626,8 +665,13 @@ class AttentionCreateView(_AttentionFormContext, CrudCreateView):
             if not limit_error:
                 obj = form.save(commit=False)
                 obj.responsible = user
-                # Los ingresos del rol Delegado no suman al puntaje operativo.
-                obj.counts_for_score = rules.counts_for_score(user)
+                # No suman los ingresos del rol Delegado ni las gestiones
+                # preparatorias (sub atención marcada "no suma puntaje").
+                obj.counts_for_score = rules.attention_counts_for_score(
+                    user, obj.attention_subtype,
+                    employee_relation=obj.employee_relation,
+                    requester_employee=obj.requester_employee,
+                )
                 obj.save()
                 # Notifica solo si la transacción confirma el alta.
                 transaction.on_commit(lambda: _broadcast_attention(obj, "created"))
@@ -688,16 +732,40 @@ class AttentionUpdateView(_AttentionFormContext, CrudUpdateView):
         return context
 
     def form_valid(self, form):
-        obj = form.save()
+        from ..audit import form_changes
+
+        changes = form_changes(form)
+        obj = form.save(commit=False)
+        changed = set(form.changed_data)
+        if "attention_subtype" in changed:
+            # Al cambiar la sub atención se recalcula si suma puntaje, con el
+            # responsable original (no quien edita).
+            obj.counts_for_score = rules.attention_counts_for_score(
+                obj.responsible, obj.attention_subtype,
+                employee_relation=obj.employee_relation,
+                requester_employee=obj.requester_employee,
+            )
+        review_reset = obj.validation_status != "pending" and bool(changed & {
+            "attention_type", "attention_subtype", "item", "description",
+            "evidence_image", "attachment",
+        })
+        if review_reset:
+            # La validación aprobó (o rechazó) otros datos: vuelve a revisión.
+            rules.reset_attention_review(obj)
+        obj.save()
+        form.save_m2m()
         transaction.on_commit(lambda: _broadcast_attention(obj, "updated"))
         audit(
             self.request, "edit", module="attentions",
             object_repr=str(obj), detail=f"Editado por {self.request.user}",
+            changes=changes,
         )
         messages.success(
             self.request,
             f"Cambios guardados. La atención {obj.number} se actualizó y el "
-            "cambio quedó en la auditoría.",
+            "cambio quedó en la auditoría."
+            + (" Como cambiaron datos que puntúan, la validación volvió a «Pendiente»."
+               if review_reset else ""),
         )
         return redirect(self.get_success_url())
 
@@ -716,6 +784,11 @@ class AttentionDetailView(_AttentionFormContext, CrudDetailView):
         context = super().get_context_data(**kwargs)
         context.update(self.attention_form_context(context["form"]))
         context.update(follow_up_context(self.request, self.object))
+        from .attention_extras import review_context
+
+        context.update(review_context(
+            self.request, self.object, get_access(self.request).can("attentions", "edit"),
+        ))
         return context
 
 
@@ -753,7 +826,8 @@ class AttentionExportView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMix
 
         headers = ["N°", "Fecha y hora", "Solicitante", "Tipo", "Sub atención",
                    "Delegación", "Responsable", "Estado", "Requiere visita",
-                   "Gestiones", "Puntaje operativo", "Semana cerrada"]
+                   "Gestiones", "Puntaje operativo", "Semana cerrada",
+                   "Ítem de la matriz", "Comparecencia", "Validación"]
 
         workbook = Workbook()
         sheet = workbook.active
@@ -782,6 +856,9 @@ class AttentionExportView(LoginRequiredMixin, ModulePermissionMixin, CrudBaseMix
                 "Sí" if (
                     obj.delegation_id, rules.week_start(rules.local_day(obj.created_at)),
                 ) in closed else "No",
+                obj.item_label,
+                obj.requester_display,
+                obj.validation_display,
             ]
             for col_index, value in enumerate(values, start=1):
                 cell = sheet.cell(row=row_index, column=col_index, value=value)
@@ -829,7 +906,8 @@ class AttentionNeighborsView(LoginRequiredMixin, ModulePermissionMixin, View):
             for neighbor in Neighbor.alive.filter(matches).order_by("full_name")[:10]:
                 results.append({
                     "pk": neighbor.pk,
-                    "label": f"{neighbor.identifier} | {neighbor.full_name}",
+                    "label": f"{neighbor.identifier} | {neighbor.full_name}"
+                             + (" · Funcionario municipal" if neighbor.employee_id else ""),
                     "rut": neighbor.identifier,
                     "name": neighbor.full_name,
                     "phone": neighbor.phone,

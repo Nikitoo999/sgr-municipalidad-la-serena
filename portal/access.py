@@ -49,6 +49,24 @@ ACTIVE_DELEGATION_KEY = 'active_delegation'
 
 ALL_DELEGATIONS = 'ALL'
 
+
+def _get_employee(request):
+    return getattr(request.user, "employee", None)
+
+
+def _is_jefatura(request):
+    emp = _get_employee(request)
+    if emp is None or emp.role_id is None:
+        return False
+    return emp.role.scope in ("authorized", "own_delegation")
+
+
+def _is_funcionario(request):
+    emp = _get_employee(request)
+    if emp is None or emp.role_id is None:
+        return False
+    return emp.role.scope == "own_records"
+
 # Rango máximo que un usuario puede asignar. Ver "blindaje" a continuación.
 # 3 = Superadmin, 2 = Coordinador, 1 = Delegado, 0 = Funcionario
 MAX_ASSIGNABLE_RANK = 2  # nadie puede asignar Superadmin (3), Coordinador (2) a sí mismo
@@ -408,3 +426,10 @@ class AdminScopedMixin:
         if hasattr(request.user, 'employee'):
             return qs.filter(employee__delegation=request.user.employee.delegation)
         return qs.none()
+
+    def has_module_permission(self, request):
+        if request.user.is_superuser or _is_jefatura(request):
+            return super().has_module_permission(request)
+        if _is_funcionario(request):
+            return False
+        return super().has_module_permission(request)

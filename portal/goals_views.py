@@ -1,15 +1,13 @@
-from collections import defaultdict
-from decimal import Decimal
-
 """Metas por funcionario: asignación según cargo y trimestre (3.4)."""
 from collections import defaultdict
 from decimal import Decimal
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Prefetch
 from django.views.generic import TemplateView
 
 from operaciones.calculos import dias_habiles, dias_libres, factor_ajuste, meta_ajustada
-from operaciones.models import Employee
+from operaciones.models import Employee, EmployeeDayOff
 from sgr_core.models import Period, PositionItemGoal
 
 from . import access
@@ -24,6 +22,11 @@ def elegir_periodo(request, periodos):
         for periodo in periodos:
             if periodo.pk == int(pedido):
                 return periodo
+    from operaciones.calculos import periodo_vigente
+
+    vigente = periodo_vigente()
+    if vigente is not None and vigente in periodos:
+        return vigente
     for periodo in periodos:
         if periodo.status == "En curso":
             return periodo
@@ -36,7 +39,9 @@ def funcionarios_del_alcance(request):
     active = access.get_active_delegation(request)
     qs = Employee.objects.filter(
         deleted_at__isnull=True, user__is_active=True, position__isnull=False,
-    ).select_related("user", "delegation", "position")
+    ).select_related("user", "delegation", "position").prefetch_related(
+        Prefetch("days_off", queryset=EmployeeDayOff.objects.filter(deleted_at__isnull=True)),
+    )
     if role is None or active is None:
         return qs.none()
     if active != access.ALL_DELEGATIONS:

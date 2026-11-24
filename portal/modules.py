@@ -17,6 +17,9 @@ MODULE_ORDER = (
     "tasks",
     "achievements",
     "reports",
+    "organizations",
+    "positions",
+    "periods",
 )
 
 MODULE_LABELS = {
@@ -31,6 +34,9 @@ MODULE_LABELS = {
     "tasks": "Agenda de tareas",
     "achievements": "Cumplimiento",
     "reports": "Reportes",
+    "organizations": "Organizaciones",
+    "positions": "Cargos y metas",
+    "periods": "Períodos y cierre",
 }
 
 MODULE_DESCRIPTIONS = {
@@ -45,6 +51,9 @@ MODULE_DESCRIPTIONS = {
     "tasks": "Agenda de tareas y actividades del equipo.",
     "achievements": "Registro de cumplimiento de las metas.",
     "reports": "Reportes de gestión y resultados.",
+    "organizations": "Juntas de vecinos y organizaciones funcionales de la comuna.",
+    "positions": "Cargos del descriptor de funciones, ítems, ponderadores y metas.",
+    "periods": "Trimestres de medición, cierre y traspaso de pendientes.",
 }
 
 # Iconos exactos de la referencia: Inicio=home, Delegaciones=building,
@@ -63,6 +72,9 @@ MODULE_ICONS = {
     "tasks": "calendar",
     "achievements": "chart",
     "reports": "report",
+    "organizations": "users",
+    "positions": "flag",
+    "periods": "calendar",
 }
 
 #: URL names de los placeholders "en construcción" (Partes 4 a 7).
@@ -78,4 +90,7 @@ MODULE_URL_NAMES = {
     "tasks": "tasks",
     "achievements": "achievements",
     "reports": "reports",
+    "organizations": "organizations",
+    "positions": "positions",
+    "periods": "periods",
 }

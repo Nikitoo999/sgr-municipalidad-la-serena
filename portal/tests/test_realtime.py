@@ -48,6 +48,11 @@ class ConsumerAuthorizationHelperTests(TestCase):
         self.assertTrue(_user_can_access_delegation(self.funcionario_b.user, "DEL02"))
 
 
+# Las pruebas validan la lógica de los consumers (autenticación, ámbito y
+# difusión), no el servidor Redis: se usa la capa en memoria de Channels.
+IN_MEMORY_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+
+
 class _RecordingLayer:
     """Channel layer de mentira que registra las llamadas a ``group_send``."""
 
@@ -58,7 +63,7 @@ class _RecordingLayer:
         self.calls.append((group, message))
 
 
-@override_settings(STORAGES=TEST_STORAGES)
+@override_settings(STORAGES=TEST_STORAGES, CHANNEL_LAYERS=IN_MEMORY_LAYERS)
 class DelegationChatConsumerTests(TransactionTestCase):
     def setUp(self):
         self.roles = ensure_roles()
@@ -114,7 +119,7 @@ class DelegationChatConsumerTests(TransactionTestCase):
         await communicator.disconnect()
 
 
-@override_settings(STORAGES=TEST_STORAGES)
+@override_settings(STORAGES=TEST_STORAGES, CHANNEL_LAYERS=IN_MEMORY_LAYERS)
 class AttentionLiveConsumerTests(TransactionTestCase):
     def setUp(self):
         self.roles = ensure_roles()
@@ -168,7 +173,7 @@ class AttentionEventEmissionTests(TestCase):
         cls.roles = ensure_roles()
         cls.d1 = make_delegation("Centro", "DEL01", color="#C62828")
         cls.coordinador = make_employee(
-            "coordinador", "11.111.111-1", cls.d1, cls.roles["ROL02"],
+            "coordinador", "11.111.199-9", cls.d1, cls.roles["ROL02"],
         )
         cls.coordinador.authorized_delegations.set([cls.d1])
         cls.tipo = AttentionType.objects.create(code="TAT01", name="Social")
@@ -199,6 +204,21 @@ class AttentionEventEmissionTests(TestCase):
             self.assertEqual(payload["solicitante"], "María González")
             self.assertIn("fecha", payload)
 
+    def test_sin_redis_la_atencion_igual_se_guarda(self):
+        """Si la capa de canales falla (Redis apagado), no hay error 500."""
+
+        class _BrokenLayer:
+            async def group_send(self, group, message):
+                raise ConnectionError("Redis no disponible")
+
+        with mock.patch("portal.crud.attentions.get_channel_layer", return_value=_BrokenLayer()):
+            self.client.login(username="coordinador", password=DEMO_PASSWORD)
+            with self.assertLogs("portal.crud.attentions", level="WARNING"):
+                with self.captureOnCommitCallbacks(execute=True):
+                    resp = self.client.post(reverse("attentions_new"), self._post_data())
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Neighbor.objects.get(pk=self.vecino.pk).attentions.exists())
+
     def _post_data(self):
         return {
             "neighbor_rut": self.vecino.identifier,
@@ -209,3 +229,50 @@ class AttentionEventEmissionTests(TestCase):
             "attention_subtype": str(self.sub.pk),
             "description": "Descripción válida de la atención ingresada.",
         }
+
+
+@override_settings(STORAGES=TEST_STORAGES, CHANNEL_LAYERS=IN_MEMORY_LAYERS)
+class HeartbeatAndChatInputTests(TransactionTestCase):
+    """El ping del navegador recibe pong y el chat ignora entradas inválidas."""
+
+    def setUp(self):
+        self.roles = ensure_roles()
+        self.d1 = make_delegation("Centro", "DEL01", color="#C62828")
+        self.coordinador = make_employee(
+            "coordinador", "11.111.111-1", self.d1, self.roles["ROL02"],
+        )
+        self.coordinador.authorized_delegations.set([self.d1])
+
+    def _communicator(self, path):
+        communicator = WebsocketCommunicator(
+            application, path, headers=[(b"origin", b"http://localhost")],
+        )
+        communicator.scope["user"] = self.coordinador.user
+        return communicator
+
+    def test_ping_recibe_pong_en_ambos_canales(self):
+        async_to_sync(self._run_ping)()
+
+    async def _run_ping(self):
+        for path in ("/ws/atenciones/DEL01/", "/ws/chat/DEL01/"):
+            communicator = self._communicator(path)
+            connected, _ = await communicator.connect()
+            self.assertTrue(connected)
+            await communicator.send_json_to({"type": "ping"})
+            self.assertEqual(await communicator.receive_json_from(timeout=5), {"type": "pong"})
+            await communicator.disconnect()
+
+    def test_chat_ignora_mensajes_invalidos(self):
+        async_to_sync(self._run_invalidos)()
+
+    async def _run_invalidos(self):
+        communicator = self._communicator("/ws/chat/DEL01/")
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+        for basura in ({"message": "   "}, {"message": 123}, {"type": "otro", "message": "x"}, ["lista"]):
+            await communicator.send_json_to(basura)
+        self.assertTrue(await communicator.receive_nothing(timeout=0.5))
+        await communicator.send_json_to({"message": "  hola  "})
+        response = await communicator.receive_json_from(timeout=5)
+        self.assertEqual(response["message"], "hola")
+        await communicator.disconnect()

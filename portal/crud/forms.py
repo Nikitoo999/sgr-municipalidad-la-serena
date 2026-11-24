@@ -10,15 +10,18 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
 from django.core.validators import RegexValidator
-from django.db import transaction
+from django.db import models, transaction
 
 from operaciones import rules as attention_rules
 from operaciones.models import Attention, Employee, Neighbor
+from sgr_core.models import DirectiveRole, OrganizationMember
 from portal.validators import normalize_phone, validate_full_name, validate_rut
 from sgr_core.models import (
     AttentionSubtype,
     AttentionType,
+    CommunityOrganization,
     Delegation,
+    Position,
     ProjectItem,
     Role,
     RolePermission,
@@ -417,18 +420,23 @@ class UserForm(CrudModelForm):
 
     class Meta:
         model = Employee
-        fields = ("rut", "phone", "address", "role")
+        fields = ("rut", "phone", "address", "role", "position")
         labels = {
             "rut": "RUT",
             "phone": "Teléfono",
             "address": "Dirección",
             "role": "Rol",
+            "position": "Cargo",
         }
         help_texts = {
             "rut": "RUT del funcionario, por ejemplo 12.345.678-5. Debe ser único.",
             "phone": "Teléfono de contacto (opcional).",
             "address": "Dirección o referencia (opcional).",
             "role": "Solo se pueden asignar roles de menor alcance que el tuyo.",
+            "position": (
+                "Cargo según el descriptor de funciones. Define los ítems y metas "
+                "con que se mide al funcionario en la matriz."
+            ),
         }
         widgets = {
             "rut": forms.TextInput(
@@ -448,11 +456,24 @@ class UserForm(CrudModelForm):
                 attrs={"class": "in", "id": "id_role",
                        "aria-describedby": "id_role-help id_role-e"},
             ),
+            "position": forms.Select(
+                attrs={"class": "in", "aria-describedby": "id_position-help id_position-e"},
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.operator = getattr(self.request, "user", None)
+        # Cargos activos (al editar se conserva el actual aunque esté inactivo).
+        positions = Position.alive.filter(status="Activo")
+        current_position = getattr(self.instance, "position_id", None)
+        if current_position:
+            positions = Position.alive.filter(
+                models.Q(status="Activo") | models.Q(pk=current_position)
+            )
+        self.fields["position"].queryset = positions.order_by("code")
+        self.fields["position"].required = False
+        self.fields["position"].empty_label = "Sin cargo (no se mide en la matriz)"
         employee = getattr(self, "instance", None)
         self.editing = employee is not None and employee.pk is not None
 
@@ -877,16 +898,21 @@ class AttentionSubtypeForm(CrudModelForm):
 
     class Meta:
         model = AttentionSubtype
-        fields = ("code", "name", "attention_type", "status")
+        fields = ("code", "name", "attention_type", "scores", "status")
         labels = {
             "code": "Código",
             "name": "Nombre de la sub atención",
             "attention_type": "Tipo de atención",
+            "scores": "Suma puntaje",
             "status": "Estado",
         }
         help_texts = {
             "name": "Nombre visible de la sub atención.",
             "attention_type": "Solo se ofrecen tipos activos.",
+            "scores": (
+                "Desmárcalo si es una gestión preparatoria (coordinación, correo, "
+                "invitación): el punto se da cuando se realiza la acción."
+            ),
             "status": "Una sub atención inactiva no aparece en los formularios nuevos.",
         }
         widgets = {
@@ -901,6 +927,9 @@ class AttentionSubtypeForm(CrudModelForm):
             "attention_type": forms.Select(
                 attrs={"class": "in",
                        "aria-describedby": "id_attention_type-help id_attention_type-e"},
+            ),
+            "scores": forms.CheckboxInput(
+                attrs={"class": "chk", "aria-describedby": "id_scores-help"},
             ),
             "status": forms.Select(
                 attrs={"class": "in", "aria-describedby": "id_status-help id_status-e"},
@@ -940,6 +969,12 @@ class AttentionForm(CrudModelForm):
     - Tope diario (2.7): máximo 7 ingresos por funcionario y día.
     - Cierre semanal (2.7): no se ingresa en una semana cerrada de la
       delegación ni se edita una atención de una semana cerrada.
+    - Ítem de la matriz (RF-003/RF-009): solo los ítems que mide el cargo del
+      responsable en el período vigente.
+    - Comparecencia: persona natural o directivo de una organización (con su
+      organización, cargo directivo y, si existe, el integrante del organigrama).
+    - Funcionario como civil: si el RUT es el de un funcionario, se debe indicar
+      si acude como civil o si es una gestión interna (no se bloquea).
 
     Las reglas de negocio viven en ``operaciones.rules``.
     """
@@ -978,7 +1013,9 @@ class AttentionForm(CrudModelForm):
     class Meta:
         model = Attention
         fields = (
-            "delegation", "attention_type", "attention_subtype", "description",
+            "requester_mode", "organization", "organization_member", "directive_role",
+            "employee_relation",
+            "delegation", "attention_type", "attention_subtype", "item", "description",
             "requires_visit", "status", "unresolved_reason",
             "evidence_image", "attachment",
         )
@@ -990,9 +1027,21 @@ class AttentionForm(CrudModelForm):
             "requires_visit": "Requiere visita a terreno",
             "status": "Estado",
             "unresolved_reason": "Motivo de baja (Sin resolver)",
+            "item": "Ítem de la matriz",
+            "requester_mode": "¿Cómo acude la persona?",
+            "organization": "Organización",
+            "organization_member": "Directivo en el organigrama",
+            "directive_role": "Cargo directivo",
+            "employee_relation": "El solicitante es funcionario municipal",
         }
         widgets = {
             "delegation": forms.Select(attrs={"class": "in"}),
+            "item": forms.Select(attrs={"class": "in"}),
+            "requester_mode": forms.RadioSelect(attrs={"class": "radio-inline"}),
+            "organization": forms.HiddenInput(),
+            "organization_member": forms.Select(attrs={"class": "in"}),
+            "directive_role": forms.Select(attrs={"class": "in"}),
+            "employee_relation": forms.RadioSelect(),
             "attention_type": forms.Select(attrs={"class": "in"}),
             "attention_subtype": forms.Select(attrs={"class": "in"}),
             "description": forms.Textarea(
@@ -1063,6 +1112,127 @@ class AttentionForm(CrudModelForm):
         for name, message in required.items():
             if name in self.fields:
                 self.fields[name].error_messages["required"] = message
+
+        self._setup_item(request, editing)
+        self._setup_requester(request, editing)
+
+    # ---------------------------------------------------------------
+    # Ítem de la matriz y comparecencia
+    # ---------------------------------------------------------------
+
+    def _responsible_employee(self, request):
+        """Funcionario responsable: el de la atención o el usuario de sesión."""
+        if self.instance.pk is not None and self.instance.responsible_id:
+            return getattr(self.instance.responsible, "employee", None)
+        user = getattr(request, "user", None)
+        return getattr(user, "employee", None) if user is not None else None
+
+    def _setup_item(self, request, editing):
+        from operaciones.calculos import periodo_vigente
+
+        employee = self._responsible_employee(request)
+        items = attention_rules.items_for_employee(employee, periodo_vigente())
+        if editing and self.instance.item_id:
+            items = self._with_current(items, self.instance.item_id)
+        field = self.fields["item"]
+        field.queryset = items
+        field.required = False
+        field.empty_label = "Sin ítem (no suma a la matriz)"
+        self.item_available = items.exists()
+        self.responsible_position = (
+            employee.position.name if employee is not None and employee.position_id else ""
+        )
+
+    def _setup_requester(self, request, editing):
+        self.requester_employee = None
+        names = ("requester_mode", "organization", "organization_member",
+                 "directive_role", "employee_relation")
+        if editing:
+            # La comparecencia no cambia al editar: se muestra como texto.
+            for name in names:
+                self.fields.pop(name, None)
+            return
+        mode = self.fields["requester_mode"]
+        mode.choices = Attention.RequesterMode.choices
+        mode.initial = Attention.RequesterMode.PERSON
+        mode.required = False
+        self.fields["organization"].queryset = CommunityOrganization.alive.all()
+        self.fields["organization"].required = False
+        self.fields["directive_role"].queryset = DirectiveRole.alive.filter(status="Activo")
+        self.fields["directive_role"].required = False
+        self.fields["directive_role"].empty_label = "Selecciona el cargo"
+        # Solo los integrantes de la organización enviada (el JavaScript carga
+        # las opciones; el servidor valida contra este mismo conjunto).
+        members = OrganizationMember.alive.select_related("role")
+        org_pk = self.data.get("organization") if self.is_bound else None
+        if org_pk and str(org_pk).isdigit():
+            members = members.filter(organization_id=int(org_pk))
+        else:
+            members = members.none()
+        member_field = self.fields["organization_member"]
+        member_field.queryset = members
+        member_field.required = False
+        member_field.empty_label = "-- Ingreso manual del directivo --"
+        relation = self.fields["employee_relation"]
+        relation.choices = [
+            ("civil", "Atender como civil (vecino): sigue el flujo normal."),
+            ("internal", "Es una gestión interna: queda como otra gestión y no suma puntaje."),
+        ]
+        relation.required = False
+
+    @property
+    def selected_organization(self):
+        """Organización elegida (para volver a mostrarla si hay errores)."""
+        if "organization" not in self.fields:
+            return None
+        value = self.data.get("organization") if self.is_bound else None
+        if value and str(value).isdigit():
+            return CommunityOrganization.alive.filter(pk=int(value)).first()
+        return None
+
+    def _organization_in_scope(self, organization):
+        user = getattr(self.request, "user", None)
+        role = get_role(user) if user is not None else None
+        if role is not None and role.scope == "all":
+            return True
+        allowed = {d.pk for d in allowed_delegations(user)} if user is not None else set()
+        return organization.delegation_id is None or organization.delegation_id in allowed
+
+    def _clean_requester(self, cleaned):
+        """Comparecencia (persona o directivo) y funcionario como solicitante."""
+        mode = cleaned.get("requester_mode") or Attention.RequesterMode.PERSON
+        cleaned["requester_mode"] = mode
+        if mode == Attention.RequesterMode.DIRECTIVE:
+            organization = cleaned.get("organization")
+            member = cleaned.get("organization_member")
+            if organization is None:
+                self.add_error("organization", "Busca y selecciona la organización del directivo.")
+            elif not self._organization_in_scope(organization):
+                self.add_error("organization", "La organización no pertenece a tus delegaciones.")
+            if member is not None and organization is not None and member.organization_id != organization.pk:
+                self.add_error("organization_member", "El directivo no pertenece a la organización elegida.")
+            if cleaned.get("directive_role") is None:
+                if member is not None:
+                    cleaned["directive_role"] = member.role
+                else:
+                    self.add_error("directive_role", "Indica el cargo directivo de la persona.")
+        else:
+            cleaned["organization"] = None
+            cleaned["organization_member"] = None
+            cleaned["directive_role"] = None
+
+        rut = cleaned.get("neighbor_rut")
+        employee = attention_rules.employee_for_rut(rut) if rut else None
+        self.requester_employee = employee
+        if employee is None:
+            cleaned["employee_relation"] = ""
+        elif cleaned.get("employee_relation") not in ("civil", "internal"):
+            self.add_error(
+                "employee_relation",
+                f"El RUT corresponde a un funcionario municipal ({employee.full_name}, "
+                f"{employee.delegation.name}). Indica si acude como civil o si es una "
+                "gestión interna.",
+            )
 
     @staticmethod
     def _with_current(qs, current_pk):
@@ -1154,6 +1324,7 @@ class AttentionForm(CrudModelForm):
             self._clean_editing(cleaned)
         else:
             self._clean_creating(delegation)
+            self._clean_requester(cleaned)
         return cleaned
 
     def _clean_creating(self, delegation):
@@ -1229,6 +1400,13 @@ class AttentionForm(CrudModelForm):
         instance = super().save(commit=False)
         if instance.pk is None:
             instance.neighbor = self._resolve_neighbor()
+            employee = self.requester_employee
+            instance.requester_employee = employee
+            if employee is not None and instance.neighbor.employee_id != employee.pk:
+                # Misma persona: el registro de vecino queda vinculado al
+                # funcionario (trazabilidad, sin duplicar identidades).
+                instance.neighbor.employee = employee
+                instance.neighbor.save(update_fields=["employee", "updated_at"])
             # Delegación fija por perfil (crear): el formulario no la incluye.
             if "delegation" not in self.fields:
                 instance.delegation = self.fixed_delegation
@@ -1254,3 +1432,108 @@ class FollowUpForm(forms.Form):
         if len(text) > 500:
             raise forms.ValidationError("La gestión no puede superar los 500 caracteres.")
         return text
+
+
+class CommunityOrganizationForm(CrudModelForm):
+    """Organización comunitaria (Unidad 3: base de organizaciones comunitarias).
+
+    Juntas de vecinos y organizaciones funcionales (adulto mayor, deportivas,
+    culturales, comités...). La delegación se elige entre las que el operador
+    puede gestionar; quien no tiene alcance "todas" debe asignar una.
+    """
+
+    full_width_fields = ("name", "legal_address", "notes")
+
+    class Meta:
+        model = CommunityOrganization
+        fields = (
+            "name", "category", "delegation", "territory", "legal_address",
+            "active_members", "registry_number", "directive_number",
+            "constitution_date", "registry_date", "verified", "status", "notes",
+        )
+        labels = {
+            "name": "Nombre de la organización",
+            "category": "Categoría",
+            "delegation": "Delegación",
+            "territory": "Territorio",
+            "legal_address": "Domicilio legal",
+            "active_members": "Socios activos",
+            "registry_number": "N° registro personalidad jurídica",
+            "directive_number": "N° registro de directiva",
+            "constitution_date": "Fecha de constitución",
+            "registry_date": "Fecha de inscripción en registro",
+            "verified": "Datos verificados",
+            "status": "Estado",
+            "notes": "Observaciones",
+        }
+        help_texts = {
+            "name": "Nombre completo, tal como figura en el registro.",
+            "category": "Junta de vecinos (territorial) u organización funcional.",
+            "territory": "Sector o territorio de la delegación (opcional).",
+            "registry_number": "Si se indica, no puede repetirse en otra organización.",
+            "verified": "Márcalo cuando los datos se hayan confirmado con la directiva.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "in", "maxlength": 200,
+                                           "placeholder": "Junta de Vecinos Villa El Sol"}),
+            "category": forms.Select(attrs={"class": "in"}),
+            "delegation": forms.Select(attrs={"class": "in"}),
+            "territory": forms.TextInput(attrs={"class": "in", "maxlength": 30}),
+            "legal_address": forms.TextInput(attrs={"class": "in", "maxlength": 255}),
+            "active_members": forms.NumberInput(attrs={"class": "in", "min": 0}),
+            "registry_number": forms.TextInput(attrs={"class": "in", "maxlength": 20}),
+            "directive_number": forms.TextInput(attrs={"class": "in", "maxlength": 20}),
+            "constitution_date": forms.DateInput(attrs={"class": "in", "type": "date"}, format="%Y-%m-%d"),
+            "registry_date": forms.DateInput(attrs={"class": "in", "type": "date"}, format="%Y-%m-%d"),
+            "verified": forms.CheckboxInput(attrs={"class": "chk"}),
+            "status": forms.Select(attrs={"class": "in"}),
+            "notes": forms.Textarea(attrs={"class": "in", "rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.request
+        user = getattr(request, "user", None)
+        allowed = allowed_delegations(user) if user is not None else []
+        pks = {d.pk for d in allowed}
+        if self.instance.pk and self.instance.delegation_id:
+            pks.add(self.instance.delegation_id)
+        self.fields["delegation"].queryset = Delegation.objects.filter(pk__in=pks).order_by("name")
+        role = get_role(user) if user is not None else None
+        self.fields["delegation"].required = not (role is not None and role.scope == "all")
+        active = get_active_delegation(request) if request is not None else None
+        if (not self.instance.pk and active not in (None, ALL_DELEGATIONS)
+                and active.pk in pks):
+            self.initial.setdefault("delegation", active.pk)
+
+    def clean_name(self):
+        name = " ".join((self.cleaned_data.get("name") or "").split())
+        if len(name) < 3:
+            raise forms.ValidationError("Ingresa el nombre de la organización (al menos 3 caracteres).")
+        return name.upper()
+
+    def clean_registry_number(self):
+        number = (self.cleaned_data.get("registry_number") or "").strip()
+        if number:
+            duplicate = CommunityOrganization.alive.filter(registry_number__iexact=number)
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise forms.ValidationError(
+                    f"Ya existe una organización con el N° de registro {number}."
+                )
+        return number
+
+    def clean(self):
+        cleaned = super().clean()
+        name, delegation = cleaned.get("name"), cleaned.get("delegation")
+        if name:
+            duplicate = CommunityOrganization.alive.filter(name__iexact=name, delegation=delegation)
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                self.add_error("name", "Ya existe una organización con ese nombre en la delegación.")
+        start, end = cleaned.get("constitution_date"), cleaned.get("registry_date")
+        if start and end and end < start:
+            self.add_error("registry_date", "La inscripción no puede ser anterior a la constitución.")
+        return cleaned

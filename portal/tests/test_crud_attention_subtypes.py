@@ -182,6 +182,6 @@ class CrudAttentionSubtypesTestCase(TestCase):
         resp = self.client.get(reverse("attention_subtypes_export"))
         sheet = load_workbook(filename=io.BytesIO(resp.content)).active
         headers = [cell.value for cell in sheet[1]]
-        self.assertEqual(headers, ["Código", "Nombre", "Tipo asociado", "Estado"])
+        self.assertEqual(headers, ["Código", "Nombre", "Tipo asociado", "Suma puntaje", "Estado"])
         self.assertEqual(sheet.max_row - 1, AttentionSubtype.alive.count())
 

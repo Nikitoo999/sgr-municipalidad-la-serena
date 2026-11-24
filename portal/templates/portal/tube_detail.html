@@ -1,0 +1,136 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ e.code }} · Tubo{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">
+<style>
+  .td-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;margin:12px 0}
+  .td-grid div{display:grid;gap:2px}
+  .td-grid dt{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .td-grid dd{margin:0;font-weight:600}
+  .td-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:6px}
+  .td-actions form{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px;align-content:start}
+  .td-actions h3{font-size:14px;margin:0}
+  .td-hist{width:100%;border-collapse:collapse;font-size:14px}
+  .td-hist th,.td-hist td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'tubes' %}">Tubos</a> / {{ e.code }}</nav>
+<div class="titlebar"><h1>{{ e.code }} · {{ e.title }}</h1></div>
+
+<section class="card">
+  <p>
+    <span class="badge {% if e.status == 'done' %}b-ok{% elif e.status == 'pending' %}b-warn{% else %}b-info{% endif %}">{{ e.get_status_display }}</span>
+    {% if e.priority %}<span class="badge b-prio">PRIORITARIO</span>{% endif %}
+    {% if e.vencida %}<span class="badge b-bad">Vencida</span>{% elif e.proxima %}<span class="badge b-warn">Próxima a vencer</span>{% endif %}
+    {% if e.fuera_de_plazo %}<span class="badge b-warn">Realizada fuera de plazo</span>{% endif %}
+    {% if not e.has_contact %}<span class="badge b-off">Sin teléfono: no suma puntaje</span>{% endif %}
+  </p>
+  {% if e.priority_reason %}<p class="meta">{{ e.priority_reason }}</p>{% endif %}
+  <dl class="td-grid">
+    <div><dt>Canal</dt><dd>{{ e.get_channel_display }}</dd></div>
+    <div><dt>Delegación</dt><dd>{{ e.delegation.code }} · {{ e.delegation.name }}</dd></div>
+    <div><dt>Solicitante</dt><dd>{{ e.requester }}{% if e.organization %} · {{ e.organization.name }}{% endif %}</dd></div>
+    <div><dt>Teléfono</dt><dd>{{ e.contact_phone|default:"—" }}</dd></div>
+    <div><dt>Territorio</dt><dd>{{ e.territory|default:"—" }}</dd></div>
+    <div><dt>Origen</dt><dd>{{ e.get_origin_display }}</dd></div>
+    <div><dt>Responsable</dt><dd>{% if e.responsible %}{{ e.responsible.full_name }}{% else %}Sin asignar{% endif %}</dd></div>
+    <div><dt>Área de apoyo</dt><dd>{{ e.support_area|default:"—" }}</dd></div>
+    <div><dt>Fecha de solicitud</dt><dd>{{ e.request_date|date:"d/m/Y" }}</dd></div>
+    <div><dt>Compromiso</dt><dd>{{ e.due_date|date:"d/m/Y"|default:"—" }}</dd></div>
+    <div><dt>Código de verificación</dt><dd>{{ e.verification_code }}</dd></div>
+    {% if e.letter_number %}<div><dt>N° de carta</dt><dd>{{ e.letter_number }}</dd></div>{% endif %}
+    {% if e.completed_at %}<div><dt>Realizada el</dt><dd>{{ e.completed_at|date:"d/m/Y H:i" }}</dd></div>{% endif %}
+    {% if e.carried_to_period %}<div><dt>Traspasada al período</dt><dd>{{ e.carried_to_period.name }}</dd></div>{% endif %}
+  </dl>
+  {% if e.notes %}<p><strong>Avance y observaciones:</strong> {{ e.notes }}</p>{% endif %}
+  {% if e.proof_image %}<p><a href="{{ e.proof_image.url }}" target="_blank" rel="noopener">Ver foto de respaldo</a></p>{% endif %}
+</section>
+
+{% if can_edit and e.status != 'done' and e.status != 'not_applicable' %}
+<section class="card" aria-labelledby="accTitle" style="margin-top:14px">
+  <h2 id="accTitle">Acciones</h2>
+  <div class="td-actions">
+    <form method="post" action="{% url 'tube_status' e.pk %}{% if sgr_embed %}?modal=1{% endif %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ volver }}">
+      <h3>Cambiar estado</h3>
+      <label class="sr" for="td-status">Nuevo estado</label>
+      <select class="in" id="td-status" name="status">
+        {% for valor, etiqueta in estados_editables %}<option value="{{ valor }}"{% if e.status == valor %} selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+      <label class="sr" for="td-status-notes">Observación</label>
+      <input class="in" id="td-status-notes" name="notes" maxlength="500" placeholder="Observación (opcional)">
+      <button class="btn soft" type="submit">Guardar estado</button>
+    </form>
+    <form method="post" action="{% url 'tube_reschedule' e.pk %}{% if sgr_embed %}?modal=1{% endif %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ volver }}">
+      <h3>Reprogramar compromiso</h3>
+      <label class="sr" for="td-due">Nueva fecha</label>
+      <input class="in" id="td-due" type="date" name="due_date" min="{{ e.request_date|date:'Y-m-d' }}" required>
+      <label class="sr" for="td-due-notes">Motivo</label>
+      <input class="in" id="td-due-notes" name="notes" maxlength="500" required placeholder="Motivo (avisa al usuario)">
+      <button class="btn soft" type="submit">Reprogramar</button>
+    </form>
+    <form method="post" action="{% url 'tube_reassign' e.pk %}{% if sgr_embed %}?modal=1{% endif %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ volver }}">
+      <h3>Reasignar responsable</h3>
+      <label class="sr" for="td-resp">Nuevo responsable</label>
+      <select class="in" id="td-resp" name="responsible" required>
+        <option value="">Elige un funcionario</option>
+        {% for r in responsables %}<option value="{{ r.pk }}"{% if r.pk == e.responsible_id %} disabled{% endif %}>{{ r.full_name }}</option>{% endfor %}
+      </select>
+      <label class="sr" for="td-resp-notes">Motivo</label>
+      <input class="in" id="td-resp-notes" name="notes" maxlength="500" required placeholder="Motivo (vacaciones, licencia, carga...)">
+      <button class="btn soft" type="submit">Reasignar</button>
+    </form>
+    <form method="post" action="{% url 'tube_close' e.pk %}{% if sgr_embed %}?modal=1{% endif %}" enctype="multipart/form-data">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ volver }}">
+      <h3>Cerrar como realizada</h3>
+      <label class="sr" for="td-photo">Foto de respaldo</label>
+      <input class="in" id="td-photo" type="file" name="proof_image" accept="image/*" required>
+      <label class="sr" for="td-code">Código de verificación</label>
+      <input class="in" id="td-code" name="code" maxlength="8" required placeholder="Código que aparece en la foto" style="text-transform:uppercase">
+      <button class="btn primary" type="submit">Cerrar solicitud</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+<section class="card" aria-labelledby="histTitle" style="margin-top:14px">
+  <h2 id="histTitle">Historial</h2>
+  {% if historial %}
+  <table class="td-hist">
+    <thead><tr><th scope="col">Fecha</th><th scope="col">Cambio</th><th scope="col">Anterior → nuevo</th><th scope="col">Autor</th><th scope="col">Observación</th></tr></thead>
+    <tbody>
+    {% for h in historial %}
+    <tr>
+      <td>{{ h.created_at|date:"d/m/Y H:i" }}</td>
+      <td>{{ h.get_kind_display }}</td>
+      <td>{% if h.from_value %}{{ h.from_value }} → {% endif %}{{ h.to_value|default:"—" }}</td>
+      <td>{% if h.changed_by %}{{ h.changed_by.get_full_name|default:h.changed_by.username }}{% else %}—{% endif %}</td>
+      <td>{{ h.notes|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="meta">Sin cambios registrados (solicitud anterior al historial).</p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="cmtTitle" style="margin-top:14px">
+  <h2 id="cmtTitle">Comentarios y coordinación</h2>
+  {% for c in comentarios %}
+  <p><strong>{{ c.author_name }}</strong> <span class="meta">· {{ c.created_at_display }}</span><br>{{ c.text|linebreaksbr }}</p>
+  {% empty %}
+  <p class="meta">Aún no hay comentarios.</p>
+  {% endfor %}
+  <form method="post" action="{% url 'tube_comment' e.pk %}{% if sgr_embed %}?modal=1{% endif %}" style="display:grid;gap:8px">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ volver }}">
+    <label class="fl" for="td-comment">Nuevo comentario</label>
+    <textarea class="in" id="td-comment" name="text" rows="2" maxlength="1000" required></textarea>
+    <div><button class="btn soft" type="submit">Comentar</button></div>
+  </form>
+</section>
+{% endblock %}

@@ -46,6 +46,8 @@ ATTENTION_SUBTYPES_MODULE = ModuleConfig(
         ColumnSpec("name", "Nombre", sort_key="nombre", sort_fields=("name",)),
         ColumnSpec("attention_type", "Tipo asociado",
                    sort_key="tipo", sort_fields=("attention_type__code",)),
+        ColumnSpec("scores_display", "Suma puntaje",
+                   sort_key="puntaje", sort_fields=("scores",)),
         ColumnSpec("status", "Estado", cell=CELL_STATUS,
                    sort_key="estado", sort_fields=("status",)),
     ),

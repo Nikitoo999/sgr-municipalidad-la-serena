@@ -45,7 +45,7 @@ class _Base(TestCase):
             "superadmin", password=DEMO_PASSWORD, is_superuser=True, is_staff=True,
         )
         cls.coordinador = make_employee(
-            "coordinador", "11.111.111-1", cls.d1, cls.roles["ROL02"],
+            "coordinador", "11.111.199-9", cls.d1, cls.roles["ROL02"],
             first_name="Carla", last_name="Coordina",
         )
         cls.coordinador.authorized_delegations.set([cls.d1, cls.d2])

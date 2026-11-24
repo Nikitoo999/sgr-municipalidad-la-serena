@@ -86,7 +86,12 @@ class HomeView(LoginRequiredMixin, TemplateView):
             context_text = ""
 
         full_name = user.get_full_name() or user.username
+        from .dashboard import kpis, ritmo_del_periodo
+
+        ritmo = ritmo_del_periodo(self.request)
         context.update({
+            "ritmo": ritmo,
+            "kpis": kpis(self.request, ritmo["periodo"] if ritmo else None),
             "active_module": "home",
             "first_name": full_name.split()[0],
             "context_text": context_text,

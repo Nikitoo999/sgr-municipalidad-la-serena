@@ -30,6 +30,14 @@ erDiagram
         DateField execution_date
         ForeignKey item FK
         CharField status
+        CharField contact_name
+        CharField contact_phone
+    }
+    alerta_revisada {
+        BigAutoField id PK
+        ForeignKey user FK
+        CharField key
+        DateTimeField reviewed_at
     }
     atencion {
         BigAutoField id PK
@@ -49,6 +57,19 @@ erDiagram
         BooleanField counts_for_score
         FileField evidence_image
         FileField attachment
+        ForeignKey item FK
+        CharField requester_mode
+        ForeignKey organization FK
+        ForeignKey directive_role FK
+        ForeignKey organization_member FK
+        ForeignKey requester_employee FK
+        CharField employee_relation
+        CharField validation_status
+        ForeignKey validated_by FK
+        DateTimeField validated_at
+        TextField validation_notes
+        BooleanField priority
+        CharField priority_reason
     }
     gestion_atencion {
         BigAutoField id PK
@@ -84,6 +105,7 @@ erDiagram
         ForeignKey role FK
         ForeignKey position FK
         BooleanField must_change_password
+        FileField photo
     }
     dia_libre_funcionario {
         BigAutoField id PK
@@ -120,6 +142,8 @@ erDiagram
         BooleanField is_validated
         ForeignKey validated_by FK
         DateTimeField validated_at
+        CharField review_status
+        TextField review_notes
     }
     vecino {
         BigAutoField id PK
@@ -130,7 +154,30 @@ erDiagram
         CharField full_name
         CharField phone
         CharField email
+        ForeignKey employee FK
         CharField status
+    }
+    aviso {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        CharField kind
+        CharField title
+        TextField text
+        ForeignKey delegation FK
+        CharField url
+        ForeignKey created_by FK
+    }
+    comentario_registro {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey attention FK
+        ForeignKey tube_entry FK
+        ForeignKey author FK
+        TextField text
     }
     tarea_agenda {
         BigAutoField id PK
@@ -178,6 +225,22 @@ erDiagram
         CharField verification_code
         FileField proof_image
         DateTimeField completed_at
+        ForeignKey organization FK
+        BooleanField priority
+        CharField priority_reason
+        ForeignKey carried_to_period FK
+    }
+    tubo_historial {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey entry FK
+        CharField kind
+        CharField from_value
+        CharField to_value
+        TextField notes
+        ForeignKey changed_by FK
     }
     cierre_semanal {
         BigAutoField id PK
@@ -197,6 +260,7 @@ erDiagram
         CharField module
         CharField object_repr
         TextField detail
+        TextField changes
         CharField ip
         DateTimeField created_at
     }
@@ -227,6 +291,8 @@ erDiagram
         CharField code
         CharField name
         ForeignKey attention_type FK
+        ForeignKey item FK
+        BooleanField scores
         CharField status
     }
     tipo_atencion {
@@ -271,6 +337,16 @@ erDiagram
         TextField description
         CharField color
     }
+    cargo_directivo {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        CharField name
+        BooleanField is_base
+        PositiveSmallIntegerField order
+        CharField status
+    }
     meta {
         BigAutoField id PK
         DateTimeField created_at
@@ -292,6 +368,17 @@ erDiagram
         CharField unit_of_measure
         DecimalField baseline
         DecimalField target_value
+    }
+    integrante_organizacion {
+        BigAutoField id PK
+        DateTimeField created_at
+        DateTimeField updated_at
+        DateTimeField deleted_at
+        ForeignKey organization FK
+        ForeignKey role FK
+        CharField full_name
+        CharField rut
+        CharField phone
     }
     periodo {
         BigAutoField id PK
@@ -335,6 +422,7 @@ erDiagram
         CharField code
         CharField name
         TextField description
+        BooleanField requires_contact
         CharField status
     }
     rol {
@@ -360,11 +448,18 @@ erDiagram
     }
     tarea_agenda ||--o{ actividad : task
     item_proyecto ||--o{ actividad : item
+    auth_user ||--o{ alerta_revisada : user
     vecino ||--o{ atencion : neighbor
     delegacion ||--o{ atencion : delegation
     tipo_atencion ||--o{ atencion : attention_type
     sub_atencion ||--o{ atencion : attention_subtype
     auth_user ||--o{ atencion : responsible
+    item_proyecto ||--o{ atencion : item
+    organizacion_comunitaria ||--o{ atencion : organization
+    cargo_directivo ||--o{ atencion : directive_role
+    integrante_organizacion ||--o{ atencion : organization_member
+    funcionario ||--o{ atencion : requester_employee
+    auth_user ||--o{ atencion : validated_by
     atencion ||--o{ gestion_atencion : attention
     auth_user ||--o{ gestion_atencion : performed_by
     funcionario ||--o{ beneficio : employee
@@ -379,6 +474,12 @@ erDiagram
     auth_user ||--o{ felicitacion_reclamo : registered_by
     actividad ||--o{ evidencia : activity
     auth_user ||--o{ evidencia : validated_by
+    funcionario ||--o{ vecino : employee
+    delegacion ||--o{ aviso : delegation
+    auth_user ||--o{ aviso : created_by
+    atencion ||--o{ comentario_registro : attention
+    tubo ||--o{ comentario_registro : tube_entry
+    auth_user ||--o{ comentario_registro : author
     meta ||--o{ tarea_agenda : goal
     funcionario ||--o{ tarea_agenda : assigned_to
     tarea_agenda ||--o{ derivacion_tarea : task
@@ -386,16 +487,23 @@ erDiagram
     funcionario ||--o{ derivacion_tarea : reassigned_employee
     delegacion ||--o{ tubo : delegation
     funcionario ||--o{ tubo : responsible
+    organizacion_comunitaria ||--o{ tubo : organization
+    periodo ||--o{ tubo : carried_to_period
+    tubo ||--o{ tubo_historial : entry
+    auth_user ||--o{ tubo_historial : changed_by
     delegacion ||--o{ cierre_semanal : delegation
     auth_user ||--o{ cierre_semanal : closed_by
     auth_user ||--o{ portal_audit_log : user
     auth_user ||--o{ portal_password_reset_code : user
     meta ||--o{ cumplimiento : goal
     tipo_atencion ||--o{ sub_atencion : attention_type
+    item_proyecto ||--o{ sub_atencion : item
     delegacion ||--o{ organizacion_comunitaria : delegation
     periodo ||--o{ meta : period
     delegacion ||--o{ meta : delegation
     meta ||--o{ item_medicion : goal
+    organizacion_comunitaria ||--o{ integrante_organizacion : organization
+    cargo_directivo ||--o{ integrante_organizacion : role
     cargo ||--o{ meta_cargo_item : position
     item_proyecto ||--o{ meta_cargo_item : item
     periodo ||--o{ meta_cargo_item : period
@@ -439,6 +547,21 @@ Actividad.
 | execution_date | DateField | no | no |  | Fecha de Ejecución |
 | item | ForeignKey | si | no | item_proyecto SET_NULL | Ítem de la matriz |
 | status | CharField | no | no |  | Estado |
+| contact_name | CharField | no | no |  | Nombre del usuario o contacto |
+| contact_phone | CharField | no | no |  | Teléfono del usuario o contacto |
+
+### alerta_revisada (operaciones.AlertReview)
+
+Alerta revisada.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| user | ForeignKey | no | no | auth_user CASCADE | Usuario |
+| key | CharField | no | no |  | Clave de la alerta |
+| reviewed_at | DateTimeField | no | no |  | Revisada el |
+
+Restriccion unica: uniq_alerta_revisada (user, key).
 
 ### atencion (operaciones.Attention)
 
@@ -463,6 +586,19 @@ Atención.
 | counts_for_score | BooleanField | no | no |  | Cuenta para el puntaje operativo |
 | evidence_image | FileField | si | no |  | Imagen de evidencia (máx. 2 MB) |
 | attachment | FileField | si | no |  | Documento de respaldo (máx. 5 MB) |
+| item | ForeignKey | si | no | item_proyecto SET_NULL | Ítem de la matriz |
+| requester_mode | CharField | no | no |  | ¿Cómo acude la persona? |
+| organization | ForeignKey | si | no | organizacion_comunitaria SET_NULL | Organización |
+| directive_role | ForeignKey | si | no | cargo_directivo SET_NULL | Cargo directivo |
+| organization_member | ForeignKey | si | no | integrante_organizacion SET_NULL | Directivo del organigrama |
+| requester_employee | ForeignKey | si | no | funcionario SET_NULL | Funcionario solicitante |
+| employee_relation | CharField | no | no |  | Relación del solicitante funcionario |
+| validation_status | CharField | no | no |  | Validación del punto |
+| validated_by | ForeignKey | si | no | auth_user SET_NULL | Validada por |
+| validated_at | DateTimeField | si | no |  | Fecha de validación |
+| validation_notes | TextField | no | no |  | Observación del verificador |
+| priority | BooleanField | no | no |  | Prioritaria (traspaso de trimestre) |
+| priority_reason | CharField | no | no |  | Motivo de la prioridad |
 
 ### gestion_atencion (operaciones.AttentionFollowUp)
 
@@ -515,6 +651,7 @@ Funcionario.
 | role | ForeignKey | no | no | rol PROTECT | Rol |
 | position | ForeignKey | si | no | cargo PROTECT | Cargo |
 | must_change_password | BooleanField | no | no |  | Debe cambiar contraseña al ingresar |
+| photo | FileField | si | no |  | Foto de perfil (máx. 2 MB) |
 | authorized_delegations | M2M a delegacion (tabla funcionario_authorized_delegations) | - | - | - | Delegaciones autorizadas |
 
 ### dia_libre_funcionario (operaciones.EmployeeDayOff)
@@ -567,6 +704,8 @@ Evidencia.
 | is_validated | BooleanField | no | no |  | Validado por Jefatura |
 | validated_by | ForeignKey | si | no | auth_user SET_NULL | Validado por |
 | validated_at | DateTimeField | si | no |  | Fecha de validación |
+| review_status | CharField | no | no |  | Resultado de la revisión |
+| review_notes | TextField | no | no |  | Observación del verificador |
 
 ### vecino (operaciones.Neighbor)
 
@@ -582,7 +721,41 @@ Vecino.
 | full_name | CharField | no | no |  | Nombre completo |
 | phone | CharField | no | no |  | Teléfono |
 | email | CharField | no | no |  | Correo electrónico |
+| employee | ForeignKey | si | no | funcionario SET_NULL | Funcionario (misma persona) |
 | status | CharField | no | no |  | Estado |
+
+### aviso (operaciones.Notice)
+
+Aviso.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| kind | CharField | no | no |  | Tipo |
+| title | CharField | no | no |  | Título |
+| text | TextField | no | no |  | Detalle |
+| delegation | ForeignKey | si | no | delegacion SET_NULL | Delegación (vacío = todas) |
+| url | CharField | no | no |  | Enlace |
+| created_by | ForeignKey | si | no | auth_user SET_NULL | Creado por |
+| read_by | M2M a auth_user (tabla aviso_read_by) | - | - | - | Leído por |
+
+### comentario_registro (operaciones.RecordComment)
+
+Comentario de registro.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| attention | ForeignKey | si | no | atencion CASCADE | Atención |
+| tube_entry | ForeignKey | si | no | tubo CASCADE | Solicitud del tubo |
+| author | ForeignKey | si | no | auth_user SET_NULL | Autor |
+| text | TextField | no | no |  | Comentario |
 
 ### tarea_agenda (operaciones.Task)
 
@@ -645,6 +818,27 @@ Solicitud del tubo.
 | verification_code | CharField | no | no |  | Código de verificación |
 | proof_image | FileField | si | no |  | Foto de respaldo (máx. 2 MB) |
 | completed_at | DateTimeField | si | no |  | Fecha de realización |
+| organization | ForeignKey | si | no | organizacion_comunitaria SET_NULL | Organización solicitante |
+| priority | BooleanField | no | no |  | Prioritaria (traspaso de trimestre) |
+| priority_reason | CharField | no | no |  | Motivo de la prioridad |
+| carried_to_period | ForeignKey | si | no | periodo SET_NULL | Traspasada al período |
+
+### tubo_historial (operaciones.TubeStatusChange)
+
+Cambio de solicitud del tubo.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| entry | ForeignKey | no | no | tubo CASCADE | Solicitud |
+| kind | CharField | no | no |  | Tipo de cambio |
+| from_value | CharField | no | no |  | Valor anterior |
+| to_value | CharField | no | no |  | Valor nuevo |
+| notes | TextField | no | no |  | Observación |
+| changed_by | ForeignKey | si | no | auth_user SET_NULL | Autor |
 
 ### cierre_semanal (operaciones.WeeklyClosure)
 
@@ -676,6 +870,7 @@ Registro de auditoría.
 | module | CharField | no | no |  | Módulo |
 | object_repr | CharField | no | no |  | Objeto |
 | detail | TextField | no | no |  | Detalle |
+| changes | TextField | no | no |  | Cambios (valor anterior y nuevo, JSON) |
 | ip | CharField | no | no |  | IP |
 | created_at | DateTimeField | no | no |  | Fecha de creación |
 
@@ -721,6 +916,8 @@ Sub atención.
 | code | CharField | no | si |  | Código |
 | name | CharField | no | no |  | Nombre de la sub atención |
 | attention_type | ForeignKey | no | no | tipo_atencion RESTRICT | Tipo de atención |
+| item | ForeignKey | si | no | item_proyecto SET_NULL | Ítem sugerido de la matriz |
+| scores | BooleanField | no | no |  | Suma puntaje |
 | status | CharField | no | no |  | Estado |
 
 ### tipo_atencion (sgr_core.AttentionType)
@@ -780,6 +977,21 @@ Delegación.
 | description | TextField | si | no |  | Descripción |
 | color | CharField | no | no |  | Color distintivo |
 
+### cargo_directivo (sgr_core.DirectiveRole)
+
+Cargo directivo.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| name | CharField | no | no |  | Cargo directivo |
+| is_base | BooleanField | no | no |  | Cargo base |
+| order | PositiveSmallIntegerField | no | no |  | Orden en el organigrama |
+| status | CharField | no | no |  | Estado |
+
 ### meta (sgr_core.InstitutionalGoal)
 
 Meta Institucional.
@@ -811,6 +1023,22 @@ Meta Institucional.
 | unit_of_measure | CharField | no | no |  | Unidad de Medida |
 | baseline | DecimalField | no | no |  | Línea Base |
 | target_value | DecimalField | no | no |  | Valor Objetivo |
+
+### integrante_organizacion (sgr_core.OrganizationMember)
+
+Integrante de directiva.
+
+| Campo | Tipo | Nulo | Unico | FK y on_delete | Descripcion |
+|---|---|---|---|---|---|
+| id | BigAutoField | no | si |  | ID |
+| created_at | DateTimeField | no | no |  | Fecha de creación |
+| updated_at | DateTimeField | no | no |  | Última modificación |
+| deleted_at | DateTimeField | si | no |  | Fecha de eliminación |
+| organization | ForeignKey | no | no | organizacion_comunitaria CASCADE | Organización |
+| role | ForeignKey | no | no | cargo_directivo RESTRICT | Cargo directivo |
+| full_name | CharField | no | no |  | Nombre completo |
+| rut | CharField | no | no |  | RUT |
+| phone | CharField | no | no |  | Teléfono |
 
 ### periodo (sgr_core.Period)
 
@@ -876,6 +1104,7 @@ Restriccion unica: uniq_position_item_period (position, item, period).
 | code | CharField | no | si |  | Código |
 | name | CharField | no | no |  | Nombre del ítem |
 | description | TextField | no | no |  | Descripción |
+| requires_contact | BooleanField | no | no |  | Exige nombre y teléfono del usuario |
 | status | CharField | no | no |  | Estado |
 
 ### rol (sgr_core.Role)

@@ -52,20 +52,37 @@
     }
   }
 
-  function startHeartbeat(socket) {
-    if (socket.pingTimer) clearTimeout(socket.pingTimer);
+  function stopHeartbeat(socket) {
+    if (socket.pingTimer) clearInterval(socket.pingTimer);
+    if (socket.pongTimer) clearTimeout(socket.pongTimer);
     socket.pingTimer = null;
     socket.pongTimer = null;
+  }
+
+  // Sin respuesta al ping: se cierra el socket con un código propio (4000) y
+  // onclose programa la reconexión con espera exponencial.
+  function onConnectionLost(socket) {
+    stopHeartbeat(socket);
+    try {
+      socket.close(4000, 'heartbeat');
+    } catch (err) {
+      scheduleReconnect();
+    }
+  }
+
+  function startHeartbeat(socket) {
+    stopHeartbeat(socket);
 
     function sendPing() {
       if (socket.readyState !== WebSocket.OPEN) return;
+      if (socket.pongTimer) return;  // aún esperando la respuesta anterior
       try {
         socket.send(JSON.stringify({ type: 'ping' }));
         socket.pongTimer = setTimeout(function () {
-          onConnectionLost();
+          onConnectionLost(socket);
         }, wsState.pongTimeout);
       } catch (err) {
-        onConnectionLost();
+        onConnectionLost(socket);
       }
     }
 
@@ -127,6 +144,11 @@
       } catch (err) {
         return;
       }
+      if (data && data.type === 'pong') {
+        if (socket.pongTimer) clearTimeout(socket.pongTimer);
+        socket.pongTimer = null;
+        return;
+      }
       if (data && data.type === 'attention_created') {
         handleAttentionEvent(data);
       }
@@ -137,6 +159,7 @@
     };
 
     socket.onclose = function (event) {
+      stopHeartbeat(socket);
       wsState.connected = false;
       console.log('[SGR WS] Cerrado. code=' + event.code + ' reason=' + event.reason);
       if (event.code === 1008) {
@@ -226,11 +249,31 @@
     });
   });
 
+  // Cambio de delegación activa: si hay un formulario con cambios sin
+  // guardar, se pide confirmación (requisito de la segunda evaluación).
   var ctx = document.getElementById('ctxSel');
   if (ctx) {
+    var previousCtx = ctx.value;
     ctx.addEventListener('change', function () {
       var form = document.getElementById('ctxForm');
-      if (form) form.submit();
+      if (!form) return;
+      var dirty = document.querySelector('form[data-dirty="1"]');
+      if (!dirty || !window.Swal) { form.submit(); return; }
+      Swal.fire({
+        icon: 'warning',
+        title: '¿Cambiar de delegación?',
+        text: 'Hay cambios sin guardar en el formulario: se perderán al cambiar de delegación.',
+        showCancelButton: true,
+        confirmButtonText: 'Cambiar y descartar',
+        cancelButtonText: 'Seguir editando',
+        confirmButtonColor: '#920000'
+      }).then(function (result) {
+        if (result.isConfirmed) {
+          form.submit();
+        } else {
+          ctx.value = previousCtx;
+        }
+      });
     });
   }
 

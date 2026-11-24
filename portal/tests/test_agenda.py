@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from operaciones.models import Activity, Evidence, Task
 from portal.tests.helpers import (
@@ -68,7 +69,7 @@ class AgendaTests(TestCase):
         self.login()
         resp = self.client.post(
             reverse("activity_create", args=[self.t1.pk]),
-            {"name": "Visita a terreno", "execution_date": "2026-11-10"},
+            {"name": "Visita a terreno", "execution_date": timezone.localdate().isoformat()},
         )
         self.assertEqual(resp.status_code, 302)
         nueva = Activity.objects.get(name="Visita a terreno")

@@ -1,0 +1,24 @@
+{% extends 'portal/crud/form.html' %}
+{% load sgr_icons %}
+{% block after_form %}
+{% if not is_create and form.instance.pk %}
+{% with org=form.instance %}
+<section class="card" aria-labelledby="ocTitle" style="margin-top:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <h2 id="ocTitle" style="margin:0">Organigrama · {{ org.name }}</h2>
+    <a class="btn soft" href="{% url 'organization_chart' %}?org={{ org.pk }}">{% sgr_icon 'users' 16 %}<span>Abrir organigrama</span></a>
+  </div>
+  <p class="help">Directiva vigente por nivel jerárquico. Para asignar, editar o dejar vacante un cargo, abre el organigrama.</p>
+  {% with directiva=org.directiva %}
+  {% if directiva %}
+  <ul style="margin:8px 0 0;padding-left:18px">
+    {% for m in directiva %}<li><strong>{{ m.role.name }}:</strong> {{ m.full_name }}{% if m.phone %} · {{ m.phone }}{% endif %}</li>{% endfor %}
+  </ul>
+  {% else %}
+  <p class="meta">Sin directiva registrada.</p>
+  {% endif %}
+  {% endwith %}
+</section>
+{% endwith %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Auditoría{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Auditoría</nav>
+<div class="titlebar"><h1>Auditoría de operaciones</h1></div>
+<p class="meta">Quién cambió qué dato y cuándo (solo lectura). Las ediciones muestran el valor anterior y el nuevo; nunca se registran contraseñas.</p>
+
+<section class="card toolbar" aria-label="Filtros de auditoría">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div class="statebox"><label for="modulo">Módulo</label>
+      <select class="in" id="modulo" name="modulo"><option value="">Todos</option>{% for m in modulos %}<option value="{{ m }}"{% if filtros.modulo == m %} selected{% endif %}>{{ m }}</option>{% endfor %}</select></div>
+    <div class="statebox"><label for="accion">Acción</label>
+      <select class="in" id="accion" name="accion"><option value="">Todas</option>{% for a in acciones %}<option value="{{ a }}"{% if filtros.accion == a %} selected{% endif %}>{{ a }}</option>{% endfor %}</select></div>
+    <div class="statebox"><label for="usuario">Usuario</label><input class="in" id="usuario" name="usuario" value="{{ filtros.usuario|default:'' }}" placeholder="Nombre, usuario o correo"></div>
+    <div class="statebox"><label for="desde">Desde</label><input class="in" id="desde" name="desde" type="date" value="{{ filtros.desde|default:'' }}"></div>
+    <div class="statebox"><label for="hasta">Hasta</label><input class="in" id="hasta" name="hasta" type="date" value="{{ filtros.hasta|default:'' }}"></div>
+    <button class="btn primary" type="submit">Filtrar</button>
+    <a class="btn-outline" href="{% url 'audit_log' %}" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
+  </form>
+</section>
+
+<p class="meta">{{ pagina.paginator.count }} evento{{ pagina.paginator.count|pluralize }}.</p>
+<div class="tablewrap">
+<table>
+  <caption class="sr">Eventos de auditoría</caption>
+  <thead><tr><th scope="col">Fecha</th><th scope="col">Usuario</th><th scope="col">Acción</th><th scope="col">Módulo</th><th scope="col">Objeto</th><th scope="col">Detalle y cambios</th><th scope="col">IP</th></tr></thead>
+  <tbody>
+  {% for e in pagina %}
+  <tr>
+    <td>{{ e.created_at|date:"d/m/Y H:i" }}</td>
+    <td>{% if e.user %}{{ e.user.get_full_name|default:e.user.username }}{% else %}—{% endif %}</td>
+    <td>{{ e.action }}</td>
+    <td>{{ e.module|default:"—" }}</td>
+    <td>{{ e.object_repr|default:"—" }}</td>
+    <td>{{ e.detail }}
+      {% if e.cambios %}<ul class="kv-list">{% for c in e.cambios %}<li><strong>{{ c.campo }}:</strong> {{ c.anterior|default:"(vacío)" }} → {{ c.nuevo|default:"(vacío)" }}</li>{% endfor %}</ul>{% endif %}
+    </td>
+    <td>{{ e.ip|default:"—" }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="7" class="meta">Sin eventos para los filtros elegidos.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if pagina.has_other_pages %}
+<nav class="meta" aria-label="Paginación" style="margin-top:12px">
+{% if pagina.has_previous %}<a href="?{{ querystring }}&page={{ pagina.previous_page_number }}">‹ Anterior</a>{% endif %}
+Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
+{% if pagina.has_next %}<a href="?{{ querystring }}&page={{ pagina.next_page_number }}">Siguiente ›</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

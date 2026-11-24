@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}Atenciones{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">
 <link rel="stylesheet" href="{% static 'portal/css/attention_list.css' %}">
 {% endblock %}
 {% block content %}
@@ -13,7 +13,7 @@
     <a class="btn ghost" href="{{ closures_url }}">{% sgr_icon 'calendar' 18 %}<span>Cierre semanal</span></a>
     {% endif %}
     {% if can_create %}
-    <a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
+    <a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="Ingreso de atención">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>
     {% endif %}
   </div>
 </div>
@@ -41,7 +41,7 @@
         {% endfor %}
       </select>
     </div>
-      <a class="btn-outline" href="{{ clear_url }}" id="clearBtn">Limpiar filtros</a>
+      <a class="btn-outline" href="{{ clear_url }}" id="clearBtn" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
     {% if can_export %}
     <a class="btn soft js-export" href="{{ export_url }}">{% sgr_icon 'down' 18 %}<span>Exportar a Excel</span></a>
     {% endif %}
@@ -200,11 +200,11 @@
   {% if empty_kind == 'records' %}
   <h2>Aún no hay registros</h2>
   <p>Cuando se ingrese la primera atención aparecerá en esta lista.</p>
-  {% if can_create %}<a class="btn primary" href="{{ new_url }}">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
+  {% if can_create %}<a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="Ingreso de atención">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
   {% else %}
   <h2>No encontramos resultados</h2>
   <p>Prueba con otras palabras o quita los filtros para ver todos los registros.</p>
-  <a class="btn primary" href="{{ clear_url }}">Limpiar filtros</a>
+  <a class="btn primary" href="{{ clear_url }}" aria-label="Limpiar filtros">{% sgr_icon 'x' 16 %}</a>
   {% endif %}
 </div>
 {% endif %}

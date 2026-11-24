@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{% if is_create %}Ingreso de atención{% elif is_view %}Consulta de atención{% else %}Editar atención{% endif %}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'attentions' %}">Atenciones</a>{% if attention_number %} / {{ attention_number }}{% endif %}</nav>
@@ -31,13 +31,78 @@
       <div class="nb-results" id="f_sol_results" hidden></div>
       <p class="help" id="f_sol-h">Si el vecino ya está registrado, elígelo para completar sus datos. Si no, ingrésalos abajo: se registra al guardar la atención.</p>
     </div>
+
+    {# Comparecencia: persona natural o directivo de una organización #}
+    <div class="full">
+      <span class="fl" id="modeLabel">¿Cómo acude la persona?</span>
+      <div class="radio-row" role="radiogroup" aria-labelledby="modeLabel">
+        {% for radio in form.requester_mode %}
+        <label class="checkrow">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="full directive-box" id="directiveBox"{% if form.requester_mode.value != 'directive' %} hidden{% endif %}>
+      <div class="grid">
+        <div class="full">
+          <label class="fl" for="f_org">Organización <span class="req" aria-hidden="true">*</span></label>
+          <input class="in" id="f_org" type="text" autocomplete="off" placeholder="Buscar junta de vecinos, club u organización..." value="{{ selected_organization.name|default:'' }}" aria-describedby="f_org-h id_organization-e">
+          {{ form.organization }}
+          <div class="nb-results" id="f_org_results" hidden></div>
+          <p class="help" id="f_org-h">Base de organizaciones comunitarias de tu delegación.</p>
+          <div id="id_organization-e" aria-live="polite">
+        {% for error in form.organization.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+        </div>
+        <div>
+          <label class="fl" for="id_organization_member">Directivo en el organigrama</label>
+          {{ form.organization_member }}
+          <p class="help">Elige un integrante para completar sus datos, o déjalo en «ingreso manual».</p>
+          <div id="id_organization_member-e" aria-live="polite">
+        {% for error in form.organization_member.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+        </div>
+        <div>
+          <label class="fl" for="id_directive_role">Cargo directivo <span class="req" aria-hidden="true">*</span></label>
+          {{ form.directive_role }}
+          <div id="id_directive_role-e" aria-live="polite">
+        {% for error in form.directive_role.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+        </div>
+      </div>
+    </div>
     {% include 'portal/crud/_field.html' with field=form.neighbor_rut %}
     {% include 'portal/crud/_field.html' with field=form.neighbor_name %}
     {% include 'portal/crud/_field.html' with field=form.neighbor_phone %}
+
+    {# El RUT es de un funcionario: civil o gestión interna (nunca se bloquea) #}
+    <div class="full" id="employeeBox"{% if not employee_box_text %} hidden{% endif %}>
+      <div class="scope" role="note">{% sgr_icon 'info' 18 %}<span id="employeeBoxText">{{ employee_box_text }}</span></div>
+      <div class="radio-col" role="radiogroup" aria-labelledby="employeeBoxText">
+        {% for radio in form.employee_relation %}
+        <label class="checkrow">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>
+        {% endfor %}
+      </div>
+      <p class="help" id="employeeSelfHelp" hidden>Si es tu propia solicitud, quedará registrada pero no sumará puntaje (punto 6 del nuevo requerimiento).</p>
+      <div id="id_employee_relation-e" aria-live="polite">
+        {% for error in form.employee_relation.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
     {% else %}
     <div>
       <label class="fl" for="f_sol">Vecino o solicitante</label>
       <input class="in" id="f_sol" value="{{ neighbor_label }}" readonly disabled>
+    </div>
+    <div>
+      <label class="fl" for="f_mode">Comparecencia</label>
+      <input class="in" id="f_mode" value="{{ requester_display }}" readonly disabled>
     </div>
     {% endif %}
 
@@ -74,6 +139,23 @@
       <p class="help" id="f_sub_h"></p>
       <div id="id_attention_subtype-e" aria-live="polite">
         {% for error in form.attention_subtype.errors %}
+        <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Ítem de la matriz: solo los que mide el cargo del responsable #}
+    <div>
+      <label class="fl" for="id_item">Ítem de la matriz</label>
+      {% if item_available or form.instance.item_id %}
+      {{ form.item }}
+      {% if not is_view %}<p class="help">Ítems del cargo {{ responsible_position|default:"del responsable" }} en el período vigente. Sin ítem, la atención no suma a la matriz.</p>{% endif %}
+      {% else %}
+      <input class="in" id="id_item" value="El cargo del responsable no mide ítems en el período vigente" readonly disabled>
+      {% if not is_view %}<p class="help">La atención se registra igual, pero no suma a la matriz.</p>{% endif %}
+      {% endif %}
+      <div id="id_item-e" aria-live="polite">
+        {% for error in form.item.errors %}
         <div class="err" role="alert">{% sgr_icon 'alert' 14 %}<span>{{ error }}</span></div>
         {% endfor %}
       </div>
@@ -170,6 +252,38 @@
   </div>
 </form>
 
+{# Validación del punto (RN-009): solo una atención aprobada aporta a la matriz #}
+{% if not is_create and validation %}
+<section class="card review-card" aria-labelledby="valTitle">
+  <div class="fu-head">
+    <h2 id="valTitle">Validación del punto</h2>
+    <span class="badge {{ validation.badge }}">{{ validation.label }}</span>
+  </div>
+  <p class="help">Una atención aporta a la matriz solo con validación aprobada. Valida el delegado o un rol superior, nunca quien la registró.</p>
+  <ul class="kv-list">
+    <li><strong>Ítem:</strong> {{ item_label|default:"—" }}</li>
+    <li><strong>Puntaje operativo:</strong> {{ score_display }}</li>
+    <li><strong>Evidencia:</strong> {% if validation.has_evidence %}Sí, asociada al {{ attention_number }}{% else %}Sin evidencia: no se puede aprobar todavía{% endif %}</li>
+    {% if validation.by %}<li><strong>Verificador:</strong> {{ validation.by }} · {{ validation.at|date:"d-m-Y H:i" }}</li>{% endif %}
+    {% if validation.notes %}<li><strong>Observación:</strong> {{ validation.notes }}</li>{% endif %}
+  </ul>
+  {% if can_review %}
+  <form method="post" action="{% url 'attention_review' object_pk %}" class="review-form" data-no-disable="1">
+    {% csrf_token %}
+    <label class="fl" for="id_review_notes">Observación para el funcionario (obligatoria al rechazar o pedir corrección)</label>
+    <textarea class="in" id="id_review_notes" name="notes" rows="2" maxlength="500"></textarea>
+    <div class="formfoot">
+      <button class="btn ghost" type="submit" name="decision" value="correction">Solicitar corrección</button>
+      <button class="btn soft" type="submit" name="decision" value="rejected">Rechazar</button>
+      <button class="btn primary" type="submit" name="decision" value="approved">Aprobar</button>
+    </div>
+  </form>
+  {% elif review_block_reason %}
+  <p class="help">{% sgr_icon 'info' 14 %} {{ review_block_reason }}</p>
+  {% endif %}
+</section>
+{% endif %}
+
 {# Gestiones de seguimiento (máx. 3): no cuentan como atención nueva #}
 {% if not is_create and follow_ups is not None %}
 <section class="card followups" aria-labelledby="fuTitle">
@@ -202,9 +316,38 @@
   {% endif %}
 </section>
 {% endif %}
+
+{# Comentarios y coordinación (RF-035): autor, fecha y referencia al registro #}
+{% if not is_create and comments is not None %}
+<section class="card followups" aria-labelledby="cmTitle">
+  <div class="fu-head">
+    <h2 id="cmTitle">Comentarios y coordinación</h2>
+    <span class="badge b-info">{{ comments|length }}</span>
+  </div>
+  {% if comments %}
+  <ol class="fu-list">
+    {% for c in comments %}
+    <li><div class="fu-meta"><strong>{{ c.author_name }}</strong> · {{ c.created_at_display }}</div><p>{{ c.text|linebreaksbr }}</p></li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="fu-empty">Aún no hay comentarios.</p>
+  {% endif %}
+  {% if can_comment %}
+  <form method="post" action="{% url 'attention_comment' object_pk %}" class="fu-form">
+    {% csrf_token %}
+    <label class="fl" for="id_comment_text">Nuevo comentario</label>
+    <textarea class="in" id="id_comment_text" name="text" rows="2" maxlength="1000" required placeholder="Consulta u observación para el equipo..."></textarea>
+    <div class="formfoot"><button class="btn soft" type="submit">Comentar</button></div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 {{ subtype_type_map|json_script:"subtype-type-map" }}
+{{ subtype_item_map|json_script:"subtype-item-map" }}
 <script src="{% static 'portal/js/crud.js' %}"></script>
-<script src="{% static 'portal/js/attention.js' %}"></script>
+<script src="{% static 'portal/js/attention.js' %}?v=2"></script>
+<script src="{% static 'portal/js/attention_requester.js' %}?v=1"></script>
 {% endblock %}

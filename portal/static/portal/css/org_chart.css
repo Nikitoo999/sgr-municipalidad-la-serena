@@ -1,0 +1,89 @@
+/* Organigrama de organizaciones comunitarias (directivas por nivel jerárquico). */
+
+.oc-intro{margin:-4px 0 14px}
+.oc-layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:16px;align-items:start}
+.oc-main{display:grid;gap:16px;min-width:0}
+
+/* ---- Columna izquierda: organizaciones ---- */
+.oc-orgs{position:sticky;top:calc(var(--header-h, 64px) + 12px);max-height:calc(100vh - var(--header-h, 64px) - 32px);display:flex;flex-direction:column;gap:10px}
+.oc-orgs h2{margin:0}
+.oc-orgsearch{display:flex;gap:6px;align-items:center}
+.oc-orgsearch .in{flex:1;min-width:0}
+.oc-orglist{list-style:none;margin:0;padding:0;overflow:auto;display:grid;gap:8px;min-height:0}
+.oc-org{display:grid;gap:3px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:inherit;text-decoration:none}
+.oc-org:hover{border-color:var(--muni)}
+.oc-org:focus-visible{outline:3px solid var(--muni);outline-offset:2px}
+.oc-org.active{border-color:var(--muni);background:var(--muni-tint);box-shadow:inset 4px 0 0 var(--muni)}
+.oc-org-name{font-weight:700;font-size:14px;line-height:1.3}
+.oc-org-meta{font-size:12px;color:var(--muted)}
+.oc-org .badge{justify-self:start}
+.oc-orgcount{margin:0}
+
+/* ---- Cabecera, contadores y filtro ---- */
+.oc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.oc-head h2{margin:0}
+.oc-head .meta{margin:4px 0 0}
+.oc-counters{display:flex;gap:6px;flex-wrap:wrap}
+.oc-progress{height:8px;border-radius:999px;background:var(--off-bg);overflow:hidden;margin:12px 0 14px}
+.oc-progress span{display:block;height:100%;background:var(--ok);border-radius:999px}
+.oc-filter{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,220px);gap:12px;margin-bottom:6px}
+
+/* ---- Árbol por niveles ---- */
+.oc-tree{display:grid;gap:34px;padding:18px 0 4px}
+.oc-level{position:relative;display:grid;gap:10px}
+.oc-level+.oc-level::before{content:"";position:absolute;top:-34px;left:50%;height:22px;border-left:2px solid var(--line)}
+.oc-level-title{justify-self:center;margin:0;padding:3px 12px;border:1px solid var(--line);border-radius:999px;background:var(--bg);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.oc-nodes{position:relative;display:flex;flex-wrap:wrap;justify-content:center;gap:14px;padding-top:14px}
+.oc-nodes.multi::before{content:"";position:absolute;top:0;left:14%;right:14%;border-top:2px solid var(--line)}
+.oc-node{position:relative;flex:1 1 220px;max-width:280px;min-width:0;display:flex;flex-direction:column;gap:6px;padding:12px 14px;background:#fff;border:1px solid var(--line);border-top:4px solid var(--muni);border-radius:10px}
+.oc-node::before{content:"";position:absolute;top:-18px;left:50%;height:14px;border-left:2px solid var(--line)}
+.oc-node.is-vacant{background:#fafbfc;border-style:dashed;border-top:4px dashed #c3c9d1}
+.oc-node-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.oc-role{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muni)}
+.oc-node.is-vacant .oc-role{color:var(--muted)}
+.oc-name{margin:0;font-weight:700;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+.oc-data{margin:0;display:grid;gap:2px;font-size:13px}
+.oc-data div{display:flex;gap:6px}
+.oc-data dt{color:var(--muted);min-width:62px}
+.oc-data dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.oc-vacant-text{margin:0;font-size:13px;color:var(--muted)}
+.oc-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;margin-top:auto;padding-top:4px}
+.oc-actions form{margin:0}
+.oc-edit{flex:1 1 100%}
+.oc-edit summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.oc-edit summary::-webkit-details-marker{display:none}
+.oc-edit[open] summary{margin-bottom:8px}
+.oc-form{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.oc-form .btn{justify-self:start;margin-top:4px}
+.oc-noresults{text-align:center;margin:0}
+/* display:flex/grid anula [hidden]: el filtro necesita esta regla explícita. */
+.oc-level[hidden],.oc-node[hidden],.oc-noresults[hidden]{display:none}
+
+/* ---- Catálogo de cargos ---- */
+.oc-roles h2{margin:0 0 4px}
+.oc-newrole{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,2fr) 110px auto;gap:10px;align-items:end;margin:12px 0 14px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.oc-roles td{vertical-align:middle}
+.oc-roles td .in{min-width:0;width:100%}
+.oc-roles td .badge{margin-left:4px}
+.oc-roles .oc-order{max-width:90px}
+.oc-rowactions{white-space:nowrap}
+.oc-rowactions form{display:inline-block;margin:0 4px 0 0}
+
+/* ---- Responsive ---- */
+@media (max-width: 960px){
+  .oc-layout{grid-template-columns:1fr}
+  .oc-orgs{position:static;max-height:none}
+  .oc-orglist{max-height:280px}
+  .oc-newrole{grid-template-columns:1fr 1fr}
+}
+@media (max-width: 640px){
+  .oc-filter{grid-template-columns:1fr}
+  .oc-newrole{grid-template-columns:1fr}
+  /* En móvil el árbol se apila: una línea vertical a la izquierda une los niveles. */
+  .oc-tree{gap:18px;padding-left:16px;border-left:2px solid var(--line)}
+  .oc-level+.oc-level::before,.oc-nodes.multi::before{display:none}
+  .oc-level-title{justify-self:start;margin-left:-26px}
+  .oc-nodes{flex-direction:column;padding-top:0;gap:10px}
+  .oc-node{max-width:none;flex-basis:auto}
+  .oc-node::before{top:22px;left:-18px;height:0;width:16px;border-left:0;border-top:2px solid var(--line)}
+}

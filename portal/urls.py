@@ -1,10 +1,27 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 from .goals_views import GoalsView
-from .agenda_views import ActivityCreateView, AgendaView, EvidenceCreateView, EvidenceValidateView
-from .compliance_views import ComplianceView, FeedbackCreateView
-from .tubes_views import TubeCloseView, TubeCreateView, TubeListView, TubeStatusView
-from .reports_views import ReportsView
+from .agenda_views import (
+    ActivityCreateView,
+    AgendaView,
+    EvidenceCreateView,
+    EvidenceValidateView,
+    TaskReassignView,
+    KanbanRedirectView,
+    KanbanTaskStatusChangeRedirectView,
+    OrganigramView,
+    PendingTransferExecuteView,
+    PendingTransferView,
+    TaskStatusChangeView,
+)
+from .compliance_views import ComplianceView, DayOffCreateView, FeedbackCreateView
+from .audit_views import AuditLogView
+from .notices_views import AlertReviewView, NoticesMarkReadView, NoticesView
+from .tubes_views import (
+    TubeCloseView, TubeCommentView, TubeCreateView, TubeDetailView, TubeListView,
+    TubeReassignView, TubeRescheduleView, TubeStatusView,
+)
+from .reports_views import ReportsChartsView, ReportsView
 
 from .crud import registered_modules
 from .home_views import HomeView, ModulePlaceholderView, SwitchDelegationView
@@ -62,24 +79,49 @@ urlpatterns = [
     path('agenda-tareas/', AgendaView.as_view(), name='tasks'),
     path('agenda-tareas/actividades/<int:activity_id>/evidencia/', EvidenceCreateView.as_view(), name='evidence_create'),
     path('agenda-tareas/evidencias/<int:evidence_id>/validar/', EvidenceValidateView.as_view(), name='evidence_validate'),
+    path('agenda-tareas/<int:task_id>/reasignar/', TaskReassignView.as_view(), name='task_reassign'),
     path('agenda-tareas/<int:task_id>/actividades/nueva/', ActivityCreateView.as_view(), name='activity_create'),
+    path('kanban-tareas/', KanbanRedirectView.as_view(), name='kanban_tasks'),
+    path(
+        'kanban-tareas/<int:task_id>/cambiar-estado/',
+        KanbanTaskStatusChangeRedirectView.as_view(),
+        name='kanban_task_status_change',
+    ),
+    path('organigrama/', OrganigramView.as_view(), name='organigrama'),
+    path('pendientes-traspaso/', PendingTransferView.as_view(), name='pending_transfer'),
+    path(
+        'pendientes-traspaso/<int:task_id>/traspasar/',
+        PendingTransferExecuteView.as_view(),
+        name='pending_transfer_execute',
+    ),
     path('cumplimiento/', ComplianceView.as_view(), name='achievements'),
     path('cumplimiento/<int:employee_id>/comentarios/nuevo/', FeedbackCreateView.as_view(), name='feedback_create'),
+    path('cumplimiento/<int:employee_id>/dias-libres/nuevo/', DayOffCreateView.as_view(), name='day_off_create'),
     path('cumplimiento/tubos/', TubeListView.as_view(), name='tubes'),
+    path('avisos/', NoticesView.as_view(), name='notices'),
+    path('auditoria/', AuditLogView.as_view(), name='audit_log'),
+    path('avisos/marcar-leidos/', NoticesMarkReadView.as_view(), name='notices_mark_read'),
+    path('avisos/alerta-revisada/', AlertReviewView.as_view(), name='alert_review'),
     path('cumplimiento/tubos/nuevo/', TubeCreateView.as_view(), name='tube_create'),
     path('cumplimiento/tubos/<int:entry_id>/estado/', TubeStatusView.as_view(), name='tube_status'),
     path('cumplimiento/tubos/<int:entry_id>/cerrar/', TubeCloseView.as_view(), name='tube_close'),
+    path('cumplimiento/tubos/<int:entry_id>/', TubeDetailView.as_view(), name='tube_detail'),
+    path('cumplimiento/tubos/<int:entry_id>/reprogramar/', TubeRescheduleView.as_view(), name='tube_reschedule'),
+    path('cumplimiento/tubos/<int:entry_id>/reasignar/', TubeReassignView.as_view(), name='tube_reassign'),
+    path('cumplimiento/tubos/<int:entry_id>/comentarios/nuevo/', TubeCommentView.as_view(), name='tube_comment'),
     path('', include('portal.crud.urls')),
     path('reportes/', ReportsView.as_view(), name='reports'),
+    path('reportes/graficos/', ReportsChartsView.as_view(), name='reports_charts'),
 ]
 
 # Generar placeholders para módulos que no tienen CRUD ni vistas propias.
+# Los módulos con CRUD o con vista propia se omiten aquí.
 for _module in MODULE_ORDER:
-    if _module in _crud_modules:
-        # Ya tiene CRUD: no se genera placeholder (se incluye por portal.crud.urls)
-        continue
     if _module in _custom_modules:
         # Ya tiene vista propia: no se genera placeholder
+        continue
+    if _module in _crud_modules:
+        # Ya tiene CRUD: no se genera placeholder (se incluye por portal.crud.urls)
         continue
     if _module not in _placeholder_paths:
         # No tiene path declarado: no se genera placeholder

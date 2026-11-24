@@ -34,6 +34,7 @@ ICONS = {
     "calendar": '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
     "chart": '<path d="M4 20V10M10 20V4M16 20v-6M4 20h16"/>',
     "report": '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/>',
+    "bell": '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
 }
 
 
@@ -53,3 +54,18 @@ def sgr_icon(name, size=18):
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         f"{paths}</svg>"
     )
+
+
+@register.filter
+def replace(value, arg):
+    """Filtro ``replace`` ausente en Django built-ins.
+
+    Uso: ``{{ valor|replace:'viejo,nuevo' }}``. Reemplaza ``viejo`` por
+    ``nuevo`` en ``valor``. Si no hay coma, devuelve el valor intacto.
+    """
+    if value is None:
+        return ""
+    partes = str(arg).split(",")
+    if len(partes) == 2:
+        return str(value).replace(partes[0], partes[1])
+    return str(value)

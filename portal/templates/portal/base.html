@@ -6,11 +6,12 @@
 <meta name="theme-color" content="#920000">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23920000'/%3E%3Cpath d='M9 25V8h10v17M19 13h4v12M12 12h4M12 16h4M12 20h4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <title>{% block title %}Inicio{% endblock %} – Sistema Municipal</title>
-<link rel="stylesheet" href="{% static 'portal/css/sgr.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/sgr.css' %}?v=9">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.1/dist/sweetalert2.all.min.js"></script>
 {% block extra_head %}{% endblock %}
 </head>
-<body data-module="{{ active_module|default:'home' }}" data-delegation="{{ sgr_active_code|default:'ALL' }}">
+<body{% if sgr_embed %} class="embed"{% endif %} data-module="{{ active_module|default:'home' }}" data-delegation="{{ sgr_active_code|default:'ALL' }}">
+{% if not sgr_embed %}
 <a class="skip" href="#main">Saltar al contenido</a>
 <header class="top">
   <button class="menu-btn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="side">{% sgr_icon 'menu' 22 %}</button>
@@ -41,9 +42,12 @@
       <span class="ds-lock" title="Asignada por tu perfil">{% sgr_icon 'lock' 14 %}</span>
       {% endif %}
     </div>
+    <a class="bell-link" href="{% url 'notices' %}" title="Avisos y alertas" aria-label="Avisos y alertas{% if sgr_badge_count %}: {{ sgr_badge_count }} sin revisar{% endif %}">
+      {% sgr_icon 'bell' 20 %}{% if sgr_badge_count %}<span class="bell-count">{{ sgr_badge_count }}</span>{% endif %}
+    </a>
     <button type="button" class="user-trigger" id="userMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="userDropdown">
       <span class="who-tx"><strong>{{ sgr_display_name }}</strong><span class="role-txt">{{ sgr_role.name }}</span></span>
-      <span class="avatar" aria-hidden="true">{{ sgr_initials }}</span>
+      {% if sgr_profile.photo_url %}<img class="avatar avatar-img" src="{{ sgr_profile.photo_url }}" alt="" aria-hidden="true">{% else %}<span class="avatar" aria-hidden="true">{{ sgr_initials }}</span>{% endif %}
       <svg class="user-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </button>
     <div class="user-dropdown" id="userDropdown" hidden>
@@ -55,19 +59,40 @@
     </div>
   </div>
 </header>
+{% endif %}
 <div class="shell">
+  {% if not sgr_embed %}
   <aside class="side" id="side" aria-label="Menú principal">
     <div class="side-who"><strong>{{ sgr_display_name }}</strong><br><span class="subtle">{{ sgr_role.name }}</span></div>
     <nav class="nav" aria-label="Módulos">
       <a href="{% url 'home' %}"{% if active_module == 'home' %} aria-current="page"{% endif %}>{% sgr_icon 'home' 18 %}<span>Inicio</span></a>
       {% for item in sgr_menu %}
-      <a href="{% url item.url_name %}"{% if active_module == item.key %} aria-current="page"{% endif %}>{% sgr_icon item.icon 18 %}<span>{{ item.label }}</span></a>
+      {% with item.key as menu_key %}
+      <a href="{% url item.url_name %}"{% if active_module == menu_key %}{% if menu_key == 'tasks' %}{% if request.resolver_match.url_name == 'tasks' %} aria-current="page"{% endif %}{% elif menu_key == 'users' %}{% if request.resolver_match.url_name == 'users' %} aria-current="page"{% endif %}{% else %} aria-current="page"{% endif %}{% endif %}>{% sgr_icon item.icon 18 %}<span>{{ item.label }}</span></a>
+      {% endwith %}
       {% endfor %}
+      {% if sgr_can_view_tasks %}
+      <a href="{% url 'tubes' %}"{% if request.resolver_match.url_name == 'tubes' %} aria-current="page"{% endif %}>{% sgr_icon 'layers' 16 %}<span>Tubos de trabajo</span></a>
+      {% endif %}
+      {% if sgr_can_view_tasks %}
+      <a href="{% url 'pending_transfer' %}"{% if request.resolver_match.url_name == 'pending_transfer' %} aria-current="page"{% endif %}>{% sgr_icon 'calendar' 16 %}<span>Pendientes a traspasar</span></a>
+      {% endif %}
+      <a href="{% url 'notices' %}"{% if active_module == 'notices' %} aria-current="page"{% endif %}>{% sgr_icon 'bell' 16 %}<span>Avisos y alertas</span></a>
+      {% if sgr_role.scope == 'all' %}
+      <a href="{% url 'audit_log' %}"{% if active_module == 'audit' %} aria-current="page"{% endif %}>{% sgr_icon 'shield' 16 %}<span>Auditoría</span></a>
+      {% endif %}
+      {% if sgr_can_view_organizations %}
+      <a href="{% url 'organization_chart' %}"{% if request.resolver_match.url_name == 'organization_chart' %} aria-current="page"{% endif %}>{% sgr_icon 'building' 16 %}<span>Organigrama de organizaciones</span></a>
+      {% endif %}
+      {% if sgr_can_view_users %}
+      <a href="{% url 'organigrama' %}"{% if request.resolver_match.url_name == 'organigrama' %} aria-current="page"{% endif %}>{% sgr_icon 'users' 16 %}<span>Organigrama de funcionarios</span></a>
+      {% endif %}
     </nav>
   </aside>
+  {% endif %}
   <main id="main" tabindex="-1">
     {% block content %}{% endblock %}
-    <footer class="foot"><span>Sistema de Gestión Municipal · La Serena</span><span>Acciones sujetas al perfil</span></footer>
+    {% if not sgr_embed %}<footer class="foot"><span>Sistema de Gestión Municipal · La Serena</span><span>Acciones sujetas al perfil</span></footer>{% endif %}
   </main>
 </div>
 <div id="toasts" role="status" aria-live="polite"></div>
@@ -92,10 +117,11 @@
     });
   });
 </script>
+{% if not sgr_embed %}
 <div class="pmodal-backdrop" id="profileModal" hidden>
   <div class="pmodal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
     <div class="pmodal-head">
-      <span class="pmodal-avatar" aria-hidden="true">{{ sgr_initials }}</span>
+      {% if sgr_profile.photo_url %}<img class="pmodal-avatar avatar-img" src="{{ sgr_profile.photo_url }}" alt="" aria-hidden="true">{% else %}<span class="pmodal-avatar" aria-hidden="true">{{ sgr_initials }}</span>{% endif %}
       <div class="pmodal-id">
         <h2 id="profileModalTitle">{{ sgr_profile.full_name }}</h2>
         <p>{{ sgr_profile.email }}</p>
@@ -117,6 +143,25 @@
           <div><span class="pi-label">Alcance</span><span class="pi-value">{{ sgr_profile.scope_label }}</span></div>
           <div><span class="pi-label">Delegación</span><span class="pi-value">{{ sgr_profile.base_delegation }}</span></div>
         </div>
+        {% if sgr_profile.has_employee %}
+        <form method="post" action="{% url 'profile' %}" enctype="multipart/form-data" class="photo-form" id="photoForm" data-no-disable="1">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_photo">
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <label class="fl" for="pf_photo">Foto de perfil (JPG o PNG, máx. 2 MB)</label>
+          <input class="in" type="file" name="photo" id="pf_photo" accept=".jpg,.jpeg,.png">
+          <div class="photo-crop" id="photoCrop" hidden>
+            <canvas id="photoCanvas" width="220" height="220" aria-label="Encuadre de la foto: arrastra para mover"></canvas>
+            <label class="fl" for="pf_zoom">Ajuste / zoom</label>
+            <input type="range" id="pf_zoom" min="1" max="3" step="0.01" value="1">
+            <p class="help">Arrastra dentro del círculo o mueve el zoom para encuadrar.</p>
+          </div>
+          <div class="formfoot" style="margin-top:8px">
+            {% if sgr_profile.photo_url %}<button class="btn ghost" type="submit" name="action" value="remove_photo" formnovalidate>Quitar foto</button>{% endif %}
+            <button class="btn soft" type="submit" id="savePhotoBtn">Guardar foto</button>
+          </div>
+        </form>
+        {% endif %}
         <form method="post" action="{% url 'profile' %}" class="pmodal-form" id="contactForm" novalidate>
           {% csrf_token %}
           <input type="hidden" name="action" value="update_contact">
@@ -208,7 +253,10 @@
     </form>
   </div>
 </div>
-<script src="{% static 'portal/js/sgr.js' %}?v=3"></script>
+{% endif %}
+<script src="{% static 'portal/js/sgr.js' %}?v=5"></script>
+<script src="{% static 'portal/js/modal.js' %}?v=2"></script>
+<script src="{% static 'portal/js/profile_photo.js' %}?v=1"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

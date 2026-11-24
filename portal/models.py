@@ -67,6 +67,7 @@ class AuditLog(models.Model):
     module = models.CharField(max_length=50, blank=True, default='', verbose_name='Módulo')
     object_repr = models.CharField(max_length=200, blank=True, default='', verbose_name='Objeto')
     detail = models.TextField(blank=True, default='', verbose_name='Detalle')
+    changes = models.TextField(blank=True, default='', verbose_name='Cambios (valor anterior y nuevo, JSON)')
     ip = models.CharField(max_length=45, blank=True, default='', verbose_name='IP')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
 

@@ -25,7 +25,7 @@ def _resolver_periodo(request):
             periodo = None
         if periodo is not None:
             return periodo
-    return Period.alive.order_by("-start_date", "-pk").first()
+    return calculos.periodo_vigente()
 
 
 def _empleados_en_alcance(request):
@@ -103,4 +103,31 @@ class ReportsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                 "ranking": ranking,
             }
         )
+        return context
+
+class ReportsChartsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
+    """Gráficos y ritmo del período (HU-17, preview de implementación)."""
+
+    template_name = "portal/reports_charts.html"
+    module = REPORTS_MODULE
+    action = "view"
+
+    def get_context_data(self, **kwargs):
+        from .dashboard import barras_items, estado_tubos, ritmo_del_periodo, serie_ritmo
+
+        context = super().get_context_data(**kwargs)
+        hoy = timezone.localdate()
+        ritmo = ritmo_del_periodo(self.request, hoy)
+        serie = None
+        if ritmo and not ritmo.get("sin_datos"):
+            serie = serie_ritmo(ritmo["empleados"], ritmo["periodo"], hoy, ritmo["cumplimientos"])
+        context.update({
+            "active_module": "reports",
+            "module_label": MODULE_LABELS["reports"],
+            "module_icon": MODULE_ICONS["reports"],
+            "ritmo": ritmo,
+            "serie": serie,
+            "items": barras_items(ritmo),
+            "tubos": estado_tubos(self.request),
+        })
         return context

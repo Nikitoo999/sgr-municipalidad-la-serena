@@ -1,0 +1,104 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}Metas · {{ position.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'positions' %}">Cargos y metas</a> / <a href="{% url 'positions_detail' position.pk %}">{{ position.code }}</a> / Metas</nav>
+<div class="titlebar"><h1>{{ position.name }} · ítems, ponderadores y metas</h1></div>
+
+<section class="card toolbar">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div class="statebox">
+      <label for="periodo">Período</label>
+      <select class="in" id="periodo" name="periodo">
+        {% for p in periodos %}<option value="{{ p.pk }}"{% if period and p.pk == period.pk %} selected{% endif %}>{{ p.name }}{% if p.status == 'Cerrado' %} (cerrado){% endif %}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn soft" type="submit">Ver</button>
+  </form>
+</section>
+
+{% if not period %}
+<div class="state"><div class="ic">{% sgr_icon 'calendar' 24 %}</div><h2>No hay períodos</h2><p>Crea un período de medición primero.</p></div>
+{% else %}
+{% if not position.is_evaluated %}<div class="scope" role="note">{% sgr_icon 'info' 18 %}<span>Este cargo no se evalúa en la matriz: sus metas no se usan en Cumplimiento.</span></div>{% endif %}
+{% if cerrado %}<div class="scope scope-lock" role="note">{% sgr_icon 'lock' 18 %}<span>{{ period.name }} está cerrado: sus metas quedan en solo lectura (RN-013).</span></div>{% endif %}
+
+<form method="post" class="card" id="goalsForm" data-no-disable="1">
+  {% csrf_token %}
+  <input type="hidden" name="periodo" value="{{ period.pk }}">
+  <div class="tablewrap">
+  <table>
+    <caption class="sr">Metas de {{ position.name }} en {{ period.name }}</caption>
+    <thead><tr><th scope="col">Ítem</th><th scope="col">Ponderador (%)</th><th scope="col">Meta del trimestre</th><th scope="col">Exige contacto</th>{% if can_edit and not cerrado %}<th scope="col">Quitar</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for g in goals %}
+    <tr>
+      <td>{{ g.item.code }} · {{ g.item.name }}</td>
+      <td>{% if can_edit and not cerrado %}<input class="in" type="number" step="0.01" min="0" max="100" name="weight_{{ g.pk }}" value="{{ g.weight }}" data-weight aria-label="Ponderador de {{ g.item.name }}" style="max-width:120px">{% else %}{{ g.weight }}{% endif %}</td>
+      <td>{% if can_edit and not cerrado %}<input class="in" type="number" step="0.01" min="0" name="target_{{ g.pk }}" value="{{ g.target_value }}" aria-label="Meta de {{ g.item.name }}" style="max-width:120px">{% else %}{{ g.target_value }}{% endif %}</td>
+      <td>{{ g.item.requires_contact|yesno:"Sí,No" }}</td>
+      {% if can_edit and not cerrado %}<td><label class="checkrow"><input type="checkbox" name="delete_{{ g.pk }}" value="1" data-delete><span class="sr">Quitar {{ g.item.name }}</span></label></td>{% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="meta">Este cargo no tiene metas en {{ period.name }}.</td></tr>
+    {% endfor %}
+    {% if can_edit and not cerrado %}
+    {% for i in filas_nuevas %}
+    <tr>
+      <td><select class="in" name="new_item_{{ i }}" aria-label="Ítem nuevo {{ forloop.counter }}"><option value="">Agregar ítem…</option>{% for it in items_disponibles %}<option value="{{ it.pk }}">{{ it.code }} · {{ it.name }}</option>{% endfor %}</select></td>
+      <td><input class="in" type="number" step="0.01" min="0" max="100" name="new_weight_{{ i }}" data-weight aria-label="Ponderador del ítem nuevo {{ forloop.counter }}" style="max-width:120px"></td>
+      <td><input class="in" type="number" step="0.01" min="0" name="new_target_{{ i }}" aria-label="Meta del ítem nuevo {{ forloop.counter }}" style="max-width:120px"></td>
+      <td></td><td></td>
+    </tr>
+    {% endfor %}
+    {% endif %}
+    </tbody>
+  </table>
+  </div>
+  <p><strong>Suma de ponderadores: <span id="weightSum">{{ suma }}</span> %</strong> <span class="badge {% if suma_ok %}b-ok{% else %}b-warn{% endif %}" id="weightBadge">{% if suma_ok %}Cumple RN-001{% else %}Debe sumar 100 %{% endif %}</span></p>
+  {% if can_edit and not cerrado %}
+  <label class="checkrow"><input type="checkbox" name="excepcion" value="1"><span>Excepción formal: guardar aunque no sume 100 %</span></label>
+  <input class="in" name="motivo_excepcion" maxlength="300" placeholder="Motivo de la excepción (queda en la auditoría)" style="margin-top:6px">
+  <div class="formfoot"><button class="btn primary" type="submit">Guardar metas</button></div>
+  {% endif %}
+</form>
+
+{% if can_edit and not cerrado and periodo_anterior %}
+<form method="post" class="card" style="margin-top:12px">
+  {% csrf_token %}
+  <input type="hidden" name="periodo" value="{{ period.pk }}">
+  <input type="hidden" name="accion" value="copiar">
+  <p>No hay metas en {{ period.name }}. Puedes partir copiando las de <strong>{{ periodo_anterior.name }}</strong>.</p>
+  <button class="btn soft" type="submit">Copiar metas de {{ periodo_anterior.name }}</button>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var form = document.getElementById('goalsForm');
+    var out = document.getElementById('weightSum');
+    var badge = document.getElementById('weightBadge');
+    if (!form || !out) return;
+    function recalc() {
+      var total = 0;
+      form.querySelectorAll('[data-weight]').forEach(function (input) {
+        var row = input.closest('tr');
+        var del = row ? row.querySelector('[data-delete]') : null;
+        if (del && del.checked) return;
+        var v = parseFloat(String(input.value || '0').replace(',', '.'));
+        if (!isNaN(v)) total += v;
+      });
+      total = Math.round(total * 100) / 100;
+      out.textContent = total;
+      var ok = Math.abs(total - 100) < 0.001;
+      badge.textContent = ok ? 'Cumple RN-001' : 'Debe sumar 100 %';
+      badge.className = 'badge ' + (ok ? 'b-ok' : 'b-warn');
+    }
+    form.addEventListener('input', recalc);
+    form.addEventListener('change', recalc);
+  })();
+</script>
+{% endblock %}

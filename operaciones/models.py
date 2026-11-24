@@ -12,12 +12,25 @@ from sgr_core.models import (
     AttentionSubtype,
     AttentionType,
     BaseModel,
+    CommunityOrganization,
+    DirectiveRole,
     InstitutionalGoal,
+    OrganizationMember,
+    Period,
     Position,
     Delegation,
     ProjectItem,
     Role,
 )
+
+
+class ReviewStatus(models.TextChoices):
+    """Resultado de la validación del punto (evidencia o atención)."""
+
+    PENDING = "pending", "Pendiente de validación"
+    APPROVED = "approved", "Aprobada"
+    REJECTED = "rejected", "Rechazada"
+    CORRECTION = "correction", "Corrección solicitada"
 
 
 # --- Rutas de los archivos subidos (Bloque 2A) -------------------------------
@@ -86,6 +99,8 @@ class Activity(BaseModel):
     status = models.CharField(
         max_length=15, choices=Status.choices, default=Status.PENDING, verbose_name="Estado",
     )
+    contact_name = models.CharField(max_length=150, blank=True, default="", verbose_name="Nombre del usuario o contacto")
+    contact_phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Teléfono del usuario o contacto")
 
     class Meta:
         verbose_name = "Actividad"
@@ -94,6 +109,11 @@ class Activity(BaseModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def has_contact(self):
+        """Tiene nombre y teléfono del usuario (punto 2 del nuevo requerimiento)."""
+        return bool(self.contact_name.strip() and self.contact_phone.strip())
 
 def evidence_upload_to(instance, filename):
     """Guarda la evidencia bajo el código de su tarea: evidencias/TAR-00012/archivo."""
@@ -112,6 +132,11 @@ class Evidence(BaseModel):
         related_name="validated_evidences", verbose_name="Validado por",
     )
     validated_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de validación")
+    review_status = models.CharField(
+        max_length=12, choices=ReviewStatus.choices, default=ReviewStatus.PENDING,
+        verbose_name="Resultado de la revisión",
+    )
+    review_notes = models.TextField(blank=True, default="", verbose_name="Observación del verificador")
 
 
     class Meta:
@@ -132,6 +157,10 @@ class Employee(BaseModel):
     position = models.ForeignKey(Position, on_delete=models.PROTECT, null=True, blank=True,related_name="employees", verbose_name="Cargo",)
     authorized_delegations = models.ManyToManyField(Delegation, blank=True, related_name='authorized_employees', verbose_name="Delegaciones autorizadas")
     must_change_password = models.BooleanField(default=False, verbose_name="Debe cambiar contraseña al ingresar")
+    photo = models.ImageField(
+        upload_to="perfiles/", max_length=255, blank=True, null=True,
+        validators=[validate_image_file], verbose_name="Foto de perfil (máx. 2 MB)",
+    )
 
     class Meta:
         verbose_name = "Funcionario"
@@ -142,6 +171,11 @@ class Employee(BaseModel):
         # Si el usuario no tiene nombre configurado, mostrará el username
         nombre = self.user.get_full_name() or self.user.username
         return f"{nombre} - {self.delegation.name}"
+
+    @property
+    def position_label(self):
+        """Nombre del cargo (columna "Cargo" de Usuarios)."""
+        return self.position.name if self.position_id else "Sin cargo"
 
     def save(self, *args, **kwargs):
         """Borrado lógico del funcionario: desactiva también la cuenta.
@@ -280,6 +314,11 @@ class Neighbor(BaseModel):
     full_name = models.CharField(max_length=150, verbose_name="Nombre completo")
     phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Teléfono")
     email = models.EmailField(blank=True, default="", verbose_name="Correo electrónico")
+    employee = models.ForeignKey(
+        "Employee", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="citizen_records", verbose_name="Funcionario (misma persona)",
+        help_text="Se completa cuando el RUT del vecino corresponde a un funcionario municipal.",
+    )
     status = models.CharField(max_length=10, choices=NEIGHBOR_STATUS_CHOICES, default="Activo", verbose_name="Estado")
 
     class Meta:
@@ -306,6 +345,14 @@ class Attention(BaseModel):
         IN_PROGRESS = "in_progress", "En gestión"
         RESOLVED = "resolved", "Resuelta"
         UNRESOLVED = "unresolved", "Sin resolver"
+
+    class RequesterMode(models.TextChoices):
+        PERSON = "person", "Persona natural"
+        DIRECTIVE = "directive", "Directivo de organización"
+
+    class EmployeeRelation(models.TextChoices):
+        CIVIL = "civil", "Funcionario atendido como civil"
+        INTERNAL = "internal", "Gestión interna (solicita un funcionario)"
 
     number = models.CharField(max_length=12, unique=True, null=True, blank=True, verbose_name="Número de atención")
     neighbor = models.ForeignKey(
@@ -341,7 +388,10 @@ class Attention(BaseModel):
     )
     counts_for_score = models.BooleanField(
         default=True, verbose_name="Cuenta para el puntaje operativo",
-        help_text="Las atenciones ingresadas por el rol Delegado no suman al puntaje operativo.",
+        help_text=(
+            "No suman las atenciones ingresadas por el rol Delegado ni las de "
+            "sub atenciones preparatorias."
+        ),
     )
     evidence_image = models.ImageField(
         upload_to=attention_image_path, max_length=255, blank=True, null=True,
@@ -351,6 +401,46 @@ class Attention(BaseModel):
         upload_to=attention_attachment_path, max_length=255, blank=True, null=True,
         validators=[validate_attachment_file], verbose_name="Documento de respaldo (máx. 5 MB)",
     )
+    item = models.ForeignKey(
+        ProjectItem, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="attentions", verbose_name="Ítem de la matriz",
+    )
+    requester_mode = models.CharField(
+        max_length=10, choices=RequesterMode.choices, default=RequesterMode.PERSON,
+        verbose_name="¿Cómo acude la persona?",
+    )
+    organization = models.ForeignKey(
+        CommunityOrganization, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="attentions", verbose_name="Organización",
+    )
+    directive_role = models.ForeignKey(
+        DirectiveRole, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="attentions", verbose_name="Cargo directivo",
+    )
+    organization_member = models.ForeignKey(
+        OrganizationMember, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="attentions", verbose_name="Directivo del organigrama",
+    )
+    requester_employee = models.ForeignKey(
+        "Employee", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="attentions_as_requester", verbose_name="Funcionario solicitante",
+    )
+    employee_relation = models.CharField(
+        max_length=10, choices=EmployeeRelation.choices, blank=True, default="",
+        verbose_name="Relación del solicitante funcionario",
+    )
+    validation_status = models.CharField(
+        max_length=12, choices=ReviewStatus.choices, default=ReviewStatus.PENDING,
+        verbose_name="Validación del punto",
+    )
+    validated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="validated_attentions", verbose_name="Validada por",
+    )
+    validated_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de validación")
+    validation_notes = models.TextField(blank=True, default="", verbose_name="Observación del verificador")
+    priority = models.BooleanField(default=False, verbose_name="Prioritaria (traspaso de trimestre)")
+    priority_reason = models.CharField(max_length=150, blank=True, default="", verbose_name="Motivo de la prioridad")
 
     #: Campos de archivo que llevan el número de la atención como prefijo.
     FILE_FIELDS = ("evidence_image", "attachment")
@@ -419,15 +509,38 @@ class Attention(BaseModel):
         return (self.neighbor.phone or "—") if self.neighbor_id else "—"
 
     @property
+    def validation_display(self):
+        """Estado de la validación del punto (columna y exportación)."""
+        return self.get_validation_status_display()
+
+    @property
+    def item_label(self):
+        return f"{self.item.code} · {self.item.name}" if self.item_id else "—"
+
+    @property
+    def requester_display(self):
+        """Cómo compareció el solicitante (persona, directivo, funcionario)."""
+        if self.requester_mode == self.RequesterMode.DIRECTIVE:
+            partes = [self.directive_role.name if self.directive_role_id else "Directivo"]
+            if self.organization_id:
+                partes.append(self.organization.name)
+            texto = " · ".join(partes)
+        else:
+            texto = "Persona natural"
+        if self.employee_relation:
+            texto += f" ({self.get_employee_relation_display().lower()})"
+        return texto
+
+    @property
     def requires_visit_display(self):
         return "Sí" if self.requires_visit else "No"
 
     @property
     def score_display(self):
         """Texto del puntaje operativo (columna de exportación y consulta)."""
-        if self.counts_for_score:
-            return "Cuenta"
-        return "No cuenta (ingreso del rol Delegado)"
+        from .rules import score_reason
+
+        return score_reason(self)
 
     def save(self, *args, **kwargs):
         """Asigna number (formato ATN-0001) tras el primer insert.
@@ -599,6 +712,16 @@ class TubeEntry(BaseModel):
         validators=[validate_image_file], verbose_name="Foto de respaldo (máx. 2 MB)",
     )
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de realización")
+    organization = models.ForeignKey(
+        CommunityOrganization, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tube_entries", verbose_name="Organización solicitante",
+    )
+    priority = models.BooleanField(default=False, verbose_name="Prioritaria (traspaso de trimestre)")
+    priority_reason = models.CharField(max_length=150, blank=True, default="", verbose_name="Motivo de la prioridad")
+    carried_to_period = models.ForeignKey(
+        Period, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="carried_tube_entries", verbose_name="Traspasada al período",
+    )
 
     class Meta:
         verbose_name = "Solicitud del tubo"
@@ -616,6 +739,11 @@ class TubeEntry(BaseModel):
     def code(self):
         """Código de la solicitud (TUB-00012)."""
         return f"TUB-{self.pk:05d}" if self.pk else ""
+
+    @property
+    def has_contact(self):
+        """¿Tiene nombre y teléfono del solicitante? Sin ellos no suma puntaje."""
+        return bool((self.requester or "").strip() and (self.contact_phone or "").strip())
 
     def clean(self):
         super().clean()
@@ -717,3 +845,128 @@ class WeeklyClosure(BaseModel):
         super().clean()
         if self.week_start and self.week_start.weekday() != 0:
             raise ValidationError({"week_start": "La semana debe comenzar un lunes."})
+
+
+class TubeStatusChange(BaseModel):
+    """Historial de una solicitud del tubo (RF-018): estado anterior y nuevo,
+    reprogramaciones, reasignaciones y cierre, con autor, fecha y observación."""
+
+    class Kind(models.TextChoices):
+        CREATED = "created", "Ingreso"
+        STATUS = "status", "Cambio de estado"
+        RESCHEDULE = "reschedule", "Reprogramación"
+        REASSIGN = "reassign", "Reasignación"
+        CLOSED = "closed", "Cierre con foto y código"
+        PRIORITY = "priority", "Traspaso con prioridad"
+
+    entry = models.ForeignKey(
+        TubeEntry, on_delete=models.CASCADE, related_name="history", verbose_name="Solicitud",
+    )
+    kind = models.CharField(max_length=12, choices=Kind.choices, verbose_name="Tipo de cambio")
+    from_value = models.CharField(max_length=80, blank=True, default="", verbose_name="Valor anterior")
+    to_value = models.CharField(max_length=80, blank=True, default="", verbose_name="Valor nuevo")
+    notes = models.TextField(blank=True, default="", verbose_name="Observación")
+    changed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tube_changes", verbose_name="Autor",
+    )
+
+    class Meta:
+        verbose_name = "Cambio de solicitud del tubo"
+        verbose_name_plural = "Historial del tubo"
+        db_table = "tubo_historial"
+        ordering = ["created_at", "pk"]
+
+    def __str__(self):
+        return f"{self.entry.code}: {self.get_kind_display()}"
+
+
+class Notice(BaseModel):
+    """Aviso visible en la barra superior (p. ej., traspaso de trimestre)."""
+
+    class Kind(models.TextChoices):
+        TRANSFER = "transfer", "Traspaso de trimestre"
+        INFO = "info", "Información"
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.INFO, verbose_name="Tipo")
+    title = models.CharField(max_length=150, verbose_name="Título")
+    text = models.TextField(blank=True, default="", verbose_name="Detalle")
+    delegation = models.ForeignKey(
+        Delegation, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="notices", verbose_name="Delegación (vacío = todas)",
+    )
+    url = models.CharField(max_length=255, blank=True, default="", verbose_name="Enlace")
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="created_notices", verbose_name="Creado por",
+    )
+    read_by = models.ManyToManyField(User, blank=True, related_name="read_notices", verbose_name="Leído por")
+
+    class Meta:
+        verbose_name = "Aviso"
+        verbose_name_plural = "Avisos"
+        db_table = "aviso"
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self):
+        return self.title
+
+
+class AlertReview(models.Model):
+    """Alerta operativa marcada como revisada por un usuario (HU-31).
+
+    Las alertas se calculan al vuelo; aquí solo queda quién revisó cuál, sin
+    borrar el evento original.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="alert_reviews", verbose_name="Usuario")
+    key = models.CharField(max_length=120, verbose_name="Clave de la alerta")
+    reviewed_at = models.DateTimeField(auto_now_add=True, verbose_name="Revisada el")
+
+    class Meta:
+        verbose_name = "Alerta revisada"
+        verbose_name_plural = "Alertas revisadas"
+        db_table = "alerta_revisada"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "key"], name="uniq_alerta_revisada"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} - {self.key}"
+
+
+class RecordComment(BaseModel):
+    """Observación o consulta asociada a un registro (RF-035 / HU-24)."""
+
+    attention = models.ForeignKey(
+        Attention, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="comments", verbose_name="Atención",
+    )
+    tube_entry = models.ForeignKey(
+        TubeEntry, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="comments", verbose_name="Solicitud del tubo",
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="record_comments", verbose_name="Autor",
+    )
+    text = models.TextField(verbose_name="Comentario")
+
+    class Meta:
+        verbose_name = "Comentario de registro"
+        verbose_name_plural = "Comentarios de registros"
+        db_table = "comentario_registro"
+        ordering = ["created_at", "pk"]
+
+    def __str__(self):
+        return self.text[:60]
+
+    @property
+    def author_name(self):
+        if self.author_id is None:
+            return "—"
+        return self.author.get_full_name() or self.author.username
+
+    @property
+    def created_at_display(self):
+        return timezone.localtime(self.created_at).strftime("%d-%m-%Y %H:%M")

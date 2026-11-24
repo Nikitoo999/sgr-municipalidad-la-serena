@@ -70,12 +70,21 @@ class DelegationChatConsumer(AsyncJsonWebsocketConsumer):
                 pass
 
     async def receive_json(self, content, **kwargs):
-        message = (content.get('message') or '').strip()
-        if not message:
+        # Validar que content es un diccionario antes de acceder a sus claves.
+        # Si el cliente envía null, un string o un JSON que no es objeto,
+        # se ignora silenciosamente sin lanzar AttributeError.
+        if not isinstance(content, dict):
             return
-        msg_type = content.get('type', 'chat')
-        if msg_type != 'chat':
+        if content.get('type') == 'ping':
+            await self.send_json({'type': 'pong'})
             return
+        # Solo mensajes de chat con texto (otros tipos se ignoran).
+        if content.get('type', 'chat') != 'chat':
+            return
+        message = content.get('message')
+        if not isinstance(message, str) or not message.strip():
+            return
+        message = message.strip()[:1000]
         user = self.scope.get('user')
         username = user.username if user and user.is_authenticated else 'Anónimo'
 
@@ -137,6 +146,12 @@ class AttentionLiveConsumer(AsyncJsonWebsocketConsumer):
                 await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
             except Exception:
                 pass
+
+    async def receive_json(self, content, **kwargs):
+        # Único mensaje del cliente: el heartbeat. Se responde para que el
+        # navegador sepa que la conexión sigue viva.
+        if isinstance(content, dict) and content.get('type') == 'ping':
+            await self.send_json({'type': 'pong'})
 
     async def attention_created(self, event):
         await self.send_json({

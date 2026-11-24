@@ -1,0 +1,64 @@
+{% extends 'portal/base.html' %}
+{% load static sgr_icons %}
+{% block title %}{{ module_label }} – Organigrama{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">
+<style>
+  .organigrama { max-width: 1000px; margin: 0 auto; }
+  .org-delegacion { margin-bottom: 24px; border: 1px solid #d9d9d9; border-radius: 8px; background: #fff; }
+  .org-delegacion-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #f5f5f5; border-bottom: 1px solid #d9d9d9; border-radius: 8px 8px 0 0; }
+  .org-delegacion-header .org-ic { color: #920000; }
+  .org-delegacion-title { font-weight: 700; font-size: 1.05em; color: #333; }
+  .org-delegacion-body { padding: 12px 16px; }
+  .org-pos { margin-bottom: 14px; border: 1px solid #e8e8e8; border-radius: 6px; background: #fafafa; }
+  .org-pos-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 0.9em; font-weight: 700; color: #555; border-bottom: 1px solid #e8e8e8; border-radius: 6px 6px 0 0; }
+  .org-pos-body { padding: 8px 12px; }
+  .org-emp { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 0.9em; color: #333; border-bottom: 1px solid #eee; }
+  .org-emp:last-child { border-bottom: none; }
+  .org-emp .org-name { flex: 1; }
+  .org-emp .org-role { color: #666; font-size: 0.8em; }
+  .empty-state { text-align: center; padding: 40px; color: #888; font-size: 0.95em; }
+</style>
+{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">Gestión municipal / Usuarios / Organigrama</nav>
+<div class="titlebar"><h1>{{ module_label }} — Organigrama</h1></div>
+
+{% if not organigrama %}
+<div class="empty-state">
+  {% sgr_icon 'users' 32 %}
+  <p style="margin-top:8px;">No hay empleados para mostrar en el alcance actual.</p>
+</div>
+{% else %}
+
+<div class="organigrama" aria-label="Organigrama de empleados">
+  {% for delegacion, posiciones in organigrama.items %}
+  <div class="org-delegacion">
+    <div class="org-delegacion-header">
+      <span class="org-ic">{% sgr_icon 'building' 18 %}</span>
+      <span class="org-delegacion-title">{{ delegacion }}</span>
+    </div>
+    <div class="org-delegacion-body">
+      {% for pos, empleados in posiciones.items %}
+      <div class="org-pos">
+        <div class="org-pos-header">
+          <span class="org-ic">{% sgr_icon 'flag' 16 %}</span>
+          <span>{{ pos }} ({{ empleados|length }})</span>
+        </div>
+        <div class="org-pos-body">
+          {% for item in empleados %}
+          <div class="org-emp">
+            <span class="org-ic">{% sgr_icon 'users' 14 %}</span>
+            <span class="org-name">{{ item.full_name }}</span>
+            <span class="org-role">{{ item.role_name }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

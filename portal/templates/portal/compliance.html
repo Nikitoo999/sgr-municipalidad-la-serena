@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{{ module_label }}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">
 <style>
   .b-rojo{background:#fdecea;color:#b71c1c}
 </style>
@@ -39,10 +39,53 @@
 <p>Asigna un cargo a los funcionarios de la delegación para ver su cumplimiento.</p>
 </div>
 {% else %}
-<p class="meta">Cada ítem cuenta hasta el {{ tope_pct }} %. Solo suman las actividades realizadas con evidencia validada.</p>
+<p class="meta">Cada ítem cuenta hasta el {{ tope_pct }} %. Suman las actividades con evidencia aprobada y las atenciones con validación aprobada (máximo 7 por día).</p>
+
+{# Resumen de la delegación: puntaje de equipo, actividad reciente e ítems a reforzar #}
+<section class="card" aria-labelledby="teamTitle" style="margin-bottom:16px">
+  <h2 id="teamTitle">Resumen de la delegación · {{ periodo.name }}</h2>
+  {% if equipo %}
+  <p>
+    <strong>Puntaje del equipo: {{ equipo.porcentaje }} %</strong> · avance esperado a hoy {{ equipo.esperado_pct }} %
+    <span class="badge {% if equipo.semaforo == 'verde' %}b-ok{% elif equipo.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">
+      {% if equipo.semaforo == 'verde' %}Verde{% elif equipo.semaforo == 'amarillo' %}Amarillo{% else %}Rojo{% endif %}
+    </span>
+  </p>
+  <p class="meta">{{ equipo.evaluados }} funcionario{{ equipo.evaluados|pluralize }} evaluado{{ equipo.evaluados|pluralize }}: {{ equipo.verdes }} en verde, {{ equipo.amarillos }} en amarillo y {{ equipo.rojos }} en rojo. Los puntajes se ven como equipo: juntos suman más.</p>
+  {% if equipo.items_a_reforzar %}
+  <p><strong>Ítems a reforzar</strong> <span class="meta">(menor logro promedio; sobre el {{ tope_pct }} % ya no suma)</span></p>
+  <ul>
+    {% for it in equipo.items_a_reforzar %}<li>{{ it.item.name }}: {{ it.logro_pct }} % <span class="meta">({{ it.funcionarios }} funcionario{{ it.funcionarios|pluralize }})</span></li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% else %}
+  <p class="meta">No hay funcionarios evaluados con metas en este trimestre.</p>
+  {% endif %}
+  <div class="tablewrap">
+  <table>
+    <caption class="sr">Actividad reciente y cumplimiento por funcionario</caption>
+    <thead><tr><th scope="col">Funcionario</th><th scope="col">Cargo</th><th scope="col">Último ingreso</th><th scope="col">Días desde el último</th><th scope="col">Ingresos</th><th scope="col">Promedio diario</th><th scope="col">Cumplimiento</th><th scope="col">Semáforo</th></tr></thead>
+    <tbody>
+    {% for fila in filas %}
+    <tr>
+      <td><a href="#func-{{ fila.empleado.pk }}">{{ fila.empleado.full_name }}</a></td>
+      <td>{{ fila.empleado.position.name }}</td>
+      <td>{{ fila.reciente.ultimo|date:"d/m/Y"|default:"Sin ingresos" }}</td>
+      <td>{% if fila.reciente.dias_desde_ultimo is None %}—{% elif fila.reciente.dias_desde_ultimo > 3 %}<span class="badge b-rojo">{{ fila.reciente.dias_desde_ultimo }}</span>{% else %}{{ fila.reciente.dias_desde_ultimo }}{% endif %}</td>
+      <td>{{ fila.reciente.total }}</td>
+      <td>{{ fila.reciente.promedio }}</td>
+      <td>{{ fila.cumplimiento.porcentaje }} %</td>
+      <td><span class="badge {% if fila.cumplimiento.semaforo == 'verde' %}b-ok{% elif fila.cumplimiento.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">{% if fila.cumplimiento.semaforo == 'verde' %}Verde{% elif fila.cumplimiento.semaforo == 'amarillo' %}Amarillo{% else %}Rojo{% endif %}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
 {% for fila in filas %}
 {% with c=fila.cumplimiento %}
-<section class="card" style="margin-bottom:16px">
+<section class="card" style="margin-bottom:16px" id="func-{{ fila.empleado.pk }}">
 <h2>
     {{ fila.empleado.full_name }}
     <span class="badge {% if c.semaforo == 'verde' %}b-ok{% elif c.semaforo == 'amarillo' %}b-warn{% else %}b-rojo{% endif %}">
@@ -117,30 +160,81 @@
 {% endif %}
 
 {% if can_create %}
-<form method="post" action="{% url 'feedback_create' fila.empleado.pk %}" enctype="multipart/form-data"
-        style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
-    {% csrf_token %}
-    <div>
-    <label class="fl" for="tipo-{{ fila.empleado.pk }}">Tipo</label>
-    <select class="in" id="tipo-{{ fila.empleado.pk }}" name="kind">
-        <option value="praise">Felicitación (+{{ puntos_felicitacion }})</option>
-        <option value="complaint">Reclamo (−{{ puntos_reclamo }})</option>
-    </select>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+    <button type="button" class="btn primary" data-open-modal="fb-{{ fila.empleado.pk }}">{% sgr_icon 'plus' 16 %}<span>Registrar felicitación o reclamo</span></button>
+    <button type="button" class="btn soft" data-open-modal="dl-{{ fila.empleado.pk }}">{% sgr_icon 'calendar' 16 %}<span>Registrar día libre</span></button>
+</div>
+
+<div class="smodal-backdrop" id="fb-{{ fila.empleado.pk }}" data-sgr-dialog hidden>
+  <div class="smodal" role="dialog" aria-modal="true" aria-labelledby="fb-t-{{ fila.empleado.pk }}" style="width:min(560px,100%)">
+    <div class="smodal-head">
+      <h2 id="fb-t-{{ fila.empleado.pk }}">Felicitación o reclamo · {{ fila.empleado.full_name }}</h2>
+      <button type="button" class="smodal-close" data-close-modal aria-label="Cerrar">{% sgr_icon 'x' 20 %}</button>
     </div>
-    <div>
-    <label class="fl" for="fecha-{{ fila.empleado.pk }}">Fecha</label>
-    <input class="in" id="fecha-{{ fila.empleado.pk }}" name="date" type="date" required value="{% now 'Y-m-d' %}">
+    <form class="smodal-form fgrid" method="post" action="{% url 'feedback_create' fila.empleado.pk %}" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div>
+        <label class="fl" for="tipo-{{ fila.empleado.pk }}">Tipo <span class="req" aria-hidden="true">*</span></label>
+        <select class="in" id="tipo-{{ fila.empleado.pk }}" name="kind">
+          <option value="praise">Felicitación (+{{ puntos_felicitacion }})</option>
+          <option value="complaint">Reclamo (−{{ puntos_reclamo }})</option>
+        </select>
+      </div>
+      <div>
+        <label class="fl" for="fecha-{{ fila.empleado.pk }}">Fecha <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="fecha-{{ fila.empleado.pk }}" name="date" type="date" required value="{% now 'Y-m-d' %}">
+      </div>
+      <div class="full">
+        <label class="fl" for="desc-{{ fila.empleado.pk }}">Descripción <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="desc-{{ fila.empleado.pk }}" name="description" maxlength="255" required placeholder="Motivo">
+      </div>
+      <div class="full">
+        <label class="fl" for="file-{{ fila.empleado.pk }}">Respaldo formal (obligatorio en felicitaciones)</label>
+        <input class="in" id="file-{{ fila.empleado.pk }}" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp">
+        <p class="help">Solo valen las felicitaciones del usuario al delegado o a la delegación, con respaldo formal. Un mensaje al funcionario no suma.</p>
+      </div>
+      <div class="formfoot full">
+        <button type="button" class="btn ghost" data-close-modal>Cancelar</button>
+        <button class="btn primary" type="submit">Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="smodal-backdrop" id="dl-{{ fila.empleado.pk }}" data-sgr-dialog hidden>
+  <div class="smodal" role="dialog" aria-modal="true" aria-labelledby="dl-t-{{ fila.empleado.pk }}" style="width:min(560px,100%)">
+    <div class="smodal-head">
+      <h2 id="dl-t-{{ fila.empleado.pk }}">Día libre · {{ fila.empleado.full_name }}</h2>
+      <button type="button" class="smodal-close" data-close-modal aria-label="Cerrar">{% sgr_icon 'x' 20 %}</button>
     </div>
-    <div>
-    <label class="fl" for="desc-{{ fila.empleado.pk }}">Descripción</label>
-    <input class="in" id="desc-{{ fila.empleado.pk }}" name="description" maxlength="255" required placeholder="Motivo">
-    </div>
-    <div>
-    <label class="fl" for="file-{{ fila.empleado.pk }}">Respaldo formal (obligatorio en felicitaciones)</label>
-    <input class="in" id="file-{{ fila.empleado.pk }}" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp">
-    </div>
-    <button class="btn primary" type="submit">Registrar</button>
-</form>
+    <form class="smodal-form fgrid" method="post" action="{% url 'day_off_create' fila.empleado.pk %}">
+      {% csrf_token %}
+      <div class="full">
+        <label class="fl" for="dlk-{{ fila.empleado.pk }}">Tipo <span class="req" aria-hidden="true">*</span></label>
+        <select class="in" id="dlk-{{ fila.empleado.pk }}" name="kind" required>
+          {% for valor, etiqueta in tipos_dia_libre %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="fl" for="dls-{{ fila.empleado.pk }}">Desde <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="dls-{{ fila.empleado.pk }}" name="start_date" type="date" required value="{% now 'Y-m-d' %}">
+      </div>
+      <div>
+        <label class="fl" for="dle-{{ fila.empleado.pk }}">Hasta <span class="req" aria-hidden="true">*</span></label>
+        <input class="in" id="dle-{{ fila.empleado.pk }}" name="end_date" type="date" required value="{% now 'Y-m-d' %}">
+      </div>
+      <div class="full">
+        <label class="fl" for="dln-{{ fila.empleado.pk }}">Observaciones</label>
+        <input class="in" id="dln-{{ fila.empleado.pk }}" name="notes" maxlength="200">
+        <p class="help">Los días hábiles registrados reducen proporcionalmente la meta del trimestre.</p>
+      </div>
+      <div class="formfoot full">
+        <button type="button" class="btn ghost" data-close-modal>Cancelar</button>
+        <button class="btn primary" type="submit">Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endif %}
 </section>
 {% endwith %}

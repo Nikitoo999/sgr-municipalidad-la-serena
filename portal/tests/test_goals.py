@@ -101,3 +101,26 @@ class GoalsViewTests(TestCase):
         self.client.login(username="ana", password="Demo2026!")
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, 403)
+    def test_dias_libres_precargados_coinciden_con_la_consulta(self):
+        """El listado de equipo precarga los días libres: mismo resultado, menos consultas."""
+        from django.db.models import Prefetch
+        from django.utils import timezone
+
+        from operaciones.calculos import dias_libres
+        from operaciones.models import Employee
+
+        EmployeeDayOff.objects.create(employee=self.ana, kind="vacation",
+                                      start_date=date(2026, 9, 28), end_date=date(2026, 10, 2))
+        EmployeeDayOff.objects.create(employee=self.ana, kind="vacation",
+                                      start_date=date(2026, 11, 2), end_date=date(2026, 11, 3),
+                                      deleted_at=timezone.now())
+        EmployeeDayOff.objects.create(employee=self.ana, kind="vacation",
+                                      start_date=date(2027, 1, 4), end_date=date(2027, 1, 8))
+        esperado = dias_libres(Employee.objects.get(pk=self.ana.pk), self.period)
+        precargado = Employee.objects.prefetch_related(
+            Prefetch("days_off", queryset=EmployeeDayOff.objects.filter(deleted_at__isnull=True)),
+        ).get(pk=self.ana.pk)
+        with self.assertNumQueries(0):
+            obtenido = dias_libres(precargado, self.period)
+        self.assertEqual(obtenido, esperado)
+        self.assertEqual(obtenido, {date(2026, 10, 1), date(2026, 10, 2)})
