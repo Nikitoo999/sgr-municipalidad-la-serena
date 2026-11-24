@@ -186,6 +186,37 @@ NEIGHBOR_RUT_FIXES = {
     "15.151.515-5": "15.151.515-0",
 }
 
+# Usuarios demo cuyo funcionario debe tener RUT válido (el ingreso de atención
+# valida el RUT y detecta si el solicitante es funcionario: con DV inválido no
+# se podía probar "funcionario atendido como civil" con los usuarios demo).
+DEMO_EMPLOYEE_USERNAMES = {
+    "diego.molina", "elena.campas", "gabriela.rojas", "hugo.pizarro",
+    LIMITED_USER, BOSS_USER, "coordinador", "coordinador2", "delegado",
+    "funcionario", "delegado.mar", "funcionario.mar", "ignacio.vera",
+}
+
+
+def _rut_demo(rut):
+    """RUT ficticio con su dígito verificador correcto (módulo 11)."""
+    from portal.validators import format_rut, normalize_rut, rut_check_digit
+
+    body, _ = normalize_rut(rut)
+    return format_rut(body, rut_check_digit(body)) if body else rut
+
+
+def _corregir_ruts_demo():
+    """Corrige en el lugar el DV de los funcionarios demo de bases anteriores."""
+    from django.db.models import Q
+
+    demo = Employee.objects.filter(
+        Q(user__username__in=DEMO_EMPLOYEE_USERNAMES) | Q(user__username__regex=r"^func[0-9]{3}$")
+    )
+    for emp in demo:
+        nuevo = _rut_demo(emp.rut)
+        if nuevo != emp.rut and not Employee.objects.filter(rut=nuevo).exclude(pk=emp.pk).exists():
+            Employee.objects.filter(pk=emp.pk).update(rut=nuevo)
+
+
 # (identifier, full_name, phone, email, status)
 NEIGHBORS = [
     ("11.111.111-1", "María González Rojas", "+56911111111", "maria.gonzalez@ejemplo.cl", "Activo"),
@@ -285,6 +316,62 @@ def _seed_demo_directiva(delegacion):
             OrganizationMember.objects.create(organization=org, role=rol, full_name=nombre, rut=rut, phone=telefono)
 
 
+# Solicitudes ficticias del tubo: (título, delegación, responsable, estado,
+# días hacia atrás desde hoy (negativo = días desde el inicio del trimestre
+# anterior), días de plazo, solicitante, teléfono, canal, apoyo).
+DEMO_TUBOS = [
+    ("Poda de árbol que tapa luminaria (DEMO)", "Centro", "diego.molina", "received", 3, 20,
+     "Vecina Demo Uno", "+56 9 1111 0001", "delegation", ""),
+    ("Retiro de escombros en pasaje (DEMO)", "Centro", "elena.campas", "received", 5, 15,
+     "Vecino Demo Dos", "", "delegation", "Aseo y Ornato"),
+    ("Reparación de luminaria apagada (DEMO)", "Centro", "diego.molina", "pending", 12, 7,
+     "Vecina Demo Tres", "+56 9 1111 0003", "office", "Alumbrado público"),
+    ("Demarcación de paso peatonal (DEMO)", "Avenida del Mar", "gabriela.rojas", "pending", 4, 30,
+     "Vecino Demo Cuatro", "+56 9 1111 0004", "delegation", "Tránsito"),
+    ("Limpieza de microbasural (DEMO)", "Centro", "elena.campas", "in_progress", 2, 25,
+     "Vecina Demo Cinco", "+56 9 1111 0005", "delegation", "Aseo y Ornato"),
+    ("Instalación de basurero en plaza (DEMO)", "Centro", "diego.molina", "done", 0, 10,
+     "Vecino Demo Seis", "+56 9 1111 0006", "delegation", ""),
+    # Trimestre anterior, aún abiertas: el cierre de trimestre las traspasa con prioridad.
+    ("Bacheo de calzada (DEMO, trimestre anterior)", "Centro", "elena.campas", "pending", -65, 20,
+     "Vecina Demo Siete", "+56 9 1111 0007", "delegation", "SECPLAN"),
+    ("Mantención de juegos infantiles (DEMO, trimestre anterior)", "Avenida del Mar", "gabriela.rojas",
+     "in_progress", -75, 10, "Vecino Demo Ocho", "+56 9 1111 0008", "office", "Infraestructura"),
+]
+
+
+def _seed_demo_tubos(delegs, hoy):
+    """Solicitudes ficticias en las 4 columnas del tablero (idempotente)."""
+    from sgr_core.models import CommunityOrganization
+    from operaciones.models import TubeEntry, TubeStatusChange
+    from operaciones.periodos import fechas_trimestre
+
+    inicio, _, _ = fechas_trimestre(hoy)
+    inicio_anterior, _, _ = fechas_trimestre(inicio - timedelta(days=1))
+    org = CommunityOrganization.objects.filter(name=DEMO_ORG).first()
+    for (titulo, deleg, resp, estado, offset, plazo, solicitante, telefono,
+         canal, apoyo) in DEMO_TUBOS:
+        if TubeEntry.objects.filter(title=titulo).exists():
+            continue
+        if offset >= 0:  # trimestre en curso: hace ``offset`` días
+            fecha = max(hoy - timedelta(days=offset), inicio)
+        else:  # trimestre anterior, todavía abierta
+            fecha = inicio_anterior + timedelta(days=-offset)
+        responsable = Employee.objects.filter(user__username=resp).first()
+        entrada = TubeEntry.objects.create(
+            delegation=delegs[deleg], channel=canal, title=titulo, requester=solicitante,
+            contact_phone=telefono, responsible=responsable, request_date=fecha,
+            due_date=fecha + timedelta(days=plazo), support_area=apoyo, status=estado,
+            territory="DEMO", organization=org if deleg == "Centro" and estado == "pending" else None,
+            notes="Solicitud ficticia de demostración.",
+            completed_at=timezone.now() if estado == "done" else None,
+        )
+        TubeStatusChange.objects.create(
+            entry=entrada, kind=TubeStatusChange.Kind.CREATED, to_value=entrada.get_status_display(),
+            notes="Ingreso de demostración.",
+        )
+
+
 def _assign_demo_positions():
     """Asigna cargo a los funcionarios demo que aún no lo tienen (idempotente).
 
@@ -342,7 +429,7 @@ def _seed_massive(delegs, subtypes, goals, hoy):
             Employee.objects.get_or_create(
                 user=u,
                 defaults={
-                    "rut": f"20.000.{i:03d}-5",
+                    "rut": _rut_demo(f"20.000.{i:03d}-5"),
                     "delegation": deleg_list[i % len(deleg_list)],
                     "role": rol04,
                 },
@@ -482,7 +569,7 @@ class Command(BaseCommand):
                 u.set_password(DEMO_PASSWORD)
                 u.save()
             emp, _ = Employee.objects.get_or_create(
-                user=u, defaults={"rut": rut, "delegation": delegs[deleg], "role": roles[rol]},
+                user=u, defaults={"rut": _rut_demo(rut), "delegation": delegs[deleg], "role": roles[rol]},
             )
             if emp.role_id != roles[rol].pk:
                 emp.role = roles[rol]
@@ -597,7 +684,7 @@ class Command(BaseCommand):
         # el usuario limitado también necesita su propio Employee, para que
         # TaskAdmin.get_queryset() pueda filtrar por su delegación (scoping)
         lim_emp, _ = Employee.objects.get_or_create(
-            user=lim_u, defaults={"rut": "10.000.099-9", "delegation": delegs["Centro"], "role": roles["ROL04"]},
+            user=lim_u, defaults={"rut": _rut_demo("10.000.099-9"), "delegation": delegs["Centro"], "role": roles["ROL04"]},
         )
         if lim_emp.role_id != roles["ROL04"].pk:
             lim_emp.role = roles["ROL04"]
@@ -624,7 +711,7 @@ class Command(BaseCommand):
         boss_u.set_password(DEMO_PASSWORD)
         boss_u.save()
         boss_emp, _ = Employee.objects.get_or_create(
-            user=boss_u, defaults={"rut": "10.000.100-2", "delegation": delegs["Centro"], "role": roles["ROL03"]},
+            user=boss_u, defaults={"rut": _rut_demo("10.000.100-2"), "delegation": delegs["Centro"], "role": roles["ROL03"]},
         )
         if boss_emp.role_id != roles["ROL03"].pk or boss_emp.delegation_id != delegs["Centro"].id:
             boss_emp.role, boss_emp.delegation = roles["ROL03"], delegs["Centro"]
@@ -650,7 +737,7 @@ class Command(BaseCommand):
         def demo_employee(user, rut, delegacion, rol_code, autorizadas=()):
             emp, creado = Employee.objects.get_or_create(
                 user=user,
-                defaults={"rut": rut, "delegation": delegs[delegacion], "role": roles[rol_code]},
+                defaults={"rut": _rut_demo(rut), "delegation": delegs[delegacion], "role": roles[rol_code]},
             )
             if not creado:
                 cambios = []
@@ -771,6 +858,8 @@ class Command(BaseCommand):
         _assign_demo_positions()
         _suggest_subtype_items()
         _seed_demo_directiva(delegs["Centro"])
+        _seed_demo_tubos(delegs, hoy)
+        _corregir_ruts_demo()
 
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
         self.stdout.write(f"  Administrador:  {ADMIN_USER} / {DEMO_PASSWORD}")

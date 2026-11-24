@@ -20,6 +20,7 @@ tope de 7 ingresos por funcionario y día, cierre semanal por delegación (bloqu
 ingreso y edición) y los ingresos del rol Delegado no suman al puntaje.
 """
 
+import logging
 from datetime import date, datetime, time, timedelta
 
 from asgiref.sync import async_to_sync
@@ -609,8 +610,23 @@ class AttentionListView(CrudListView):
         return context
 
 
+logger = logging.getLogger(__name__)
+
+
 def _broadcast_attention(obj, action="created"):
-    """Emite en vivo la creación/edición de una atención a su delegación y a ALL."""
+    """Emite en vivo la creación/edición de una atención a su delegación y a ALL.
+
+    El aviso en vivo es accesorio: si Redis no está disponible (o la capa de
+    canales no se puede cargar), la atención ya quedó guardada y no debe
+    responderse un error 500. Se registra en el log del servidor.
+    """
+    try:
+        _send_attention_event(obj, action)
+    except Exception:  # noqa: BLE001 - nunca romper el guardado por el aviso en vivo
+        logger.warning("No se pudo emitir en vivo la atención %s", obj.pk, exc_info=True)
+
+
+def _send_attention_event(obj, action):
     channel_layer = get_channel_layer()
     if channel_layer is None:
         return

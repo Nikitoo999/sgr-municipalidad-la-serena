@@ -46,11 +46,19 @@ def dias_libres(employee, period):
     """Días hábiles del trimestre en que el funcionario no trabaja."""
     habiles = set(dias_habiles(period.start_date, period.end_date))
     libres = set()
-    registros = employee.days_off.filter(
-        deleted_at__isnull=True,
-        start_date__lte=period.end_date,
-        end_date__gte=period.start_date,
-    )
+    if "days_off" in getattr(employee, "_prefetched_objects_cache", {}):
+        # Listados de equipo: los días libres vienen precargados (una consulta
+        # para todos los funcionarios en vez de varias por funcionario).
+        registros = [
+            r for r in employee.days_off.all()
+            if r.deleted_at is None and r.start_date <= period.end_date and r.end_date >= period.start_date
+        ]
+    else:
+        registros = employee.days_off.filter(
+            deleted_at__isnull=True,
+            start_date__lte=period.end_date,
+            end_date__gte=period.start_date,
+        )
     for registro in registros:
         desde = max(registro.start_date, period.start_date)
         hasta = min(registro.end_date, period.end_date)

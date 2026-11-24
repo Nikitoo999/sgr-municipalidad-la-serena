@@ -21,7 +21,7 @@ Construido con **Django 5.2** sobre **Python 3.11+**.
 |--------------|--------------------------------|
 | Lenguaje     | Python 3.11 o superior (el entorno de desarrollo actual usa Python 3.14.7) |
 | Framework    | Django 5.2.x (`requirements.txt`: `Django==5.2.17`) |
-| Tiempo real  | Django Channels 4.x + Daphne 4.x (WebSockets); `CHANNEL_LAYERS` con `InMemoryChannelLayer` |
+| Tiempo real  | Django Channels 4.x + Daphne 4.x (WebSockets); `CHANNEL_LAYERS` con `channels_redis` (Redis en `REDIS_URL`; `REDIS_URL=memory` usa la capa en memoria para desarrollo local) |
 | Base de datos| MariaDB/MySQL en producción y SQLite por defecto en desarrollo, configurada vía `.env` (`DB_ENGINE`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`) y construida en `config/settings.py`. El diseño relacional de referencia está en `database/legacy/sgr_municipalidad_laserena_mysql.sql` (MySQL 8, **solo histórico**, ya no refleja el sistema); el driver `mysqlclient` está en `requirements.txt` |
 | Variables de entorno | `python-dotenv` (archivo `.env`) |
 
@@ -244,6 +244,9 @@ python manage.py createsuperuser   # (opcional) usuario para el panel admin
 > También carga los cargos del descriptor de funciones, los ítems y metas por
 > cargo del trimestre (`seed_cargos` y `seed_metas_cargos`), asigna cargo a los
 > funcionarios demo y crea una organización ficticia con su directiva.
+> Además agrega 8 solicitudes ficticias del tubo repartidas en las 4 columnas
+> (una vencida y dos abiertas del trimestre anterior, para probar el cierre de
+> trimestre con traspaso prioritario).
 
 Base de organizaciones comunitarias (opcional): copia la planilla municipal a
 `data/base_datos_JJVV_sin_verificar.xlsx` (la carpeta `data/` no se versiona) y ejecuta
@@ -460,9 +463,10 @@ sudo journalctl -u sgr -n 50 --no-pager   # busca la línea con el "Código de r
    El servicio corre `daphne config.asgi:application` (servidor ASGI, necesario para los
    WebSockets de tiempo real) para que el proceso siga vivo al cerrar la sesión SSH.
 
-   > ⚠️ **Tiempo real y escalado:** el `CHANNEL_LAYERS` actual usa `InMemoryChannelLayer`,
-   > válido para un **único proceso** de Daphne. Para escalar a varios workers/instancias,
-   > configura `channels_redis` y apunta `CHANNEL_LAYERS` a Redis.
+   > ⚠️ **Tiempo real y escalado:** `CHANNEL_LAYERS` usa `channels_redis`: instala y deja
+   > corriendo `redis-server` (o AWS ElastiCache) y define `REDIS_URL` en el `.env`.
+   > `REDIS_URL=memory` usa `InMemoryChannelLayer`, válido solo para un **único proceso**
+   > de Daphne (desarrollo local sin Redis); no lo uses en producción con varios workers.
 
 ---
 

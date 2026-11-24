@@ -2,7 +2,7 @@
 {% load static sgr_icons %}
 {% block title %}{% if is_create %}Ingreso de atención{% elif is_view %}Consulta de atención{% else %}Editar atención{% endif %}{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">
 {% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'attentions' %}">Atenciones</a>{% if attention_number %} / {{ attention_number }}{% endif %}</nav>

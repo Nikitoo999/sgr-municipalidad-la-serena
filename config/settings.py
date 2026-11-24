@@ -78,15 +78,19 @@ import os
 
 _redis_url = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [_redis_url],
-            'symmetric_encryption_keys': [SECRET_KEY[:32]],  # clave de cifrado simétrico opcional; vacía el payload si no se desea
+if _redis_url.strip().lower() == 'memory':
+    # Desarrollo local sin Redis: un solo proceso, sin escalado horizontal.
+    CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [_redis_url],
+                'symmetric_encryption_keys': [SECRET_KEY[:32]],  # clave de cifrado simétrico opcional; vacía el payload si no se desea
+            },
         },
-    },
-}
+    }
 
 # Base de datos configurable vía variables de entorno (.env).
 # Por defecto SQLite; para otro motor basta con definir DB_ENGINE y sus parámetros.

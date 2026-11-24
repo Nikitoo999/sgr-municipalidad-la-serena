@@ -1,7 +1,7 @@
 {% extends 'portal/base.html' %}
 {% load static sgr_icons %}
 {% block title %}Metas · {{ position.name }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=2">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'portal/css/crud.css' %}?v=3">{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Ruta">Gestión municipal / <a href="{% url 'positions' %}">Cargos y metas</a> / <a href="{% url 'positions_detail' position.pk %}">{{ position.code }}</a> / Metas</nav>
 <div class="titlebar"><h1>{{ position.name }} · ítems, ponderadores y metas</h1></div>
