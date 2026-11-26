@@ -123,6 +123,7 @@
 <p class="filter-warning" role="alert">{{ date_error }}</p>
 {% endif %}
 
+<div id="attentionResults">
 {% if rows %}
 <div class="tablewrap">
   <table>
@@ -141,7 +142,7 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr>
+      <tr data-attention-id="{{ row.pk }}">
         {% for cell in row.cells %}
         <td>
           {% if cell.kind == 'status' %}
@@ -198,7 +199,7 @@
 <div class="state">
   <div class="ic">{% sgr_icon 'search' 24 %}</div>
   {% if empty_kind == 'records' %}
-  <h2>Aún no hay registros</h2>
+  <h2>{% if sgr_active_period %}Sin registros{% else %}Aún no hay registros{% endif %}</h2>
   <p>Cuando se ingrese la primera atención aparecerá en esta lista.</p>
   {% if can_create %}<a class="btn primary" href="{{ new_url }}" data-sgr-modal data-modal-title="Ingreso de atención">{% sgr_icon 'plus' 18 %}<span>Ingresar atención</span></a>{% endif %}
   {% else %}
@@ -208,6 +209,7 @@
   {% endif %}
 </div>
 {% endif %}
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'portal/js/crud.js' %}"></script>

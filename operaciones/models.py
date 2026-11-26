@@ -685,6 +685,10 @@ class TubeEntry(BaseModel):
         Delegation, on_delete=models.RESTRICT,
         related_name="tube_entries", verbose_name="Delegación",
     )
+    source_task = models.OneToOneField(
+        Task, on_delete=models.CASCADE, null=True, blank=True, editable=False,
+        related_name="tube_entry", verbose_name="Tarea de origen",
+    )
     channel = models.CharField(
         max_length=12, choices=Channel.choices, default=Channel.DELEGATION, verbose_name="Canal",
     )

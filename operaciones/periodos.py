@@ -55,6 +55,18 @@ def periodo_siguiente(period):
     )
 
 
+def periodo_anterior(period):
+    """Período más cercano que termina antes del inicio del seleccionado."""
+    return Period.alive.filter(end_date__lt=period.start_date).order_by("-end_date", "-pk").first()
+
+
+def tubos_originados_en(period):
+    """Período de la meta para tareas vinculadas y fecha para solicitudes directas."""
+    return Q(source_task__goal__period=period) | Q(
+        source_task__isnull=True, request_date__range=(period.start_date, period.end_date),
+    )
+
+
 def crear_siguiente(period):
     """Crea el trimestre calendario que sigue a ``period`` ("En curso")."""
     inicio, fin, q = fechas_trimestre(period.end_date + timedelta(days=1))
@@ -72,8 +84,8 @@ def pendientes(period, delegation_ids=None):
     from operaciones.models import Attention, TubeEntry
     from operaciones.rules import day_bounds
 
-    tubos = TubeEntry.objects.filter(deleted_at__isnull=True, status__in=TUBO_ABIERTO).filter(
-        Q(request_date__range=(period.start_date, period.end_date)) | Q(carried_to_period=period)
+    tubos = TubeEntry.alive.filter(source_task__deleted_at__isnull=True, status__in=TUBO_ABIERTO).filter(
+        tubos_originados_en(period) | Q(carried_to_period=period)
     )
     inicio, _ = day_bounds(period.start_date)
     _, fin = day_bounds(period.end_date)
@@ -109,7 +121,7 @@ def cerrar_trimestre(period, destino, user):
         por_delegacion.setdefault(fila["delegation_id"], [0, 0])[1] = fila["n"]
 
     n_tubos = 0
-    for entrada in tubos.select_for_update():
+    for entrada in tubos.select_for_update(of=("self",)):
         entrada.priority = True
         entrada.priority_reason = motivo
         entrada.carried_to_period = destino

@@ -28,11 +28,10 @@
 <h2>Sin trimestres registrados</h2>
 <p>Primero hay que crear un período de medición para asignar metas.</p>
 </div>
-{% elif not filas %}
+{% elif sin_registros %}
 <div class="state">
 <div class="ic">{% sgr_icon module_icon 24 %}</div>
-<h2>No hay funcionarios con cargo asignado</h2>
-<p>Asigna un cargo a los funcionarios de la delegación para ver sus metas del trimestre.</p>
+<h2>Sin registros</h2>
 </div>
 {% else %}
 {% for fila in filas %}

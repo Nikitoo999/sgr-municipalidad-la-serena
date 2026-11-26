@@ -95,6 +95,7 @@
 </form>
 </section>
 
+{% if sin_registros %}<p class="state" role="status">Sin registros</p>{% endif %}
 {% if vista == 'tablero' %}
 <section class="tb-kpis" aria-label="Resumen del tubo">
   {% for k in indicadores %}

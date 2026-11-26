@@ -32,11 +32,10 @@
 <h2>Sin trimestres registrados</h2>
 <p>Primero hay que crear un período de medición para generar los reportes.</p>
 </div>
-{% elif not reporte_funcionarios %}
+{% elif sin_registros %}
 <div class="state">
 <div class="ic">{% sgr_icon module_icon 24 %}</div>
-<h2>No hay funcionarios en el alcance actual</h2>
-<p>Cambia la delegación activa o revisa que existan funcionarios en tu alcance.</p>
+<h2>Sin registros</h2>
 </div>
 {% else %}
 <section class="card" style="margin-bottom:16px">

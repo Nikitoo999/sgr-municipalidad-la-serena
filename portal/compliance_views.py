@@ -13,13 +13,13 @@ from operaciones.calculos import (
     MAX_FELICITACIONES, PUNTOS_FELICITACION, PUNTOS_RECLAMO, TOPE_CUMPLIMIENTO,
     actividad_reciente, calcular_cumplimiento, dias_libres, resumen_equipo,
 )
-from sgr_core.models import Period
 from sgr_core.roles import SCOPE_RANKS
 
 from . import access
 from .access import ModulePermissionMixin
 from .audit import audit
-from .goals_views import elegir_periodo, funcionarios_del_alcance
+from .goals_views import funcionarios_del_alcance
+from .period_context import active_delegation_id, active_period, available_periods, operational_records
 from django.core.exceptions import PermissionDenied
 from django.views import View
 from operaciones.models import EmployeeDayOff, EmployeeFeedback
@@ -36,14 +36,16 @@ class ComplianceView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         info = access.get_access(self.request)
-        periodos = list(Period.objects.filter(deleted_at__isnull=True).order_by("-start_date"))
-        periodo = elegir_periodo(self.request, periodos)
+        periodos = available_periods()
+        periodo = active_period(self.request)
 
         filas = []
         if periodo:
             hoy = timezone.localdate()
+            delegation_id = active_delegation_id(self.request)
+            tubos = operational_records(self.request)["tubes"]
             for emp in funcionarios_del_alcance(self.request):
-                cumplimiento = calcular_cumplimiento(emp, periodo, hoy)
+                cumplimiento = calcular_cumplimiento(emp, periodo, hoy, delegation_id=delegation_id, tubos=tubos)
                 for fila in cumplimiento["items"]:
                     logro = min(fila["razon"], TOPE_CUMPLIMIENTO) * 100
                     fila["logro_pct"] = logro.quantize(DECIMO)
@@ -57,7 +59,7 @@ class ComplianceView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                     "cumplimiento": cumplimiento,
                     "esperado_pct": (cumplimiento["esperado"] * 100).quantize(DECIMO),
                     "comentarios": list(comentarios),
-                    "reciente": actividad_reciente(emp, periodo, hoy),
+                    "reciente": actividad_reciente(emp, periodo, hoy, delegation_id=delegation_id),
                 })
 
         context.update({
@@ -67,6 +69,10 @@ class ComplianceView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
             "periodos": periodos,
             "periodo": periodo,
             "filas": filas,
+            "sin_registros": not any(
+                fila["cumplimiento"]["items"] or fila["comentarios"] or fila["reciente"]["total"]
+                for fila in filas
+            ),
             "equipo": resumen_equipo(filas) if filas else None,
             "tope_pct": int(TOPE_CUMPLIMIENTO * 100),
             "max_felicitaciones": MAX_FELICITACIONES,

@@ -8,29 +8,12 @@ from django.views.generic import TemplateView
 
 from operaciones.calculos import dias_habiles, dias_libres, factor_ajuste, meta_ajustada
 from operaciones.models import Employee, EmployeeDayOff
-from sgr_core.models import Period, PositionItemGoal
+from sgr_core.models import PositionItemGoal
 
 from . import access
+from .period_context import active_period, available_periods
 from .access import ModulePermissionMixin
 from .modules import MODULE_ICONS, MODULE_LABELS
-
-
-def elegir_periodo(request, periodos):
-    """Trimestre pedido por GET; si no, el 'En curso' más reciente o el último."""
-    pedido = request.GET.get("periodo", "")
-    if pedido.isdigit():
-        for periodo in periodos:
-            if periodo.pk == int(pedido):
-                return periodo
-    from operaciones.calculos import periodo_vigente
-
-    vigente = periodo_vigente()
-    if vigente is not None and vigente in periodos:
-        return vigente
-    for periodo in periodos:
-        if periodo.status == "En curso":
-            return periodo
-    return periodos[0] if periodos else None
 
 
 def funcionarios_del_alcance(request):
@@ -58,8 +41,8 @@ class GoalsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        periodos = list(Period.objects.filter(deleted_at__isnull=True).order_by("-start_date"))
-        periodo = elegir_periodo(self.request, periodos)
+        periodos = available_periods()
+        periodo = active_period(self.request)
 
         metas = defaultdict(list)
         filas = []
@@ -98,5 +81,6 @@ class GoalsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
             "periodos": periodos,
             "periodo": periodo,
             "filas": filas,
+            "sin_registros": not any(fila["items"] for fila in filas),
         })
         return context

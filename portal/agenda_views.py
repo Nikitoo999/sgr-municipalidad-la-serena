@@ -10,10 +10,12 @@ from django.views import View
 from django.views.generic import TemplateView, RedirectView
 from django.utils import timezone
 from operaciones.models import Activity, Employee, Evidence, Task
+from operaciones.tareas_tubos import guardar_tarea_en_tubo
 from sgr_core.models import Delegation, InstitutionalGoal, ProjectItem
 
 
 from . import access
+from .period_context import operational_records
 from .access import ModulePermissionMixin
 from .modules import MODULE_ICONS, MODULE_LABELS
 from .audit import audit
@@ -85,15 +87,7 @@ class AgendaView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
 
     def _tareas(self):
         """Tareas visibles según rol, delegación activa y filtro de estado."""
-        role = access.get_role(self.request.user)
-        active = access.get_active_delegation(self.request)
-        qs = Task.objects.filter(deleted_at__isnull=True)
-        if role is None or active is None:
-            return qs.none()
-        if active != access.ALL_DELEGATIONS:
-            qs = qs.filter(goal__delegation_id=active.pk)
-        if role.scope == "own_records":
-            qs = qs.filter(assigned_to__user_id=self.request.user.pk)
+        qs = operational_records(self.request)["tasks"]
 
         estado = self.request.GET.get("estado", "")
         if estado in dict(Task._meta.get_field("status").choices):
@@ -341,10 +335,12 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         goal_id = self.request.GET.get("goal")
         assigned_to = self.request.GET.get("assigned_to")
 
+        visible_tasks = operational_records(self.request)["tasks"]
+
         # Filtrar por meta institucional (solo si goal es un número entero válido)
         if goal_id and goal_id.isdigit():
             tareas_qs = (
-                tareas_del_alcance(self.request)
+                visible_tasks
                 .filter(goal_id=goal_id)
                 .select_related("goal", "assigned_to__user")
                 .prefetch_related(
@@ -364,7 +360,7 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         else:
             # Sin goal: base sin filtrar por meta
             tareas_qs = (
-                tareas_del_alcance(self.request)
+                visible_tasks
                 .select_related("goal", "assigned_to__user")
                 .prefetch_related(
                     Prefetch(
@@ -426,8 +422,7 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         active = access.get_active_delegation(self.request)
         goals_choices = (
             InstitutionalGoal.objects.filter(deleted_at__isnull=True)
-            .filter(tasks__deleted_at__isnull=True)
-            .filter(tasks__goal__isnull=False)
+            .filter(tasks__in=visible_tasks)
             .distinct()
             .order_by("name")
         )
@@ -436,7 +431,7 @@ class KanbanView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
 
         employees_choices = (
             Employee.objects.filter(deleted_at__isnull=True, user__is_active=True)
-            .filter(assigned_tasks__deleted_at__isnull=True)
+            .filter(assigned_tasks__in=visible_tasks)
             .distinct()
             .order_by("user__first_name", "user__last_name")
         )
@@ -756,7 +751,6 @@ class PendingTransferExecuteView(LoginRequiredMixin, ModulePermissionMixin, View
             return redirect("pending_transfer")
 
         # Calcular due_date
-        today = timezone.localdate()
         period_end = target_goal.period.end_date
         period_start = target_goal.period.start_date
         if tarea.due_date and period_start <= tarea.due_date <= period_end:
@@ -766,15 +760,17 @@ class PendingTransferExecuteView(LoginRequiredMixin, ModulePermissionMixin, View
 
         # Ejecutar clonación atómicamente
         try:
-            with transaction.atomic():
-                nueva = Task.objects.create(
+            nueva = guardar_tarea_en_tubo(
+                Task(
                     goal=target_goal,
                     title=tarea.title,
                     description=tarea.description,
                     due_date=new_due_date,
                     status="Pendiente",
                     assigned_to=tarea.assigned_to,
-                )
+                ),
+                request.user,
+            )
         except Exception:
             messages.error(
                 request, "Ocurrió un error al crear la tarea. Intente nuevamente."

@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from operaciones.models import Activity, Attention, EmployeeFeedback, TubeEntry
+from operaciones.periodos import tubos_originados_en
 from sgr_core.models import Period, PositionItemGoal
 
 CENTESIMOS = Decimal("0.01")
@@ -117,14 +118,17 @@ def semaforo(razon, esperado):
     return "rojo"
 
 
-def _actividades_que_suman(employee, period):
+def _actividades_que_suman(employee, period, delegation_id):
     """(fecha, item_id, orden) de actividades realizadas con evidencia aprobada.
 
     Punto 2 del nuevo requerimiento: si el ítem es de cara al usuario
     (``requires_contact``), la actividad debe traer nombre y teléfono.
     """
+    actividades = Activity.objects.all()
+    if delegation_id is not None:
+        actividades = actividades.filter(task__goal__delegation_id=delegation_id)
     filas = (
-        Activity.objects.filter(
+        actividades.filter(
             deleted_at__isnull=True,
             task__deleted_at__isnull=True,
             task__assigned_to=employee,
@@ -145,7 +149,7 @@ def _actividades_que_suman(employee, period):
         yield dia, item_id, (0, pk)
 
 
-def _atenciones_que_suman(employee, period):
+def _atenciones_que_suman(employee, period, delegation_id):
     """(fecha, item_id, orden) de atenciones que aportan a la matriz.
 
     Deben: tener ítem, contar para el puntaje (no preparatoria, no gestión
@@ -154,8 +158,11 @@ def _atenciones_que_suman(employee, period):
     """
     inicio = timezone.make_aware(datetime.combine(period.start_date, time.min))
     fin = timezone.make_aware(datetime.combine(period.end_date + timedelta(days=1), time.min))
+    atenciones = Attention.objects.all()
+    if delegation_id is not None:
+        atenciones = atenciones.filter(delegation_id=delegation_id)
     filas = (
-        Attention.objects.filter(
+        atenciones.filter(
             deleted_at__isnull=True,
             responsible_id=employee.user_id,
             item__isnull=False,
@@ -171,7 +178,7 @@ def _atenciones_que_suman(employee, period):
         yield timezone.localtime(momento).date(), item_id, (1, pk)
 
 
-def logrado_por_item(employee, period):
+def logrado_por_item(employee, period, *, delegation_id=None):
     """Registros que suman por ítem dentro del trimestre.
 
     Suman las actividades de la agenda realizadas con evidencia aprobada y las
@@ -180,15 +187,18 @@ def logrado_por_item(employee, period):
     MAX_ACTIVIDADES_POR_DIA registros entre ambos (punto 3).
     """
     logrado = defaultdict(int)
-    for _dia, item_id in registros_contados(employee, period):
+    for _dia, item_id in registros_contados(employee, period, delegation_id=delegation_id):
         logrado[item_id] += 1
     return dict(logrado)
 
 
-def registros_contados(employee, period):
+def registros_contados(employee, period, *, delegation_id=None):
     """(fecha, item_id) de cada registro que suma, ya aplicado el tope diario."""
     registros = sorted(
-        chain(_actividades_que_suman(employee, period), _atenciones_que_suman(employee, period)),
+        chain(
+            _actividades_que_suman(employee, period, delegation_id),
+            _atenciones_que_suman(employee, period, delegation_id),
+        ),
         key=lambda fila: (fila[0], fila[2]),
     )
     por_dia = defaultdict(int)
@@ -240,17 +250,19 @@ def puntos_reclamos(cantidad):
     return Decimal(cantidad) * PUNTOS_RECLAMO
 
 
-def razon_tubo(employee, period):
+def razon_tubo(employee, period, *, tubos=None):
     """Fracción de solicitudes del tubo realizadas (None si no tuvo solicitudes en el trimestre).
 
     Nuevo requerimiento (punto 2): una solicitud realizada sin nombre y teléfono
     del solicitante no tiene puntuación (sigue contando como solicitud).
     """
-    filas = list(
-        TubeEntry.objects.filter(responsible=employee, deleted_at__isnull=True).filter(
+    if tubos is None:
+        tubos = TubeEntry.alive.filter(source_task__deleted_at__isnull=True).filter(
             # Del trimestre o traspasadas a él con prioridad al cerrar el anterior.
-            Q(request_date__range=(period.start_date, period.end_date)) | Q(carried_to_period=period)
-        ).exclude(status=TubeEntry.Status.NOT_APPLICABLE)
+            tubos_originados_en(period) | Q(carried_to_period=period)
+        )
+    filas = list(
+        tubos.filter(responsible=employee).exclude(status=TubeEntry.Status.NOT_APPLICABLE)
         .values_list("status", "requester", "contact_phone")
     )
     if not filas:
@@ -267,7 +279,7 @@ def razon_tubo(employee, period):
 CODIGO_ITEM_TUBO = "MTX06"
 
 
-def calcular_cumplimiento(employee, period, hoy=None):
+def calcular_cumplimiento(employee, period, hoy=None, *, delegation_id=None, tubos=None):
     """Cumplimiento de un funcionario en un trimestre, ítem por ítem."""
     hoy = hoy or date.today()
     resultado = {
@@ -284,7 +296,7 @@ def calcular_cumplimiento(employee, period, hoy=None):
             position_id=employee.position_id, period=period, deleted_at__isnull=True,
         ).select_related("item").order_by("item__code")
     )
-    logrado = logrado_por_item(employee, period)
+    logrado = logrado_por_item(employee, period, delegation_id=delegation_id)
     factor = factor_ajuste(employee, period)
     esperado = avance_esperado(employee, period, hoy)
 
@@ -295,7 +307,7 @@ def calcular_cumplimiento(employee, period, hoy=None):
         es_tubo = goal.item.code == CODIGO_ITEM_TUBO
         if es_tubo:
             if not tubo_calculado:
-                fraccion_tubo = razon_tubo(employee, period)
+                fraccion_tubo = razon_tubo(employee, period, tubos=tubos)
                 tubo_calculado = True
             meta = goal.target_value                              # es un %, no se ajusta por días libres
             hecho = fraccion_tubo
@@ -348,50 +360,57 @@ def _rango_de_fechas(period, hasta=None):
     return inicio, fin
 
 
-def ingresos_por_dia(employee, period, hasta=None):
+def ingresos_por_dia(employee, period, hasta=None, *, delegation_id=None):
     """Cuántas atenciones y actividades ingresó el funcionario cada día (por fecha de ingreso)."""
     inicio, fin = _rango_de_fechas(period, hasta)
     atenciones = Attention.objects.filter(
         responsible_id=employee.user_id, deleted_at__isnull=True,
         created_at__range=(inicio, fin),
-    ).values_list("created_at", flat=True)
+    )
     actividades = Activity.objects.filter(
         task__assigned_to=employee, deleted_at__isnull=True,
         created_at__range=(inicio, fin),
-    ).values_list("created_at", flat=True)
+    )
+    if delegation_id is not None:
+        atenciones = atenciones.filter(delegation_id=delegation_id)
+        actividades = actividades.filter(task__goal__delegation_id=delegation_id)
     return Counter(
-        timezone.localtime(momento).date() for momento in chain(atenciones, actividades)
+        timezone.localtime(momento).date()
+        for momento in chain(
+            atenciones.values_list("created_at", flat=True),
+            actividades.values_list("created_at", flat=True),
+        )
     )
 
 
-def dias_sin_ingresar(employee, period, hoy):
+def dias_sin_ingresar(employee, period, hoy, *, delegation_id=None):
     """Días hábiles sin ningún ingreso, hasta ayer y sin contar los días libres."""
     hasta = min(hoy - timedelta(days=1), period.end_date)
     if hasta < period.start_date:
         return []
     exigidos = set(dias_habiles(period.start_date, hasta)) - dias_libres(employee, period)
-    con_ingreso = set(ingresos_por_dia(employee, period, hasta))
+    con_ingreso = set(ingresos_por_dia(employee, period, hasta, delegation_id=delegation_id))
     return sorted(exigidos - con_ingreso)
 
 
-def dias_sobre_el_limite(employee, period):
+def dias_sobre_el_limite(employee, period, *, delegation_id=None):
     """Días en que el funcionario ingresó más de MAX_ACTIVIDADES_POR_DIA."""
     return sorted(
-        dia for dia, cantidad in ingresos_por_dia(employee, period).items()
+        dia for dia, cantidad in ingresos_por_dia(employee, period, delegation_id=delegation_id).items()
         if cantidad > MAX_ACTIVIDADES_POR_DIA
     )
 
 # --- Resumen de delegación (RF-029/RF-030, diapositivas 18 y 19) -----------------
 
 
-def actividad_reciente(employee, period, hoy):
+def actividad_reciente(employee, period, hoy, *, delegation_id=None):
     """Último ingreso, días desde él, cantidad de ingresos y promedio diario.
 
     Ingresos = atenciones y actividades registradas por el funcionario en el
     trimestre (hasta hoy). El promedio se calcula sobre los días hábiles
     efectivos transcurridos (sin días libres).
     """
-    ingresos = ingresos_por_dia(employee, period, hoy)
+    ingresos = ingresos_por_dia(employee, period, hoy, delegation_id=delegation_id)
     total = sum(ingresos.values())
     ultimo = max(ingresos) if ingresos else None
     dias = dias_efectivos(employee, period, hoy)
