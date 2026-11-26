@@ -1,6 +1,7 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 from .goals_views import GoalsView
+from .period_context import SwitchPeriodView
 from .agenda_views import (
     ActivityCreateView,
     AgendaView,
@@ -68,6 +69,7 @@ urlpatterns = [
     path('logout/', PortalLogoutView.as_view(), name='logout'),
     path('inicio/', HomeView.as_view(), name='home'),
     path('delegacion-activa/', SwitchDelegationView.as_view(), name='switch_delegation'),
+    path('periodo-activo/', SwitchPeriodView.as_view(), name='switch_period'),
     path('dashboard/', RedirectView.as_view(pattern_name='home', permanent=False), name='dashboard'),
     path('perfil/', ProfileView.as_view(), name='profile'),
     path('cambiar-clave-inicial/', FirstLoginPasswordChangeView.as_view(), name='first_login_password_change'),

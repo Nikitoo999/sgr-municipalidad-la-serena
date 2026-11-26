@@ -182,20 +182,7 @@
   }
 
   function handleAttentionEvent(data) {
-    var isCreated = data.action !== 'updated';
-    var toastTitle = isCreated
-      ? 'Nueva atención ingresada: ' + (data.number || '')
-      : 'Atención actualizada: ' + (data.number || '');
-
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'info',
-      title: toastTitle,
-      showConfirmButton: false,
-      timer: 6000,
-      timerProgressBar: true
-    });
+    if (!document.getElementById('attentionResults')) return;
 
     fetch(window.location.href, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -203,10 +190,21 @@
     })
       .then(function (resp) { return resp.text(); })
       .then(function (html) {
-        refreshLiveList(html);
-        if (isCreated && !rowIsVisible(data.number)) {
-          prependAttentionRow(data);
-        }
+        var page = new DOMParser().parseFromString(html, 'text/html');
+        var results = page.getElementById('attentionResults');
+        if (!results) return;
+        document.getElementById('attentionResults').replaceWith(results);
+        if (!window.Swal || !results.querySelector('[data-attention-id="' + Number(data.id) + '"]')) return;
+        var label = data.action === 'updated' ? 'Atención actualizada' : 'Nueva atención ingresada';
+        window.Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          titleText: label + ' · ' + data.number,
+          showConfirmButton: false,
+          timer: 6000,
+          timerProgressBar: true
+        });
       })
       .catch(function (err) {
         console.error('[SGR WS] Error al refrescar la lista:', err);
@@ -249,20 +247,18 @@
     });
   });
 
-  // Cambio de delegación activa: si hay un formulario con cambios sin
-  // guardar, se pide confirmación (requisito de la segunda evaluación).
-  var ctx = document.getElementById('ctxSel');
-  if (ctx) {
+  // Protege los cambios sin guardar cuando se cambia de delegación o período.
+  document.querySelectorAll('[data-context-switch]').forEach(function (ctx) {
     var previousCtx = ctx.value;
     ctx.addEventListener('change', function () {
-      var form = document.getElementById('ctxForm');
-      if (!form) return;
+      var form = ctx.form;
+      var contextName = ctx.dataset.contextSwitch;
       var dirty = document.querySelector('form[data-dirty="1"]');
       if (!dirty || !window.Swal) { form.submit(); return; }
       Swal.fire({
         icon: 'warning',
-        title: '¿Cambiar de delegación?',
-        text: 'Hay cambios sin guardar en el formulario: se perderán al cambiar de delegación.',
+        title: '¿Cambiar de ' + contextName + '?',
+        text: 'Hay cambios sin guardar en el formulario.',
         showCancelButton: true,
         confirmButtonText: 'Cambiar y descartar',
         cancelButtonText: 'Seguir editando',
@@ -275,7 +271,7 @@
         }
       });
     });
-  }
+  });
 
   var logoutForm = document.getElementById('logoutForm');
   if (logoutForm) {

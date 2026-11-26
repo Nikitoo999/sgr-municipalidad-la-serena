@@ -23,7 +23,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import TemplateView
 
-from operaciones.calculos import periodo_vigente
+from ..period_context import active_period
 from sgr_core.models import Period, Position, PositionItemGoal, ProjectItem
 
 from ..access import ModulePermissionMixin, get_access
@@ -136,7 +136,7 @@ class PositionGoalsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView)
         self.position = get_object_or_404(Position.alive, pk=self.kwargs["pk"])
         periodos = list(Period.objects.filter(deleted_at__isnull=True).order_by("-start_date"))
         pedido = self.request.GET.get("periodo") or self.request.POST.get("periodo") or ""
-        self.period = next((p for p in periodos if str(p.pk) == pedido), None) or periodo_vigente()
+        self.period = next((p for p in periodos if str(p.pk) == pedido), None) or active_period(self.request)
         self.periodos = periodos
 
     def _goals(self):

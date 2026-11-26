@@ -15,6 +15,7 @@ staticfiles/
 *.log
 /media/
 data/
+CLAUDE.md
 # Scripts temporales y resultados de pruebas
 fix_*.py
 add_*.py

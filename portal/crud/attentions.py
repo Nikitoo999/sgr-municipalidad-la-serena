@@ -53,6 +53,7 @@ from ..access import (
     get_active_delegation,
     get_role,
 )
+from ..period_context import active_period, operational_records
 from ..audit import audit
 from .config import CELL_DELEGATION, CELL_STATUS, ColumnSpec, ModuleConfig, register_module
 from .forms import AttentionForm, FollowUpForm
@@ -92,7 +93,9 @@ def attentions_scope(request, queryset):
     if role is None:
         return queryset.none()
     active = get_active_delegation(request)
-    if active is not None and active != ALL_DELEGATIONS:
+    if active is None:
+        return queryset.none()
+    if active != ALL_DELEGATIONS:
         queryset = queryset.filter(delegation_id=active.pk)
     if role.scope == "own_records":
         queryset = queryset.filter(responsible_id=request.user.pk)
@@ -365,6 +368,7 @@ def attentions_listing_queryset(request, config, data=None):
     """
     params = parse_list_params(request, data)
     queryset = filtered_queryset(request, config, estado=params["estado"])
+    queryset = queryset.filter(pk__in=operational_records(request)["attentions"].order_by())
     if params["tipo"]:
         queryset = queryset.filter(attention_type_id=params["tipo"])
     if params["subtipo"]:
@@ -562,6 +566,8 @@ class AttentionListView(CrudListView):
         active = get_active_delegation(request)
         role = get_role(request.user)
         filters_active = any(params[key] for key in FILTER_KEYS)
+        if not page_objects and filters_active and active_period(request):
+            filters_active = operational_records(request)["attentions"].exists()
         base_search = reverse(config.module_key)
 
         context.update(

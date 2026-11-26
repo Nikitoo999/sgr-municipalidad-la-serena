@@ -8,6 +8,7 @@ por permiso ``view``. Réplica en Python ``readable``/``mixWhite`` de
 from django.contrib.messages import get_messages
 
 from . import access
+from .period_context import active_period, available_periods
 from .modules import MODULE_DESCRIPTIONS, MODULE_ICONS, MODULE_LABELS, MODULE_ORDER, MODULE_URL_NAMES
 
 #: Color institucional (insignia "todas" y respaldo sin color de delegación).
@@ -169,6 +170,8 @@ def sgr_context(request):
 
     return {
         # Página abierta dentro de la ventana emergente (portal.modal).
+        "sgr_active_period": active_period(request) if request.user.is_authenticated else None,
+        "sgr_periods": available_periods() if request.user.is_authenticated else (),
         "sgr_embed": request.GET.get("modal") == "1",
         # Avisos sin leer + alertas rápidas sin revisar (campana de la barra).
         "sgr_badge_count": _badge_count(request),

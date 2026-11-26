@@ -9,6 +9,7 @@ from operaciones.models import Attention
 from sgr_core.roles import ACTIONS
 
 from . import access
+from .period_context import operational_records
 from .access import ModulePermissionMixin
 from .modules import MODULE_DESCRIPTIONS, MODULE_ICONS, MODULE_LABELS, MODULE_ORDER, MODULE_URL_NAMES
 
@@ -24,19 +25,6 @@ SCOPE_TEXT = {
 }
 
 
-def attention_queryset_for(user, active):
-    """Atenciones visibles según rol + delegación activa (conteos del Inicio)."""
-    role = access.get_role(user)
-    if role is None:
-        return Attention.objects.none()
-    queryset = Attention.objects.all()
-    if active is not None and active != access.ALL_DELEGATIONS:
-        queryset = queryset.filter(delegation_id=active.pk)
-    if role.scope == "own_records":
-        queryset = queryset.filter(responsible_id=user.pk)
-    return queryset
-
-
 class HomeView(LoginRequiredMixin, TemplateView):
     """Inicio: 3 cifras + accesos del perfil (sin CRUD, Partes 4 a 7)."""
 
@@ -48,7 +36,9 @@ class HomeView(LoginRequiredMixin, TemplateView):
         info = access.get_access(self.request)
         active = access.get_active_delegation(self.request)
 
-        attentions = attention_queryset_for(user, active)
+        attentions = operational_records(self.request)["attentions"]
+        if not info.can("attentions", "view"):
+            attentions = attentions.none()
         registered = attentions.count()
         in_progress = attentions.filter(status=Attention.AttentionStatus.IN_PROGRESS).count()
 

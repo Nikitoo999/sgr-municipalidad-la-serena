@@ -35,10 +35,10 @@
 {% elif not filas %}
 <div class="state">
 <div class="ic">{% sgr_icon module_icon 24 %}</div>
-<h2>No hay funcionarios con cargo asignado</h2>
-<p>Asigna un cargo a los funcionarios de la delegación para ver su cumplimiento.</p>
+<h2>Sin registros</h2>
 </div>
 {% else %}
+{% if sin_registros %}<p class="meta" role="status">Sin registros</p>{% endif %}
 <p class="meta">Cada ítem cuenta hasta el {{ tope_pct }} %. Suman las actividades con evidencia aprobada y las atenciones con validación aprobada (máximo 7 por día).</p>
 
 {# Resumen de la delegación: puntaje de equipo, actividad reciente e ítems a reforzar #}

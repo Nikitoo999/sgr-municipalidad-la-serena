@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#920000">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23920000'/%3E%3Cpath d='M9 25V8h10v17M19 13h4v12M12 12h4M12 16h4M12 20h4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <title>{% block title %}Inicio{% endblock %} – Sistema Municipal</title>
-<link rel="stylesheet" href="{% static 'portal/css/sgr.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'portal/css/sgr.css' %}?v=10">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.1/dist/sweetalert2.all.min.js"></script>
 {% block extra_head %}{% endblock %}
 </head>
@@ -27,7 +27,7 @@
       <form method="post" action="{% url 'switch_delegation' %}" id="ctxForm">
         {% csrf_token %}
         <label class="sr" for="ctxSel">Delegación activa</label>
-        <select id="ctxSel" name="delegation">
+        <select id="ctxSel" name="delegation" data-context-switch="delegación">
           {% if sgr_role.scope == 'all' %}
           <option value="ALL"{% if sgr_active_is_all %} selected{% endif %}>Todas</option>
           {% endif %}
@@ -40,6 +40,24 @@
       {% else %}
       <span class="ds-tx">{% if sgr_active_is_all %}Todas{% else %}{{ sgr_active_code|default:'—' }}{% endif %}</span>
       <span class="ds-lock" title="Asignada por tu perfil">{% sgr_icon 'lock' 14 %}</span>
+      {% endif %}
+    </div>
+    <div class="deleg-switch period-switch" title="Período activo{% if sgr_active_period %} · {{ sgr_active_period.name }}{% endif %}">
+      <span class="ds-ic">{% sgr_icon 'calendar' 18 %}</span>
+      {% if sgr_active_period %}
+      <form method="post" action="{% url 'switch_period' %}">
+        {% csrf_token %}
+        <label class="sr" for="periodSel">Período activo</label>
+        <select id="periodSel" name="period" data-context-switch="período">
+          {% for period_option in sgr_periods %}
+          <option value="{{ period_option.pk }}"{% if period_option.pk == sgr_active_period.pk %} selected{% endif %}>{{ period_option.name }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit">Cambiar</button></noscript>
+      </form>
+      <svg class="ds-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      {% else %}
+      <span class="ds-tx">Sin períodos</span>
       {% endif %}
     </div>
     <a class="bell-link" href="{% url 'notices' %}" title="Avisos y alertas" aria-label="Avisos y alertas{% if sgr_badge_count %}: {{ sgr_badge_count }} sin revisar{% endif %}">
@@ -254,7 +272,7 @@
   </div>
 </div>
 {% endif %}
-<script src="{% static 'portal/js/sgr.js' %}?v=5"></script>
+<script src="{% static 'portal/js/sgr.js' %}?v=6"></script>
 <script src="{% static 'portal/js/modal.js' %}?v=2"></script>
 <script src="{% static 'portal/js/profile_photo.js' %}?v=1"></script>
 {% block scripts %}{% endblock %}

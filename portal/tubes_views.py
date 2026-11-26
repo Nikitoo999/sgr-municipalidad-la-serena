@@ -36,6 +36,7 @@ from operaciones.models import Employee, RecordComment, TubeEntry, TubeStatusCha
 from sgr_core.models import CommunityOrganization, Delegation
 
 from . import access
+from .period_context import operational_records
 from .access import ModulePermissionMixin
 from .audit import audit
 from .modal import ModalFormMixin
@@ -76,7 +77,7 @@ def tubos_del_alcance(request):
     """Solicitudes visibles según rol y delegación activa."""
     role = access.get_role(request.user)
     active = access.get_active_delegation(request)
-    qs = TubeEntry.objects.filter(deleted_at__isnull=True)
+    qs = TubeEntry.alive.filter(source_task__deleted_at__isnull=True)
     if role is None or active is None:
         return qs.none()
     if active != access.ALL_DELEGATIONS:
@@ -176,7 +177,7 @@ class TubeListView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
         if vista not in VISTAS:
             vista = VISTAS[0]
 
-        base = tubos_del_alcance(self.request)
+        base = operational_records(self.request)["tubes"]
         if canal in TubeEntry.Channel.values:
             base = base.filter(channel=canal)
         else:
@@ -237,6 +238,7 @@ class TubeListView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
             "vista": vista,
             "columnas": columnas,
             "indicadores": indicadores(conteo),
+            "sin_registros": not conteo or (estado and not conteo.get(estado)),
             "no_aplica": conteo.get(TubeEntry.Status.NOT_APPLICABLE, 0),
             "pagina": pagina,
             "canal": canal,

@@ -9,6 +9,7 @@ from .models import (
 )
 
 from portal.access import AdminScopedMixin, _is_jefatura, _is_funcionario
+from .tareas_tubos import guardar_tarea_en_tubo
 
 
 
@@ -35,6 +36,9 @@ class TaskForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         goal = cleaned_data.get("goal")
+        responsible = cleaned_data.get("assigned_to")
+        if goal and responsible and responsible.delegation_id != goal.delegation_id:
+            self.add_error("assigned_to", "El responsable debe pertenecer a la delegación de la meta.")
         due_date = cleaned_data.get("due_date")
         if goal and due_date:
             period = goal.period
@@ -100,6 +104,12 @@ class TaskAdmin(AdminScopedMixin, admin.ModelAdmin):
     ordering = ('due_date',)
     readonly_fields = ('created_at', 'updated_at')
     inlines = [ActivityInline]
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            super().save_model(request, obj, form, change)
+        else:
+            guardar_tarea_en_tubo(obj, request.user)
 
 
 @admin.register(Activity)

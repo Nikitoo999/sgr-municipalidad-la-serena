@@ -14,12 +14,13 @@ from decimal import Decimal
 from django.utils import timezone
 
 from operaciones.calculos import (
-    TOPE_CUMPLIMIENTO, calcular_cumplimiento, dias_habiles, periodo_vigente, registros_contados,
+    TOPE_CUMPLIMIENTO, calcular_cumplimiento, dias_habiles, registros_contados,
     resumen_equipo, semaforo,
 )
-from operaciones.models import Attention, TubeEntry
+from operaciones.models import TubeEntry
 
 from . import access
+from .period_context import active_delegation_id, active_period, operational_records
 
 #: Máximo de funcionarios para el cálculo del equipo (el panel debe ser rápido).
 MAX_EQUIPO = 80
@@ -31,7 +32,11 @@ def _empleados(request):
     from .goals_views import funcionarios_del_alcance
 
     employee = getattr(request.user, "employee", None)
-    if employee is not None and employee.position_id and employee.position.is_evaluated:
+    active = access.get_active_delegation(request)
+    if (
+        employee is not None and employee.position_id and employee.position.is_evaluated
+        and (active == access.ALL_DELEGATIONS or employee.delegation_id == getattr(active, "pk", None))
+    ):
         return [employee], "personal"
     if not access.get_access(request).can("achievements", "view"):
         return [], ""
@@ -41,7 +46,7 @@ def _empleados(request):
 
 def ritmo_del_periodo(request, hoy=None):
     hoy = hoy or timezone.localdate()
-    periodo = periodo_vigente(hoy)
+    periodo = active_period(request)
     if periodo is None:
         return None
     empleados, alcance = _empleados(request)
@@ -53,7 +58,12 @@ def ritmo_del_periodo(request, hoy=None):
     }
     if not empleados:
         return {**base, "sin_datos": True}
-    cumplimientos = [calcular_cumplimiento(e, periodo, hoy) for e in empleados]
+    delegation_id = active_delegation_id(request)
+    tubos = operational_records(request)["tubes"]
+    cumplimientos = [
+        calcular_cumplimiento(e, periodo, hoy, delegation_id=delegation_id, tubos=tubos)
+        for e in empleados
+    ]
     con_metas = [c for c in cumplimientos if c["items"]]
     if not con_metas:
         return {**base, "sin_datos": True}
@@ -84,23 +94,21 @@ def ritmo_del_periodo(request, hoy=None):
 
 def kpis(request, periodo):
     """Cifras del panel: atenciones, tubos activos, prioritarios."""
-    from .crud.attentions import attentions_scope
-    from .tubes_views import ABIERTOS, tubos_del_alcance
+    from operaciones.periodos import ATENCION_ABIERTA, TUBO_ABIERTO
 
     info = access.get_access(request)
-    datos = {"atenciones": None, "tubos_activos": None, "prioritarios": 0}
+    datos = {"atenciones": None, "tubos_activos": None, "prioritarios": 0, "sin_registros": True}
+    records = operational_records(request)
     if periodo is not None and info.can("attentions", "view"):
-        from operaciones.rules import day_bounds
-
-        inicio, _ = day_bounds(periodo.start_date)
-        _, fin = day_bounds(periodo.end_date)
-        atenciones = attentions_scope(request, Attention.alive.all())
-        datos["atenciones"] = atenciones.filter(created_at__gte=inicio, created_at__lt=fin).count()
-        datos["prioritarios"] += atenciones.filter(priority=True, status__in=("received", "in_progress")).count()
+        atenciones = records["attentions"]
+        datos["atenciones"] = atenciones.count()
+        datos["sin_registros"] = not datos["atenciones"]
+        datos["prioritarios"] += atenciones.filter(priority=True, status__in=ATENCION_ABIERTA).count()
     if info.can("achievements", "view"):
-        tubos = tubos_del_alcance(request)
-        datos["tubos_activos"] = tubos.filter(status__in=ABIERTOS).count()
-        datos["prioritarios"] += tubos.filter(priority=True, status__in=ABIERTOS).count()
+        tubos = records["tubes"]
+        datos["tubos_activos"] = tubos.filter(status__in=TUBO_ABIERTO).count()
+        datos["prioritarios"] += tubos.filter(priority=True, status__in=TUBO_ABIERTO).count()
+        datos["sin_registros"] = datos["sin_registros"] and not tubos.exists()
     return datos
 
 
@@ -125,7 +133,7 @@ def _puntos(valores, total, maximo):
     return " ".join(puntos)
 
 
-def serie_ritmo(empleados, periodo, hoy, cumplimientos=None):
+def serie_ritmo(empleados, periodo, hoy, cumplimientos=None, *, delegation_id=None):
     """Curva acumulada real vs. esperada (% de la meta total del trimestre).
 
     ``cumplimientos`` (opcional) reutiliza los ya calculados para el ritmo.
@@ -134,12 +142,15 @@ def serie_ritmo(empleados, periodo, hoy, cumplimientos=None):
     if not habiles or not empleados:
         return None
     if cumplimientos is None:
-        cumplimientos = [calcular_cumplimiento(emp, periodo, hoy) for emp in empleados]
+        cumplimientos = [
+            calcular_cumplimiento(emp, periodo, hoy, delegation_id=delegation_id)
+            for emp in empleados
+        ]
     meta_total, por_dia = CERO, Counter()
     for emp, c in zip(empleados, cumplimientos):
         items_meta = {it["item"].pk for it in c["items"] if not it["es_tubo"]}
         meta_total += sum((Decimal(it["meta"]) for it in c["items"] if not it["es_tubo"]), CERO)
-        for dia, item_id in registros_contados(emp, periodo):
+        for dia, item_id in registros_contados(emp, periodo, delegation_id=delegation_id):
             if item_id in items_meta:
                 por_dia[dia] += 1
     if meta_total <= 0:
@@ -180,12 +191,12 @@ def barras_items(ritmo):
 
 
 def estado_tubos(request):
-    from .tubes_views import tubos_del_alcance
-
     if not access.get_access(request).can("achievements", "view"):
         return []
-    conteo = Counter(tubos_del_alcance(request).values_list("status", flat=True))
-    total = sum(conteo.values()) or 1
+    conteo = Counter(operational_records(request)["tubes"].values_list("status", flat=True))
+    if not conteo:
+        return []
+    total = sum(conteo.values())
     return [
         {"etiqueta": etiqueta, "valor": conteo.get(valor, 0), "ancho": conteo.get(valor, 0) * 100 / total,
          "css": valor}

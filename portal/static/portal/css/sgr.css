@@ -226,6 +226,16 @@ h2.sec{font-size:18px;margin-top:8px}
 .deleg-switch select:focus{outline:none}
 .deleg-switch .ds-tx{font-size:13px;color:#fff}
 .deleg-switch .ds-caret,.deleg-switch .ds-lock{display:grid;place-items:center;color:rgba(255,255,255,.85);flex:none}
+.period-switch:has(select){position:relative;padding:0}
+.period-switch select{max-width:min(36vw,280px);text-overflow:ellipsis;padding:0 25px 0 34px}
+.period-switch:has(select) .ds-ic,.period-switch .ds-caret{position:absolute;pointer-events:none}
+.period-switch:has(select) .ds-ic{left:9px}
+.period-switch .ds-caret{right:8px}
+.period-switch:focus-within{outline:2px solid white;outline-offset:2px}
+@media(max-width:480px){
+  .period-switch select{padding-left:8px}
+  .period-switch:has(select) .ds-ic{display:none}
+}
 
 .user-trigger{display:flex;align-items:center;gap:12px;background:transparent;border:0;color:#fff;cursor:pointer;padding:0;white-space:nowrap;font:inherit}
 .user-trigger:hover .avatar{background:rgba(255,255,255,.26)}

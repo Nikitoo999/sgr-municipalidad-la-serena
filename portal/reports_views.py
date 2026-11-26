@@ -5,27 +5,15 @@ from django.views.generic import TemplateView
 
 from operaciones import calculos
 from operaciones.models import Employee
-from sgr_core.models import Delegation, Period
+from sgr_core.models import Delegation
 
 from .access import ModulePermissionMixin, get_active_delegation, visible_users
 from .modules import MODULE_ICONS, MODULE_LABELS
+from .period_context import active_delegation_id, active_period, available_periods, operational_records
 
 DELEGATE_POSITION_CODE = "CAR01"
 REPORTS_MODULE = "reports"  # clave real en sgr_core.roles.MODULES
 TEMPLATE_NAME = "portal/reports.html"
-
-
-def _resolver_periodo(request):
-    """Periodo por ?period=ID; si falta o es inválido, el más reciente disponible."""
-    period_id = request.GET.get("period")
-    if period_id:
-        try:
-            periodo = Period.alive.filter(pk=int(period_id)).first()
-        except (TypeError, ValueError):
-            periodo = None
-        if periodo is not None:
-            return periodo
-    return calculos.periodo_vigente()
 
 
 def _empleados_en_alcance(request):
@@ -60,16 +48,20 @@ class ReportsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        periodo = _resolver_periodo(self.request)
+        periodo = active_period(self.request)
         hoy = timezone.localdate()
 
         reporte_funcionarios = []
         if periodo is not None:
+            delegation_id = active_delegation_id(self.request)
+            tubos = operational_records(self.request)["tubes"]
             for empleado in _empleados_en_alcance(self.request):
-                ingresos = calculos.ingresos_por_dia(empleado, periodo)
-                sin_ingresar = calculos.dias_sin_ingresar(empleado, periodo, hoy)
-                sobre_limite = calculos.dias_sobre_el_limite(empleado, periodo)
-                cumplimiento = calculos.calcular_cumplimiento(empleado, periodo, hoy)
+                ingresos = calculos.ingresos_por_dia(empleado, periodo, delegation_id=delegation_id)
+                sin_ingresar = calculos.dias_sin_ingresar(empleado, periodo, hoy, delegation_id=delegation_id)
+                sobre_limite = calculos.dias_sobre_el_limite(empleado, periodo, delegation_id=delegation_id)
+                cumplimiento = calculos.calcular_cumplimiento(
+                    empleado, periodo, hoy, delegation_id=delegation_id, tubos=tubos,
+                )
                 reporte_funcionarios.append(
                     {
                         "employee": empleado,
@@ -98,9 +90,13 @@ class ReportsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView):
                 "module_label": MODULE_LABELS["reports"],
                 "module_icon": MODULE_ICONS["reports"],
                 "periodo": periodo,
-                "periodos": Period.alive.order_by("-start_date"),
+                "periodos": available_periods(),
                 "reporte_funcionarios": reporte_funcionarios,
                 "ranking": ranking,
+                "sin_registros": not any(
+                    fila["total_ingresos"] or fila["cumplimiento"]["items"]
+                    for fila in reporte_funcionarios
+                ),
             }
         )
         return context
@@ -120,7 +116,10 @@ class ReportsChartsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView)
         ritmo = ritmo_del_periodo(self.request, hoy)
         serie = None
         if ritmo and not ritmo.get("sin_datos"):
-            serie = serie_ritmo(ritmo["empleados"], ritmo["periodo"], hoy, ritmo["cumplimientos"])
+            serie = serie_ritmo(
+                ritmo["empleados"], ritmo["periodo"], hoy, ritmo["cumplimientos"],
+                delegation_id=active_delegation_id(self.request),
+            )
         context.update({
             "active_module": "reports",
             "module_label": MODULE_LABELS["reports"],

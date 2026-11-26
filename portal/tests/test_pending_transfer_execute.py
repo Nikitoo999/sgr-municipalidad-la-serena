@@ -3,7 +3,7 @@ from datetime import date
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from operaciones.models import Employee, Task
+from operaciones.models import Employee, Task, TubeEntry
 from portal.tests.helpers import (
     DEMO_PASSWORD, TEST_STORAGES, ensure_roles, make_delegation, make_employee,
 )
@@ -123,6 +123,11 @@ class PendingTransferExecuteViewTests(TestCase):
         # due_date ajustado al final del período destino (2026-10-15 está ANTES del inicio
         # del período destino 2026-11-01, así que se usa period_end = 2026-12-31)
         self.assertEqual(nueva.due_date, date(2026, 12, 31))
+        tube = TubeEntry.objects.get(source_task=nueva)
+        self.assertEqual(tube.delegation, self.d1)
+        self.assertEqual(tube.responsible, self.ana)
+        self.assertEqual(tube.due_date, nueva.due_date)
+        self.assertEqual(tube.status, TubeEntry.Status.PENDING)
 
     # --- permisos -------------------------------------------------------
     def test_traspaso_sin_permiso_edit_es_403(self):
@@ -252,13 +257,10 @@ class PendingTransferExecuteViewTests(TestCase):
 
     # --- rollback ante error -------------------------------------------
     def test_rollback_ante_error_no_deja_tarea_parcial(self):
-        # Simular error de base de datos: forzar una excepción al guardar
-        # haciendo que la meta destino sea None (fuerza IntegrityError al crear Task sin goal válido)
-        # En su lugar, usamos un mock sobre Task.objects.create para lanzar excepción.
         from unittest.mock import patch
         self.login()
         self.set_active(self.d1)
-        with patch.object(Task.objects, 'create', side_effect=Exception("Error simulado de BD")):
+        with patch.object(TubeEntry, "save", side_effect=RuntimeError("Error simulado de BD")):
             resp = self.client.post(
                 reverse("pending_transfer_execute", args=[self.t_origen.pk]),
                 {"goal_id": self.meta_destino_d1.pk},
@@ -269,3 +271,4 @@ class PendingTransferExecuteViewTests(TestCase):
             Task.objects.filter(goal=self.meta_destino_d1, deleted_at__isnull=True).count(),
             0  # no se creó ninguna
         )
+        self.assertFalse(TubeEntry.objects.exists())
