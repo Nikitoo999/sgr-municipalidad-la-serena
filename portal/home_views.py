@@ -9,7 +9,7 @@ from operaciones.models import Attention
 from sgr_core.roles import ACTIONS
 
 from . import access
-from .period_context import operational_records
+from .period_context import active_period, operational_records
 from .access import ModulePermissionMixin
 from .modules import MODULE_DESCRIPTIONS, MODULE_ICONS, MODULE_LABELS, MODULE_ORDER, MODULE_URL_NAMES
 
@@ -35,6 +35,7 @@ class HomeView(LoginRequiredMixin, TemplateView):
         user = self.request.user
         info = access.get_access(self.request)
         active = access.get_active_delegation(self.request)
+        periodo = active_period(self.request)
 
         attentions = operational_records(self.request)["attentions"]
         if not info.can("attentions", "view"):
@@ -78,10 +79,10 @@ class HomeView(LoginRequiredMixin, TemplateView):
         full_name = user.get_full_name() or user.username
         from .dashboard import kpis, ritmo_del_periodo
 
-        ritmo = ritmo_del_periodo(self.request)
+        ritmo = ritmo_del_periodo(self.request, periodo)
         context.update({
             "ritmo": ritmo,
-            "kpis": kpis(self.request, ritmo["periodo"] if ritmo else None),
+            "kpis": kpis(self.request, periodo),
             "active_module": "home",
             "first_name": full_name.split()[0],
             "context_text": context_text,

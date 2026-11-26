@@ -113,7 +113,7 @@ class ReportsChartsView(LoginRequiredMixin, ModulePermissionMixin, TemplateView)
 
         context = super().get_context_data(**kwargs)
         hoy = timezone.localdate()
-        ritmo = ritmo_del_periodo(self.request, hoy)
+        ritmo = ritmo_del_periodo(self.request, active_period(self.request), hoy)
         serie = None
         if ritmo and not ritmo.get("sin_datos"):
             serie = serie_ritmo(

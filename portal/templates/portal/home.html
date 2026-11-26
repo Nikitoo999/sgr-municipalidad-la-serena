@@ -17,7 +17,7 @@
 {% endif %}
 <section class="card" aria-labelledby="ritmoTitle" style="margin-top:16px">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-    <h2 id="ritmoTitle" style="margin:0">Ritmo del período · {{ ritmo.periodo.name }}</h2>
+    <h2 id="ritmoTitle" style="margin:0">Ritmo del período · {{ sgr_active_period.name }}</h2>
     <a class="btn soft btn-sm" href="{% url 'reports_charts' %}">Ver gráficos y ritmo</a>
   </div>
   <div class="stats" style="margin-top:12px">

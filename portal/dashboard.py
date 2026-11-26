@@ -20,7 +20,7 @@ from operaciones.calculos import (
 from operaciones.models import TubeEntry
 
 from . import access
-from .period_context import active_delegation_id, active_period, operational_records
+from .period_context import active_delegation_id, operational_records
 
 #: Máximo de funcionarios para el cálculo del equipo (el panel debe ser rápido).
 MAX_EQUIPO = 80
@@ -44,9 +44,8 @@ def _empleados(request):
     return equipo, "equipo"
 
 
-def ritmo_del_periodo(request, hoy=None):
+def ritmo_del_periodo(request, periodo, hoy=None):
     hoy = hoy or timezone.localdate()
-    periodo = active_period(request)
     if periodo is None:
         return None
     empleados, alcance = _empleados(request)

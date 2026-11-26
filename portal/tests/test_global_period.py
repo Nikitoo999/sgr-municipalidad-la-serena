@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from io import BytesIO
 from unittest.mock import patch
 
@@ -8,8 +9,10 @@ from django.utils import timezone
 from openpyxl import load_workbook
 
 from operaciones.models import Attention, Neighbor, Task, TubeEntry
-from portal.tests.helpers import TEST_STORAGES, make_delegation, make_user
-from sgr_core.models import AttentionSubtype, AttentionType, InstitutionalGoal, Period
+from portal.tests.helpers import TEST_STORAGES, ensure_roles, make_delegation, make_employee, make_user
+from sgr_core.models import (
+    AttentionSubtype, AttentionType, InstitutionalGoal, Period, Position, PositionItemGoal, ProjectItem,
+)
 
 
 @override_settings(STORAGES=TEST_STORAGES)
@@ -66,6 +69,52 @@ class GlobalPeriodTests(TestCase):
         self.assertEqual(self.client.get(reverse("switch_period")).status_code, 405)
         self.client.post(reverse("switch_period"), {"period": "9999999999999999999"})
         self.assertEqual(self.client.get(reverse("home")).context["sgr_active_period"], self.previous)
+
+    def test_home_rhythm_and_kpis_follow_the_global_selector(self):
+        employee = make_employee("gestor-ritmo", "16.000.001-6", self.delegation, ensure_roles()["ROL04"])
+        employee.position = Position.objects.create(code="CAR99", name="Gestión territorial")
+        employee.save(update_fields=["position"])
+        item = ProjectItem.objects.create(name="Atenciones de terreno")
+        attention_type = AttentionType.objects.create(name="Consulta")
+        subtype = AttentionSubtype.objects.create(name="Consulta general", attention_type=attention_type)
+        neighbor = Neighbor.objects.create(identifier="16.000.002-4", full_name="Vecina Demo", phone="+56912345678")
+
+        for period, total in ((self.previous, 1), (self.current, 2)):
+            PositionItemGoal.objects.create(
+                period=period, position=employee.position, item=item, weight=100, target_value=2,
+            )
+            for offset in range(total):
+                day = period.start_date + timedelta(days=offset)
+                attention = Attention.objects.create(
+                    neighbor=neighbor, delegation=self.delegation, responsible=employee.user,
+                    attention_type=attention_type, attention_subtype=subtype, item=item,
+                    description="Consulta registrada", validation_status="approved",
+                )
+                Attention.alive.filter(pk=attention.pk).update(
+                    created_at=timezone.make_aware(timezone.datetime.combine(day, timezone.datetime.min.time()))
+                )
+        for _ in range(2):
+            TubeEntry.objects.create(
+                delegation=self.delegation, title="Solicitud vigente", requester="Vecina",
+                request_date=self.current.start_date,
+            )
+
+        for period, count, progress, elapsed in (
+            (self.current, 2, Decimal("100.0"), 11),
+            (self.previous, 1, Decimal("50.0"), 66),
+        ):
+            with self.subTest(period=period.name):
+                response = self.client.post(reverse("switch_period"), {"period": period.pk}, follow=True)
+                self.assertEqual(response.context["sgr_active_period"], period)
+                self.assertContains(
+                    response, f'<h2 id="ritmoTitle" style="margin:0">Ritmo del período · {period.name}</h2>',
+                    html=True,
+                )
+                self.assertEqual(response.context["ritmo"]["periodo"], period)
+                self.assertEqual(response.context["ritmo"]["dia_actual"], elapsed)
+                self.assertEqual(response.context["ritmo"]["real_pct"], progress)
+                self.assertEqual(response.context["kpis"]["atenciones"], count)
+                self.assertEqual(response.context["kpis"]["tubos_activos"], count)
 
     def test_current_empty_only_shows_overdue_open_records_from_previous_period(self):
         Task.objects.create(goal=self.goal, title="Plazo futuro", due_date=date(2026, 10, 31))
